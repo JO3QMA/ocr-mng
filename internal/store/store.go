@@ -236,7 +236,7 @@ func (s *Store) ListGitHosts(ctx context.Context) ([]GitHost, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []GitHost
 	for rows.Next() {
 		var h GitHost
@@ -394,7 +394,7 @@ func (s *Store) ListRepos(ctx context.Context) ([]RepoView, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []RepoView
 	for rows.Next() {
 		rv, err := scanRepo(rows)
@@ -506,7 +506,7 @@ func (s *Store) ListReviewRuns(ctx context.Context, repoID int64, limit int) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanReviewRuns(rows)
 }
 

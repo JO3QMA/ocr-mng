@@ -302,6 +302,9 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host st
 		ConfigJSON: gs.OCRConfigJSON,
 	}
 	result, raw, err := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, repo.OCRModel, repo.OCRRule, repo.OCRRequirement)
+	if err != nil {
+		return fmt.Errorf("ocr review: %w", err)
+	}
 	ocrDir := filepath.Join(e.cfg.DataDir, "ocr-output")
 	_ = os.MkdirAll(ocrDir, 0o755)
 	ocrPath := filepath.Join(ocrDir, fmt.Sprintf("run-%d.json", run.ID))

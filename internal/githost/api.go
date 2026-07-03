@@ -168,7 +168,7 @@ func (c *Client) do(ctx context.Context, method, url string, payload any) ([]byt
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("git host API %s %s: %s", method, url, strings.TrimSpace(string(respBody)))
