@@ -1,0 +1,224 @@
+{{define "head"}}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} — Review Manager</title>
+<style>
+:root { font-family: system-ui, sans-serif; color: #1a1a1a; background: #f6f7f9; }
+body { margin: 0; }
+header { background: #111827; color: #fff; padding: 1rem 1.5rem; }
+header a { color: #cbd5e1; margin-right: 1rem; text-decoration: none; }
+header a:hover { color: #fff; }
+main { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
+.card { background: #fff; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #e5e7eb; }
+label { display: block; margin-top: .75rem; font-weight: 600; }
+input, select, textarea { width: 100%; padding: .5rem; margin-top: .25rem; box-sizing: border-box; }
+button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 0; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; text-decoration: none; }
+button.secondary { background: #6b7280; }
+.flash { background: #ecfdf5; border: 1px solid #6ee7b7; padding: .75rem; border-radius: 6px; margin-bottom: 1rem; }
+.error { background: #fef2f2; border-color: #fca5a5; }
+.badge { display: inline-block; padding: .15rem .5rem; border-radius: 999px; font-size: .85rem; }
+.badge.success { background: #dcfce7; }
+.badge.failed { background: #fee2e2; }
+.badge.running { background: #dbeafe; }
+</style>
+</head>
+<body>
+<header>
+<strong>Review Manager</strong>
+<nav style="margin-top: .5rem;">
+<a href="/">Dashboard</a>
+<a href="/hosts">Git Hosts</a>
+<a href="/repos">Repos</a>
+<a href="/runs">Review Runs</a>
+<a href="/settings">Settings</a>
+</nav>
+</header>
+<main>
+{{end}}
+
+{{define "foot"}}
+</main>
+</body>
+</html>
+{{end}}
+
+{{define "flash"}}
+{{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
+{{end}}
+
+{{define "dashboard"}}
+{{template "head" .}}
+{{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
+<div class="card"><h1>Dashboard</h1><p>Registered Git Hosts: {{.HostCount}} · Registered Repos: {{.RepoCount}}</p></div>
+<div class="card">
+<h2>Recent Review Runs</h2>
+{{if not .Runs}}<p>No review runs yet.</p>{{else}}
+<table><thead><tr><th>ID</th><th>Repo</th><th>PR</th><th>Status</th><th>Trigger</th><th>Created</th></tr></thead>
+<tbody>{{range .Runs}}<tr>
+<td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
+<td>{{.RepoID}}</td><td>#{{.PRNumber}}</td>
+<td><span class="badge {{.Status}}">{{.Status}}</span></td>
+<td>{{.TriggerKind}}</td><td>{{formatTime .CreatedAt}}</td>
+</tr>{{end}}</tbody></table>
+{{end}}
+</div>
+{{template "foot" .}}
+{{end}}
+
+{{define "hosts"}}
+{{template "head" .}}
+{{template "flash" .}}
+<div class="card">
+<h1>Git Hosts</h1>
+<p><a class="btn" href="/hosts/new">Add Git Host</a></p>
+{{if not .Hosts}}<p>No hosts registered.</p>{{else}}
+<table><thead><tr><th>Name</th><th>Kind</th><th>API</th><th>PAT</th><th></th></tr></thead>
+<tbody>{{range .Hosts}}<tr>
+<td>{{.Name}}</td><td>{{.Kind}}</td><td>{{.APIBaseURL}}</td>
+<td>{{if .HasHostPAT}}configured{{else}}missing{{end}}</td>
+<td><a href="/hosts/{{.ID}}/edit">Edit</a></td>
+</tr>{{end}}</tbody></table>
+{{end}}
+</div>
+{{template "foot" .}}
+{{end}}
+
+{{define "host_form"}}
+{{template "head" .}}
+<div class="card">
+<h1>{{.FormTitle}}</h1>
+{{if .ErrMsg}}<div class="flash error">{{.ErrMsg}}</div>{{end}}
+<form method="post" action="{{.Action}}">
+<label>Name</label><input name="name" value="{{.Host.Name}}" required>
+<label>Kind</label>
+<select name="kind">
+<option value="github" {{selected .Host.Kind "github"}}>GitHub</option>
+<option value="gitea" {{selected .Host.Kind "gitea"}}>Gitea</option>
+</select>
+<label>API Base URL</label><input name="api_base_url" value="{{.Host.APIBaseURL}}" required>
+<label>Web Base URL</label><input name="web_base_url" value="{{.Host.WebBaseURL}}" required>
+<label>Host PAT {{.PATHint}}</label><input name="host_pat" type="password" autocomplete="new-password">
+{{if .ShowClearPAT}}<label><input type="checkbox" name="clear_pat"> Clear stored PAT</label>{{end}}
+<p style="margin-top:1rem"><button type="submit">Save</button> <a class="btn secondary" href="/hosts">Cancel</a></p>
+</form>
+</div>
+{{template "foot" .}}
+{{end}}
+
+{{define "repos"}}
+{{template "head" .}}
+{{template "flash" .}}
+<div class="card">
+<h1>Registered Repos</h1>
+<p><a class="btn" href="/repos/new">Add Repo</a></p>
+{{if not .Repos}}<p>No repos registered.</p>{{else}}
+<table><thead><tr><th>Host</th><th>Repo</th><th>Label</th><th>Enabled</th><th></th></tr></thead>
+<tbody>{{range .Repos}}<tr>
+<td>{{.HostName}}</td><td>{{.Owner}}/{{.Name}}</td><td>{{.TriggerLabel}}</td>
+<td>{{yesNo .Enabled}}</td>
+<td><a href="/repos/{{.ID}}/edit">Edit</a> · <a href="/repos/{{.ID}}/runs">Runs</a></td>
+</tr>{{end}}</tbody></table>
+{{end}}
+</div>
+{{template "foot" .}}
+{{end}}
+
+{{define "repo_form"}}
+{{template "head" .}}
+<div class="card">
+<h1>{{.FormTitle}}</h1>
+{{if .ErrMsg}}<div class="flash error">{{.ErrMsg}}</div>{{end}}
+<form method="post" action="{{.Action}}">
+<label>Git Host</label>
+<select name="git_host_id">{{range .Hosts}}<option value="{{.ID}}" {{selectedInt $.Repo.GitHostID .ID}}>{{.Name}}</option>{{end}}</select>
+<label>Owner</label><input name="owner" value="{{.Repo.Owner}}" required>
+<label>Name</label><input name="name" value="{{.Repo.Name}}" required>
+<label>Default Branch</label><input name="default_branch" value="{{defaultStr .Repo.DefaultBranch "main"}}" required>
+<label>Trigger Label</label><input name="trigger_label" value="{{.Repo.TriggerLabel}}" required>
+<label>Poll Interval Override (seconds, optional)</label><input name="poll_interval_seconds" value="{{.PollInterval}}" type="number" min="0">
+<label>Comment Mode</label>
+<select name="comment_mode">
+<option value="inline" {{selected .Repo.CommentMode "inline"}}>Inline review</option>
+<option value="comment" {{selected .Repo.CommentMode "comment"}}>Single comment</option>
+</select>
+<label><input type="checkbox" name="remove_label_after_review" {{checked .Repo.RemoveLabelAfterReview}}> Remove trigger label after successful review</label>
+<label><input type="checkbox" name="enabled" {{checked .Repo.Enabled}}> Enabled</label>
+<label>OCR Model Override</label><input name="ocr_model" value="{{.Repo.OCRModel}}">
+<label>OCR Rule Override</label><textarea name="ocr_rule" rows="4">{{.Repo.OCRRule}}</textarea>
+<label>OCR Requirement</label><textarea name="ocr_requirement" rows="3">{{.Repo.OCRRequirement}}</textarea>
+<label>Repo PAT (optional override)</label><input name="repo_pat" type="password" autocomplete="new-password">
+{{if .ShowClearPAT}}<label><input type="checkbox" name="clear_pat"> Clear stored Repo PAT</label>{{end}}
+<p style="margin-top:1rem"><button type="submit">Save</button> <a class="btn secondary" href="/repos">Cancel</a></p>
+</form>
+</div>
+{{template "foot" .}}
+{{end}}
+
+{{define "repo_runs"}}
+{{template "head" .}}
+{{template "flash" .}}
+<div class="card">
+<h1>{{.Repo.Owner}}/{{.Repo.Name}} — Review Runs</h1>
+<form method="post" action="/repos/{{.Repo.ID}}/review" style="margin-bottom:1rem">
+<label>Manual re-review PR #</label>
+<input name="pr_number" type="number" min="1" required style="max-width:8rem;display:inline-block">
+<button type="submit" style="margin-left:.5rem">Run</button>
+</form>
+<table><thead><tr><th>ID</th><th>PR</th><th>Status</th><th>Trigger</th><th>Head</th><th>Created</th></tr></thead>
+<tbody>{{range .Runs}}<tr>
+<td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
+<td>#{{.PRNumber}}</td><td><span class="badge {{.Status}}">{{.Status}}</span></td>
+<td>{{.TriggerKind}}</td><td><code>{{shortSHA .HeadSHA}}</code></td><td>{{formatTime .CreatedAt}}</td>
+</tr>{{end}}</tbody></table>
+</div>
+{{template "foot" .}}
+{{end}}
+
+{{define "runs"}}
+{{template "head" .}}
+<div class="card">
+<h1>Review Runs</h1>
+<table><thead><tr><th>ID</th><th>Repo</th><th>PR</th><th>Status</th><th>Trigger</th><th>Created</th></tr></thead>
+<tbody>{{range .Runs}}<tr>
+<td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
+<td>{{.RepoID}}</td><td>#{{.PRNumber}}</td>
+<td><span class="badge {{.Status}}">{{.Status}}</span></td>
+<td>{{.TriggerKind}}</td><td>{{formatTime .CreatedAt}}</td>
+</tr>{{end}}</tbody></table>
+</div>
+{{template "foot" .}}
+{{end}}
+
+{{define "run_detail"}}
+{{template "head" .}}
+<div class="card">
+<h1>Review Run #{{.Run.ID}}</h1>
+<p>Repo ID: {{.Run.RepoID}} · PR #{{.Run.PRNumber}} · Status: <span class="badge {{.Run.Status}}">{{.Run.Status}}</span></p>
+{{if .Run.ErrorMessage}}<div class="flash error">{{.Run.ErrorMessage}}</div>{{end}}
+{{if .Run.CommentURL}}<p><a href="{{.Run.CommentURL}}">View posted comment/review</a></p>{{end}}
+{{if .OCRJSON}}<h2>OCR Output</h2><pre style="overflow:auto;background:#111827;color:#e5e7eb;padding:1rem;border-radius:6px">{{.OCRJSON}}</pre>{{end}}
+</div>
+{{template "foot" .}}
+{{end}}
+
+{{define "settings"}}
+{{template "head" .}}
+{{template "flash" .}}
+<div class="card">
+<h1>Global Settings</h1>
+<form method="post" action="/settings">
+<label>Default Poll Interval (seconds)</label><input name="poll_interval_seconds" type="number" value="{{.Settings.PollIntervalSeconds}}" min="1" required>
+<label>Minimum Poll Interval (seconds)</label><input name="min_poll_interval_seconds" type="number" value="{{.Settings.MinPollIntervalSeconds}}" min="1" required>
+<label>Max Concurrent Reviews</label><input name="max_concurrent_reviews" type="number" value="{{.Settings.MaxConcurrentReviews}}" min="1" required>
+<label>Review Run Retention (days)</label><input name="review_run_retention_days" type="number" value="{{.Settings.ReviewRunRetentionDays}}" min="1" required>
+<label>Global OCR Config JSON</label><textarea name="ocr_config_json" rows="12">{{.Settings.OCRConfigJSON}}</textarea>
+<p style="margin-top:1rem"><button type="submit">Save</button></p>
+</form>
+</div>
+{{template "foot" .}}
+{{end}}

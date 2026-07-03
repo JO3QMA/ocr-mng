@@ -1,0 +1,105 @@
+# OCR Management
+
+GitHub / Gitea 上の Pull Request を Open Code Review CLI で自動レビューし、結果を PR コメントとして投稿する管理 WebUI。
+
+## Language
+
+**Open Code Review (OCR)**:
+Alibaba 製の AI コードレビュー CLI（`alibaba/open-code-review`）。Git diff を LLM に送り、構造化されたレビュー結果を生成する。
+_Avoid_: OpenCodeReview（曖昧な総称）, ocr（CLI コマンド名との混同）
+
+**Review Manager**:
+本リポジトリ（`ocr-mng`）が提供するシステム全体。Repo 登録、設定管理、PR ポーリング、OCR 実行、コメント投稿を担う。
+_Avoid_: OCR Manager, ocr-mng（実装名）
+
+**Review Trigger**:
+Pull Request に対して OCR レビューを起動する条件。Label が新たに付与された瞬間に 1 回実行し、UI からの手動再レビューでも起動できる。
+_Avoid_: ポーリングトリガー, 自動レビュー（曖昧）
+
+**Trigger Label**:
+Repo ごとに設定する Label 名。Pull Request にこの Label が付いていることが Review Trigger の前提条件になる。
+_Avoid_: レビューラベル, ターゲットラベル
+
+**Post-Review Label Removal**:
+レビュー完了後、Repo 設定で有効な場合に Trigger Label を Pull Request から外すオプション動作。PAT に Label 変更権限がある Repo のみ実行する。
+_Avoid_: ラベル自動削除, ラベルクリーンアップ
+
+**Review Comment Mode**:
+OCR 結果を Pull Request に投稿する方式。Repo ごとに設定でき、デフォルトは行単位のインラインレビュー。Gitea や PAT 権限不足など投稿できない場合は Markdown 単一コメントへフォールバックできる。
+_Avoid_: コメント形式, 投稿モード
+
+**Git Host**:
+GitHub または Gitea の API エンドポイント。Registered Repo が属するホスト単位で PAT を保持できる。
+_Avoid_: プロバイダー, プラットフォーム（曖昧）
+
+**Registered Git Host**:
+Review Manager に明示的に登録された Git Host。API ベース URL、Host PAT、ホスト種別（GitHub / Gitea）を持つ。Registered Repo は必ずいずれかの Registered Git Host に属する。
+_Avoid_: リモート, サーバー（曖昧）
+
+**Host PAT**:
+Git Host 単位のデフォルト Personal Access Token。同一ホスト上の Registered Repo は、個別 PAT 未設定時にこれを使う。保存時は Review Manager のマスターキーで暗号化される。
+_Avoid_: グローバルトークン, 共通 PAT
+
+**Repo PAT**:
+Registered Repo に紐づく Personal Access Token。設定されている場合 Host PAT より優先して使う。保存時は Review Manager のマスターキーで暗号化される。
+_Avoid_: リポジトリトークン
+
+**Administrator**:
+Review Manager WebUI にログインできる単一の運用者。Basic Auth またはセッション Cookie で認証する。
+_Avoid_: ユーザー, オペレーター（曖昧）
+
+**Registered Repo**:
+Review Manager に登録され、ポーリング・OCR レビューの対象となる Git リポジトリ。Trigger Label や Repo 固有設定を持つ。
+_Avoid_: 監視対象, ターゲットリポジトリ
+
+**Repo Mirror**:
+Registered Repo ごとに保持する bare Git リポジトリ。レビュー前に fetch して最新状態を反映する。
+_Avoid_: クローン, キャッシュ（曖昧）
+
+**Review Worktree**:
+1 回のレビュー実行ごとに Repo Mirror から切り出す作業ディレクトリ。OCR CLI の `--repo` に渡す。
+_Avoid_: 作業コピー, チェックアウト（曖昧）
+
+**Poll Interval**:
+Registered Repo の Pull Request を Git Host API で確認する周期。グローバルデフォルトがあり、Repo ごとに上書きできる。システム全体で設定可能な最小間隔未満には設定できない。
+_Avoid_: フェッチ間隔, スキャン間隔
+
+**Review Run**:
+1 回の OCR レビュー実行の記録。対象 Pull Request、開始・終了時刻、成否、投稿先、OCR 出力を含む。
+_Avoid_: ジョブ, タスク（曖昧）
+
+**Pull Request Snapshot**:
+Review Trigger 判定と重複防止のため Pull Request ごとに保持する最小状態。Trigger Label の有無、最後にレビューした head commit、最後の Review Run への参照。
+_Avoid_: PR 状態, キャッシュ（曖昧）
+
+**Review Concurrency**:
+同時実行できる Review Run の上限。Registered Repo ごとには 1 件までとし、システム全体では UI 設定可能な最大並行数を超えない。
+_Avoid_: ワーカー数, 並列度（曖昧）
+
+**Global OCR Settings**:
+Review Manager が保持する Open Code Review CLI の LLM Provider 設定。コンテナ内の OCR グローバル config に反映される。
+_Avoid_: グローバル設定（曖昧）
+
+**Repo OCR Overrides**:
+Registered Repo ごとに Global OCR Settings を上書きするレビュー実行パラメータ。モデル名、カスタムルール、追加コンテキスト（requirement）を含む。
+_Avoid_: Repo 設定（曖昧）
+
+**Review Base Ref**:
+`ocr review --from` に渡すマージ先参照。Pull Request の base branch を優先し、取得できない場合は Registered Repo に設定したデフォルトブランチを使う。
+_Avoid_: ベースブランチ, ターゲットブランチ（曖昧）
+
+**Review Run Retention**:
+Review Run に紐づく OCR 出力ファイルを保持する日数。期限を過ぎたファイルは削除され、Review Run レコードはサマリー情報のみ残すか削除する。
+_Avoid_: ログローテーション, データ保持（曖昧）
+
+**Review Manager Process**:
+Review Manager を構成する単一の Go プロセス。WebUI、PR ポーリング、Review Run スケジューリングを担い、OCR 実行は Open Code Review CLI を subprocess として起動する。
+_Avoid_: サーバー, バックエンド（曖昧）
+
+**Review Run Success**:
+OCR 実行、レビュー結果の投稿、Post-Review Label Removal（有効時）がすべて完了した Review Run の状態。このときのみ Pull Request Snapshot を更新し、Label 除去を行う。
+_Avoid_: 完了, 成功（曖昧）
+
+**Global Settings**:
+Review Manager 全体に適用される運用設定。Poll Interval デフォルト、Review Concurrency 上限、Review Run Retention、Global OCR Settings 等を含む。Registered Repo 設定で個別に上書きできる項目がある。
+_Avoid_: システム設定（曖昧）
