@@ -31,7 +31,7 @@ func main() {
 		log.Error("store", "err", err)
 		os.Exit(1)
 	}
-	defer st.Close()
+	defer func() { _ = st.Close() }()
 
 	engine := review.NewEngine(cfg, st, log)
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
