@@ -37,6 +37,8 @@ func Prepare(ctx context.Context, mirrorsRoot, worktreesRoot, cloneURL string, r
 
 	worktreeDir := filepath.Join(worktreesRoot, fmt.Sprintf("%d-%s", repoID, headSHA[:8]))
 	_ = os.RemoveAll(worktreeDir)
+	_ = runGit(ctx, mirrorDir, "worktree", "remove", "--force", worktreeDir)
+	_ = runGit(ctx, mirrorDir, "worktree", "prune")
 	if err := os.MkdirAll(worktreesRoot, 0o755); err != nil {
 		return Workspace{}, err
 	}
