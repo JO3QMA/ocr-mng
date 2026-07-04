@@ -11,7 +11,7 @@ import (
 func TestForInline(t *testing.T) {
 	result := ocr.Result{
 		Comments: []ocr.Comment{{
-			FilePath: "main.go", StartLine: 1, EndLine: 2, Content: "fix me", Priority: "P1",
+			FilePath: "main.go", StartLine: 1, EndLine: 2, Content: "fix me",
 		}},
 	}
 	inline, summary := review.ForInline(result, "English")
