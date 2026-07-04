@@ -39,9 +39,6 @@ func commentBody(c ocr.Comment, w wrapperMsgs) string {
 	if c.Suggestion != "" {
 		body += "\n\n" + w.suggestion + c.Suggestion
 	}
-	if c.Priority != "" {
-		body = fmt.Sprintf("[%s] %s", c.Priority, body)
-	}
 	return body
 }
 

@@ -26,7 +26,7 @@ var wrappers = map[string]wrapperMsgs{
 		warnings:           "### 警告\n",
 		general:            "(全体)",
 		unknownFile:        "(ファイル不明)",
-		defaultRequirement: "各コメントの file_path には変更対象ファイルのパスを必ず入れ、空文字にしないこと。",
+		defaultRequirement: "各コメントの path には変更対象ファイルのパスを必ず入れ、空文字にしないこと。",
 	},
 	"English": {
 		title:              "## Open Code Review\n\n",
@@ -36,7 +36,7 @@ var wrappers = map[string]wrapperMsgs{
 		warnings:           "### Warnings\n",
 		general:            "(general)",
 		unknownFile:        "(file unknown)",
-		defaultRequirement: "Every comment must set file_path to the changed file path; never leave file_path empty.",
+		defaultRequirement: "Every comment must set path to the changed file path; never leave path empty.",
 	},
 	"Chinese": {
 		title:              "## Open Code Review\n\n",
@@ -46,7 +46,7 @@ var wrappers = map[string]wrapperMsgs{
 		warnings:           "### 警告\n",
 		general:            "(通用)",
 		unknownFile:        "(文件未知)",
-		defaultRequirement: "每条评论的 file_path 必须填写变更文件的完整路径，不得留空。",
+		defaultRequirement: "每条评论的 path 必须填写变更文件的完整路径，不得留空。",
 	},
 }
 
@@ -57,7 +57,7 @@ func wrapperFor(lang string) wrapperMsgs {
 	return wrappers["Japanese"]
 }
 
-// MergeOCRRequirement prepends the language-specific file_path requirement.
+// MergeOCRRequirement prepends the language-specific path requirement.
 func MergeOCRRequirement(lang, repoRequirement string) string {
 	base := strings.TrimSpace(wrapperFor(lang).defaultRequirement)
 	repo := strings.TrimSpace(repoRequirement)

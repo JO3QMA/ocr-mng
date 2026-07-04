@@ -2,6 +2,7 @@ package ocr_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,7 +37,19 @@ func TestReviewPassesBackground(t *testing.T) {
 	}
 
 	runner := ocr.Runner{Binary: binary, HomeDir: t.TempDir()}
-	if _, _, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "need file_path"); err != nil {
+	if _, _, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "need path"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCommentJSONUsesOCRPathKey(t *testing.T) {
+	var result ocr.Result
+	raw := `{"comments":[{"path":"packages/backend/src/foo.ts","content":"fix","suggestion_code":"bar","start_line":156,"end_line":159}]}`
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		t.Fatal(err)
+	}
+	c := result.Comments[0]
+	if c.FilePath != "packages/backend/src/foo.ts" || c.Suggestion != "bar" || c.StartLine != 156 {
+		t.Fatalf("comment: %+v", c)
 	}
 }
