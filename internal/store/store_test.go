@@ -22,6 +22,9 @@ func TestOpenAndGlobalSettings(t *testing.T) {
 	if gs.PollIntervalSeconds < 1 || gs.MinPollIntervalSeconds < 1 {
 		t.Fatalf("unexpected defaults: %+v", gs)
 	}
+	if gs.UILanguage != "ja" || gs.ReviewLanguage != "Japanese" {
+		t.Fatalf("language defaults: %+v", gs)
+	}
 
 	hostID, err := st.CreateGitHost(ctx, store.GitHost{
 		Name: "github", Kind: "github",

@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jo3qma/ocr-mng/internal/crypto"
@@ -44,6 +45,7 @@ type Repo struct {
 	OCRModel               string
 	OCRRule                string
 	OCRRequirement         string
+	ReviewLanguage         string
 	Enabled                bool
 	LastPolledAt           *time.Time
 	CreatedAt              time.Time
@@ -87,8 +89,47 @@ type GlobalSettings struct {
 	PollIntervalSeconds    int `json:"poll_interval_seconds"`
 	MinPollIntervalSeconds int `json:"min_poll_interval_seconds"`
 	MaxConcurrentReviews   int `json:"max_concurrent_reviews"`
-	ReviewRunRetentionDays int `json:"review_run_retention_days"`
+	ReviewRunRetentionDays int    `json:"review_run_retention_days"`
 	OCRConfigJSON          string `json:"ocr_config_json"`
+	UILanguage             string `json:"ui_language"`
+	ReviewLanguage         string `json:"review_language"`
+}
+
+func NormalizeUILanguage(s string) string {
+	if s == "en" {
+		return "en"
+	}
+	return "ja"
+}
+
+func NormalizeReviewLanguage(s string) string {
+	switch s {
+	case "English", "Chinese":
+		return s
+	default:
+		return "Japanese"
+	}
+}
+
+func (gs GlobalSettings) WithDefaults() GlobalSettings {
+	if gs.PollIntervalSeconds < 1 {
+		gs.PollIntervalSeconds = 300
+	}
+	if gs.MinPollIntervalSeconds < 1 {
+		gs.MinPollIntervalSeconds = 120
+	}
+	if gs.MaxConcurrentReviews < 1 {
+		gs.MaxConcurrentReviews = 2
+	}
+	if gs.ReviewRunRetentionDays < 1 {
+		gs.ReviewRunRetentionDays = 30
+	}
+	if strings.TrimSpace(gs.OCRConfigJSON) == "" {
+		gs.OCRConfigJSON = "{}"
+	}
+	gs.UILanguage = NormalizeUILanguage(gs.UILanguage)
+	gs.ReviewLanguage = NormalizeReviewLanguage(gs.ReviewLanguage)
+	return gs
 }
 
 func Open(path string, key []byte) (*Store, error) {
@@ -116,7 +157,7 @@ func (s *Store) ensureDefaults(ctx context.Context) error {
 		return err
 	}
 	if n > 0 {
-		return nil
+		return s.migrate(ctx)
 	}
 	gs := GlobalSettings{
 		PollIntervalSeconds:    300,
@@ -124,10 +165,20 @@ func (s *Store) ensureDefaults(ctx context.Context) error {
 		MaxConcurrentReviews:   2,
 		ReviewRunRetentionDays: 30,
 		OCRConfigJSON:          `{}`,
-	}
+		UILanguage:             "ja",
+		ReviewLanguage:         "Japanese",
+	}.WithDefaults()
 	b, _ := json.Marshal(gs)
 	_, err := s.db.ExecContext(ctx, `INSERT INTO global_settings(key, value) VALUES ('settings', ?)`, string(b))
 	return err
+}
+
+func (s *Store) migrate(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `ALTER TABLE repos ADD COLUMN review_language TEXT`)
+	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+		return err
+	}
+	return nil
 }
 
 func (s *Store) GetGlobalSettings(ctx context.Context) (GlobalSettings, error) {
@@ -140,7 +191,7 @@ func (s *Store) GetGlobalSettings(ctx context.Context) (GlobalSettings, error) {
 	if err := json.Unmarshal([]byte(raw), &gs); err != nil {
 		return GlobalSettings{}, err
 	}
-	return gs, nil
+	return gs.WithDefaults(), nil
 }
 
 func (s *Store) SaveGlobalSettings(ctx context.Context, gs GlobalSettings) error {
@@ -288,11 +339,11 @@ func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, erro
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO repos(git_host_id, owner, name, default_branch, trigger_label, poll_interval_seconds,
 			repo_pat_encrypted, comment_mode, remove_label_after_review, ocr_model, ocr_rule, ocr_requirement,
-			enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			review_language, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
 		nullIfEmpty(enc), r.CommentMode, remove, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
-		enabled, now, now)
+		nullStr(r.ReviewLanguage), enabled, now, now)
 	if err != nil {
 		return 0, err
 	}
@@ -317,29 +368,32 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 		_, err = s.db.ExecContext(ctx, `
 			UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
 				poll_interval_seconds=?, repo_pat_encrypted=?, comment_mode=?, remove_label_after_review=?,
-				ocr_model=?, ocr_rule=?, ocr_requirement=?, enabled=?, updated_at=?
+				ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?, enabled=?, updated_at=?
 			WHERE id=?`,
 			r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds, enc,
-			r.CommentMode, remove, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement), enabled, now, r.ID)
+			r.CommentMode, remove, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
+			nullStr(r.ReviewLanguage), enabled, now, r.ID)
 		return err
 	}
 	if clearPAT {
 		_, err := s.db.ExecContext(ctx, `
 			UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
 				poll_interval_seconds=?, repo_pat_encrypted=NULL, comment_mode=?, remove_label_after_review=?,
-				ocr_model=?, ocr_rule=?, ocr_requirement=?, enabled=?, updated_at=?
+				ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?, enabled=?, updated_at=?
 			WHERE id=?`,
 			r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
-			r.CommentMode, remove, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement), enabled, now, r.ID)
+			r.CommentMode, remove, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
+			nullStr(r.ReviewLanguage), enabled, now, r.ID)
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
 			poll_interval_seconds=?, comment_mode=?, remove_label_after_review=?,
-			ocr_model=?, ocr_rule=?, ocr_requirement=?, enabled=?, updated_at=?
+			ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?, enabled=?, updated_at=?
 		WHERE id=?`,
 		r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
-		r.CommentMode, remove, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement), enabled, now, r.ID)
+		r.CommentMode, remove, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
+		nullStr(r.ReviewLanguage), enabled, now, r.ID)
 	return err
 }
 
@@ -350,11 +404,11 @@ func scanRepo(scanner interface {
 	var poll sql.NullInt64
 	var lastPolled sql.NullString
 	var remove, enabled int
-	var ocrModel, ocrRule, ocrReq sql.NullString
+	var ocrModel, ocrRule, ocrReq, reviewLang sql.NullString
 	var created, updated string
 	err := scanner.Scan(
 		&rv.ID, &rv.GitHostID, &rv.Owner, &rv.Name, &rv.DefaultBranch, &rv.TriggerLabel, &poll,
-		&rv.CommentMode, &remove, &ocrModel, &ocrRule, &ocrReq, &enabled, &lastPolled, &created, &updated,
+		&rv.CommentMode, &remove, &ocrModel, &ocrRule, &ocrReq, &reviewLang, &enabled, &lastPolled, &created, &updated,
 		&rv.HostName, &rv.HostKind,
 	)
 	if err != nil {
@@ -375,6 +429,9 @@ func scanRepo(scanner interface {
 	if ocrReq.Valid {
 		rv.OCRRequirement = ocrReq.String
 	}
+	if reviewLang.Valid {
+		rv.ReviewLanguage = reviewLang.String
+	}
 	if lastPolled.Valid {
 		t, _ := time.Parse(time.RFC3339, lastPolled.String)
 		rv.LastPolledAt = &t
@@ -387,7 +444,7 @@ func scanRepo(scanner interface {
 func (s *Store) ListRepos(ctx context.Context) ([]RepoView, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT r.id, r.git_host_id, r.owner, r.name, r.default_branch, r.trigger_label, r.poll_interval_seconds,
-			r.comment_mode, r.remove_label_after_review, r.ocr_model, r.ocr_rule, r.ocr_requirement,
+			r.comment_mode, r.remove_label_after_review, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.review_language,
 			r.enabled, r.last_polled_at, r.created_at, r.updated_at, h.name, h.kind
 		FROM repos r JOIN git_hosts h ON h.id = r.git_host_id
 		ORDER BY h.name, r.owner, r.name`)
@@ -409,7 +466,7 @@ func (s *Store) ListRepos(ctx context.Context) ([]RepoView, error) {
 func (s *Store) GetRepo(ctx context.Context, id int64) (RepoView, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT r.id, r.git_host_id, r.owner, r.name, r.default_branch, r.trigger_label, r.poll_interval_seconds,
-			r.comment_mode, r.remove_label_after_review, r.ocr_model, r.ocr_rule, r.ocr_requirement,
+			r.comment_mode, r.remove_label_after_review, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.review_language,
 			r.enabled, r.last_polled_at, r.created_at, r.updated_at, h.name, h.kind
 		FROM repos r JOIN git_hosts h ON h.id = r.git_host_id
 		WHERE r.id=?`, id)

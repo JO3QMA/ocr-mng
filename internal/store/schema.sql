@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS repos (
     ocr_model TEXT,
     ocr_rule TEXT,
     ocr_requirement TEXT,
+    review_language TEXT,
     enabled INTEGER NOT NULL DEFAULT 1,
     last_polled_at TEXT,
     created_at TEXT NOT NULL,
