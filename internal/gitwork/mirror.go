@@ -35,15 +35,20 @@ func Prepare(ctx context.Context, mirrorsRoot, worktreesRoot, cloneURL string, r
 		}
 	}
 
-	worktreeDir := filepath.Join(worktreesRoot, fmt.Sprintf("%d-%s", repoID, headSHA[:8]))
-	_ = runGit(ctx, mirrorDir, "worktree", "remove", "--force", worktreeDir)
-	_ = os.RemoveAll(worktreeDir)
-	_ = runGit(ctx, mirrorDir, "worktree", "prune")
+	worktreeDir, err := filepath.Abs(filepath.Join(worktreesRoot, fmt.Sprintf("%d-%s", repoID, headSHA[:8])))
+	if err != nil {
+		return Workspace{}, err
+	}
+	clearWorktree(ctx, mirrorDir, worktreeDir)
 	if err := os.MkdirAll(worktreesRoot, 0o755); err != nil {
 		return Workspace{}, err
 	}
 	if err := runGit(ctx, mirrorDir, "worktree", "add", "--detach", worktreeDir, headSHA); err != nil {
-		return Workspace{}, fmt.Errorf("worktree add: %w", err)
+		// ponytail: crashed reviews can leave a registered-but-missing worktree; -f recovers.
+		clearWorktree(ctx, mirrorDir, worktreeDir)
+		if err2 := runGit(ctx, mirrorDir, "worktree", "add", "--detach", "-f", worktreeDir, headSHA); err2 != nil {
+			return Workspace{}, fmt.Errorf("worktree add (retry after clear): %w (original: %v)", err2, err)
+		}
 	}
 	// Ensure base ref exists locally for --from origin/<base>
 	_ = runGit(ctx, mirrorDir, "fetch", "origin", baseRef+":"+"refs/remotes/origin/"+baseRef)
@@ -53,8 +58,26 @@ func Prepare(ctx context.Context, mirrorsRoot, worktreesRoot, cloneURL string, r
 
 func Cleanup(ws Workspace) {
 	if ws.WorktreeDir != "" {
-		_ = runGit(context.Background(), ws.MirrorDir, "worktree", "remove", "--force", ws.WorktreeDir)
-		_ = os.RemoveAll(ws.WorktreeDir)
+		clearWorktree(context.Background(), ws.MirrorDir, ws.WorktreeDir)
+	}
+}
+
+func clearWorktree(ctx context.Context, mirrorDir, worktreeDir string) {
+	_ = runGit(ctx, mirrorDir, "worktree", "remove", "--force", worktreeDir)
+	_ = os.RemoveAll(worktreeDir)
+	_ = runGit(ctx, mirrorDir, "worktree", "prune")
+}
+
+// PruneMirrors drops stale worktree registrations left by interrupted reviews.
+func PruneMirrors(ctx context.Context, mirrorsRoot string) {
+	entries, err := os.ReadDir(mirrorsRoot)
+	if err != nil {
+		return
+	}
+	for _, ent := range entries {
+		if ent.IsDir() {
+			_ = runGit(ctx, filepath.Join(mirrorsRoot, ent.Name()), "worktree", "prune")
+		}
 	}
 }
 
