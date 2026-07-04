@@ -47,7 +47,7 @@ func Prepare(ctx context.Context, mirrorsRoot, worktreesRoot, cloneURL string, r
 		// ponytail: crashed reviews can leave a registered-but-missing worktree; -f recovers.
 		clearWorktree(ctx, mirrorDir, worktreeDir)
 		if err2 := runGit(ctx, mirrorDir, "worktree", "add", "--detach", "-f", worktreeDir, headSHA); err2 != nil {
-			return Workspace{}, fmt.Errorf("worktree add: %w", err2)
+			return Workspace{}, fmt.Errorf("worktree add (retry after clear): %w (original: %v)", err2, err)
 		}
 	}
 	// Ensure base ref exists locally for --from origin/<base>
