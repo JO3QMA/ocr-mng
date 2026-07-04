@@ -12,6 +12,7 @@ import (
 
 	"github.com/jo3qma/ocr-mng/internal/review"
 	"github.com/jo3qma/ocr-mng/internal/store"
+	"github.com/jo3qma/ocr-mng/internal/web/i18n"
 )
 
 type Server struct {
@@ -24,6 +25,18 @@ type Server struct {
 type page struct {
 	Title string
 	Flash string
+	Lang  string
+	L     i18n.Localizer
+}
+
+func (s *Server) page(r *http.Request, titleKey string) page {
+	gs, _ := s.store.GetGlobalSettings(r.Context())
+	loc := i18n.New(gs.UILanguage)
+	p := page{Lang: gs.UILanguage, L: loc, Title: loc.T(titleKey)}
+	if fk := r.URL.Query().Get("flash"); fk != "" {
+		p.Flash = loc.T("flash." + fk)
+	}
+	return p
 }
 
 func New(adminUser, adminPass string, st *store.Store, engine *review.Engine) *Server {
@@ -76,7 +89,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		RepoCount int
 		HostCount int
 		Runs      []store.ReviewRun
-	}{page: page{Title: "Dashboard"}, RepoCount: len(repos), HostCount: len(hosts), Runs: runs})
+	}{page: s.page(r, "page.dashboard"), RepoCount: len(repos), HostCount: len(hosts), Runs: runs})
 }
 
 func (s *Server) hostsList(w http.ResponseWriter, r *http.Request) {
@@ -88,23 +101,23 @@ func (s *Server) hostsList(w http.ResponseWriter, r *http.Request) {
 	render(w, "hosts", struct {
 		page
 		Hosts []store.GitHost
-	}{page: page{Title: "Git Hosts", Flash: r.URL.Query().Get("flash")}, Hosts: hosts})
+	}{page: s.page(r, "page.hosts"), Hosts: hosts})
 }
 
 func (s *Server) hostNew(w http.ResponseWriter, r *http.Request) {
-	s.renderHostForm(w, store.GitHost{
+	s.renderHostForm(w, r, store.GitHost{
 		Kind: "github", APIBaseURL: "https://api.github.com", WebBaseURL: "https://github.com",
-	}, true, "", "/hosts", "New Git Host", "(optional)", false)
+	}, "", "/hosts", "page.new_host", "form.pat_optional", false)
 }
 
 func (s *Server) hostCreate(w http.ResponseWriter, r *http.Request) {
 	h, pat, err := parseHostForm(r)
 	if err != nil {
-		s.renderHostForm(w, h, true, err.Error(), "/hosts", "New Git Host", "(optional)", false)
+		s.renderHostForm(w, r, h, err.Error(), "/hosts", "page.new_host", "form.pat_optional", false)
 		return
 	}
 	if _, err := s.store.CreateGitHost(r.Context(), h, pat); err != nil {
-		s.renderHostForm(w, h, true, err.Error(), "/hosts", "New Git Host", "(optional)", false)
+		s.renderHostForm(w, r, h, err.Error(), "/hosts", "page.new_host", "form.pat_optional", false)
 		return
 	}
 	http.Redirect(w, r, "/hosts?flash=created", http.StatusSeeOther)
@@ -117,29 +130,30 @@ func (s *Server) hostEdit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	patHint := "(required)"
+	patHint := "form.pat_required"
 	if h.HasHostPAT {
-		patHint = "(leave blank to keep)"
+		patHint = "form.pat_keep"
 	}
-	s.renderHostForm(w, h, false, "", fmt.Sprintf("/hosts/%d", id), "Edit Git Host", patHint, h.HasHostPAT)
+	s.renderHostForm(w, r, h, "", fmt.Sprintf("/hosts/%d", id), "page.edit_host", patHint, h.HasHostPAT)
 }
 
 func (s *Server) hostUpdate(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	h, pat, err := parseHostForm(r)
 	if err != nil {
-		s.renderHostForm(w, h, false, err.Error(), fmt.Sprintf("/hosts/%d", id), "Edit Git Host", "", false)
+		s.renderHostForm(w, r, h, err.Error(), fmt.Sprintf("/hosts/%d", id), "page.edit_host", "", false)
 		return
 	}
 	h.ID = id
 	if err := s.store.UpdateGitHost(r.Context(), h, pat, r.FormValue("clear_pat") == "on"); err != nil {
-		s.renderHostForm(w, h, false, err.Error(), fmt.Sprintf("/hosts/%d", id), "Edit Git Host", "", false)
+		s.renderHostForm(w, r, h, err.Error(), fmt.Sprintf("/hosts/%d", id), "page.edit_host", "", false)
 		return
 	}
 	http.Redirect(w, r, "/hosts?flash=updated", http.StatusSeeOther)
 }
 
-func (s *Server) renderHostForm(w http.ResponseWriter, h store.GitHost, _ bool, errMsg, action, title, patHint string, showClear bool) {
+func (s *Server) renderHostForm(w http.ResponseWriter, r *http.Request, h store.GitHost, errMsg, action, titleKey, patHintKey string, showClear bool) {
+	p := s.page(r, titleKey)
 	render(w, "host_form", struct {
 		page
 		Host         store.GitHost
@@ -148,7 +162,7 @@ func (s *Server) renderHostForm(w http.ResponseWriter, h store.GitHost, _ bool, 
 		ErrMsg       string
 		PATHint      string
 		ShowClearPAT bool
-	}{page: page{Title: title}, Host: h, FormTitle: title, Action: action, ErrMsg: errMsg, PATHint: patHint, ShowClearPAT: showClear})
+	}{page: p, Host: h, FormTitle: p.Title, Action: action, ErrMsg: errMsg, PATHint: p.L.T(patHintKey), ShowClearPAT: showClear})
 }
 
 func (s *Server) reposList(w http.ResponseWriter, r *http.Request) {
@@ -160,7 +174,7 @@ func (s *Server) reposList(w http.ResponseWriter, r *http.Request) {
 	render(w, "repos", struct {
 		page
 		Repos []store.RepoView
-	}{page: page{Title: "Repos", Flash: r.URL.Query().Get("flash")}, Repos: repos})
+	}{page: s.page(r, "page.repos"), Repos: repos})
 }
 
 func (s *Server) repoNew(w http.ResponseWriter, r *http.Request) {
@@ -170,19 +184,19 @@ func (s *Server) repoNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rv := store.RepoView{Repo: store.Repo{GitHostID: hosts[0].ID, DefaultBranch: "main", CommentMode: "inline", Enabled: true}}
-	s.renderRepoForm(w, rv, hosts, true, "", "/repos", "New Repo", false)
+	s.renderRepoForm(w, r, rv, hosts, "", "/repos", "page.new_repo", false)
 }
 
 func (s *Server) repoCreate(w http.ResponseWriter, r *http.Request) {
 	repo, pat, err := parseRepoForm(r)
 	if err != nil {
 		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, store.RepoView{Repo: repo}, hosts, true, err.Error(), "/repos", "New Repo", false)
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, err.Error(), "/repos", "page.new_repo", false)
 		return
 	}
 	if _, err := s.store.CreateRepo(r.Context(), repo, pat); err != nil {
 		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, store.RepoView{Repo: repo}, hosts, true, err.Error(), "/repos", "New Repo", false)
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, err.Error(), "/repos", "page.new_repo", false)
 		return
 	}
 	http.Redirect(w, r, "/repos?flash=created", http.StatusSeeOther)
@@ -196,7 +210,7 @@ func (s *Server) repoEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hosts, _ := s.store.ListGitHosts(r.Context())
-	s.renderRepoForm(w, rv, hosts, false, "", fmt.Sprintf("/repos/%d", id), "Edit Repo", true)
+	s.renderRepoForm(w, r, rv, hosts, "", fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 }
 
 func (s *Server) repoUpdate(w http.ResponseWriter, r *http.Request) {
@@ -204,26 +218,27 @@ func (s *Server) repoUpdate(w http.ResponseWriter, r *http.Request) {
 	repo, pat, err := parseRepoForm(r)
 	if err != nil {
 		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, store.RepoView{Repo: repo}, hosts, false, err.Error(), fmt.Sprintf("/repos/%d", id), "Edit Repo", true)
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 		return
 	}
 	repo.ID = id
 	if err := s.store.UpdateRepo(r.Context(), repo, pat, r.FormValue("clear_pat") == "on"); err != nil {
 		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, store.RepoView{Repo: repo}, hosts, false, err.Error(), fmt.Sprintf("/repos/%d", id), "Edit Repo", true)
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 		return
 	}
 	http.Redirect(w, r, "/repos?flash=updated", http.StatusSeeOther)
 }
 
-func (s *Server) renderRepoForm(w http.ResponseWriter, repo store.RepoView, hosts []store.GitHost, isNew bool, errMsg, action, title string, showClear bool) {
+func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo store.RepoView, hosts []store.GitHost, errMsg, action, titleKey string, showClear bool) {
 	poll := ""
 	if repo.PollIntervalSeconds != nil {
 		poll = strconv.Itoa(*repo.PollIntervalSeconds)
 	}
-	if isNew {
+	if repo.ID == 0 && !repo.Enabled {
 		repo.Enabled = true
 	}
+	p := s.page(r, titleKey)
 	render(w, "repo_form", struct {
 		page
 		Repo         store.RepoView
@@ -233,7 +248,7 @@ func (s *Server) renderRepoForm(w http.ResponseWriter, repo store.RepoView, host
 		ErrMsg       string
 		PollInterval string
 		ShowClearPAT bool
-	}{page: page{Title: title}, Repo: repo, Hosts: hosts, FormTitle: title, Action: action, ErrMsg: errMsg, PollInterval: poll, ShowClearPAT: showClear})
+	}{page: p, Repo: repo, Hosts: hosts, FormTitle: p.Title, Action: action, ErrMsg: errMsg, PollInterval: poll, ShowClearPAT: showClear})
 }
 
 func (s *Server) repoRuns(w http.ResponseWriter, r *http.Request) {
@@ -248,14 +263,14 @@ func (s *Server) repoRuns(w http.ResponseWriter, r *http.Request) {
 		page
 		Repo store.RepoView
 		Runs []store.ReviewRun
-	}{page: page{Title: rv.Owner + "/" + rv.Name, Flash: r.URL.Query().Get("flash")}, Repo: rv, Runs: runs})
+	}{page: s.page(r, "page.runs"), Repo: rv, Runs: runs})
 }
 
 func (s *Server) repoManualReview(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	prNumber, _ := strconv.Atoi(r.FormValue("pr_number"))
 	if prNumber <= 0 {
-		http.Redirect(w, r, fmt.Sprintf("/repos/%d/runs?flash=invalid+pr", id), http.StatusSeeOther)
+		http.Redirect(w, r, fmt.Sprintf("/repos/%d/runs?flash=invalid_pr", id), http.StatusSeeOther)
 		return
 	}
 	s.engine.TriggerManual(id, prNumber)
@@ -267,7 +282,7 @@ func (s *Server) runsList(w http.ResponseWriter, r *http.Request) {
 	render(w, "runs", struct {
 		page
 		Runs []store.ReviewRun
-	}{page: page{Title: "Review Runs"}, Runs: runs})
+	}{page: s.page(r, "page.runs"), Runs: runs})
 }
 
 func (s *Server) runDetail(w http.ResponseWriter, r *http.Request) {
@@ -288,11 +303,13 @@ func (s *Server) runDetail(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	p := s.page(r, "page.runs")
+	p.Title = fmt.Sprintf("Run #%d", run.ID)
 	render(w, "run_detail", struct {
 		page
 		Run     store.ReviewRun
 		OCRJSON string
-	}{page: page{Title: fmt.Sprintf("Run #%d", run.ID)}, Run: run, OCRJSON: ocrJSON})
+	}{page: p, Run: run, OCRJSON: ocrJSON})
 }
 
 func (s *Server) settingsForm(w http.ResponseWriter, r *http.Request) {
@@ -304,7 +321,7 @@ func (s *Server) settingsForm(w http.ResponseWriter, r *http.Request) {
 	render(w, "settings", struct {
 		page
 		Settings store.GlobalSettings
-	}{page: page{Title: "Settings", Flash: r.URL.Query().Get("flash")}, Settings: gs})
+	}{page: s.page(r, "page.settings"), Settings: gs})
 }
 
 func (s *Server) settingsSave(w http.ResponseWriter, r *http.Request) {
@@ -356,6 +373,9 @@ func parseRepoForm(r *http.Request) (store.Repo, string, error) {
 		OCRModel:               strings.TrimSpace(r.FormValue("ocr_model")),
 		OCRRule:                strings.TrimSpace(r.FormValue("ocr_rule")),
 		OCRRequirement:         strings.TrimSpace(r.FormValue("ocr_requirement")),
+	}
+	if lang := strings.TrimSpace(r.FormValue("review_language")); lang != "" {
+		repo.ReviewLanguage = store.NormalizeReviewLanguage(lang)
 	}
 	if repo.DefaultBranch == "" {
 		repo.DefaultBranch = "main"
@@ -419,5 +439,7 @@ func parseSettingsForm(r *http.Request) (store.GlobalSettings, error) {
 		MaxConcurrentReviews:   maxConc,
 		ReviewRunRetentionDays: retention,
 		OCRConfigJSON:          ocrJSON,
-	}, nil
+		UILanguage:             store.NormalizeUILanguage(strings.TrimSpace(r.FormValue("ui_language"))),
+		ReviewLanguage:         store.NormalizeReviewLanguage(strings.TrimSpace(r.FormValue("review_language"))),
+	}.WithDefaults(), nil
 }

@@ -296,10 +296,15 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host st
 	defer gitwork.Cleanup(ws)
 
 	fromRef := gitwork.FromRef(baseRef)
+	reviewLang := EffectiveReviewLanguage(gs, repo.ReviewLanguage)
+	configJSON, err := ocr.ConfigWithLanguage(gs.OCRConfigJSON, reviewLang)
+	if err != nil {
+		return fmt.Errorf("ocr config: %w", err)
+	}
 	ocrRunner := ocr.Runner{
 		Binary:     e.cfg.OCRBinary,
 		HomeDir:    filepath.Join(e.cfg.DataDir, "ocr-home"),
-		ConfigJSON: gs.OCRConfigJSON,
+		ConfigJSON: configJSON,
 	}
 	result, raw, err := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, repo.OCRModel, repo.OCRRule, repo.OCRRequirement)
 	if err != nil {
@@ -313,7 +318,7 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host st
 	run.SummaryTotalCount = len(result.Comments)
 
 	apiCtx := githost.WithPAT(ctx, pat)
-	commentURL, postErr := e.postResult(apiCtx, client, repo, pr, result)
+	commentURL, postErr := e.postResult(apiCtx, client, repo, pr, result, reviewLang)
 	if postErr != nil {
 		return postErr
 	}
@@ -327,18 +332,18 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host st
 	return nil
 }
 
-func (e *Engine) postResult(ctx context.Context, client *githost.Client, repo store.RepoView, pr githost.PullRequest, result ocr.Result) (string, error) {
+func (e *Engine) postResult(ctx context.Context, client *githost.Client, repo store.RepoView, pr githost.PullRequest, result ocr.Result, lang string) (string, error) {
 	mode := repo.CommentMode
 	if mode == "" {
 		mode = "inline"
 	}
 	if mode == "comment" {
-		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result))
+		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, lang))
 	}
-	inline, body := ForInline(result)
+	inline, body := ForInline(result, lang)
 	url, err := client.CreateInlineReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, body, inline)
 	if err != nil {
-		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result))
+		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, lang))
 	}
 	return url, nil
 }

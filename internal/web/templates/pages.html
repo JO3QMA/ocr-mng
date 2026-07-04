@@ -1,10 +1,10 @@
 {{define "head"}}
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="{{.Lang}}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}} — Review Manager</title>
+<title>{{.Title}} — {{.L.T "app.name"}}</title>
 <style>
 :root { font-family: system-ui, sans-serif; color: #1a1a1a; background: #f6f7f9; }
 body { margin: 0; }
@@ -29,13 +29,13 @@ button.secondary { background: #6b7280; }
 </head>
 <body>
 <header>
-<strong>Review Manager</strong>
+<strong>{{.L.T "app.name"}}</strong>
 <nav style="margin-top: .5rem;">
-<a href="/">Dashboard</a>
-<a href="/hosts">Git Hosts</a>
-<a href="/repos">Repos</a>
-<a href="/runs">Review Runs</a>
-<a href="/settings">Settings</a>
+<a href="/">{{.L.T "nav.dashboard"}}</a>
+<a href="/hosts">{{.L.T "nav.hosts"}}</a>
+<a href="/repos">{{.L.T "nav.repos"}}</a>
+<a href="/runs">{{.L.T "nav.runs"}}</a>
+<a href="/settings">{{.L.T "nav.settings"}}</a>
 </nav>
 </header>
 <main>
@@ -54,11 +54,12 @@ button.secondary { background: #6b7280; }
 {{define "dashboard"}}
 {{template "head" .}}
 {{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
-<div class="card"><h1>Dashboard</h1><p>Registered Git Hosts: {{.HostCount}} · Registered Repos: {{.RepoCount}}</p></div>
+<div class="card"><h1>{{.L.T "page.dashboard"}}</h1>
+<p>{{.L.T "dashboard.registered_hosts"}}: {{.HostCount}} · {{.L.T "dashboard.registered_repos"}}: {{.RepoCount}}</p></div>
 <div class="card">
-<h2>Recent Review Runs</h2>
-{{if not .Runs}}<p>No review runs yet.</p>{{else}}
-<table><thead><tr><th>ID</th><th>Repo</th><th>PR</th><th>Status</th><th>Trigger</th><th>Created</th></tr></thead>
+<h2>{{.L.T "dashboard.recent_runs"}}</h2>
+{{if not .Runs}}<p>{{.L.T "dashboard.no_runs"}}</p>{{else}}
+<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.created"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
 <td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
 <td>{{.RepoID}}</td><td>#{{.PRNumber}}</td>
@@ -74,14 +75,14 @@ button.secondary { background: #6b7280; }
 {{template "head" .}}
 {{template "flash" .}}
 <div class="card">
-<h1>Git Hosts</h1>
-<p><a class="btn" href="/hosts/new">Add Git Host</a></p>
-{{if not .Hosts}}<p>No hosts registered.</p>{{else}}
-<table><thead><tr><th>Name</th><th>Kind</th><th>API</th><th>PAT</th><th></th></tr></thead>
+<h1>{{.L.T "page.hosts"}}</h1>
+<p><a class="btn" href="/hosts/new">{{.L.T "btn.add_host"}}</a></p>
+{{if not .Hosts}}<p>{{.L.T "hosts.none"}}</p>{{else}}
+<table><thead><tr><th>{{.L.T "table.name"}}</th><th>{{.L.T "table.kind"}}</th><th>{{.L.T "table.api"}}</th><th>{{.L.T "table.pat"}}</th><th></th></tr></thead>
 <tbody>{{range .Hosts}}<tr>
 <td>{{.Name}}</td><td>{{.Kind}}</td><td>{{.APIBaseURL}}</td>
-<td>{{if .HasHostPAT}}configured{{else}}missing{{end}}</td>
-<td><a href="/hosts/{{.ID}}/edit">Edit</a></td>
+<td>{{if .HasHostPAT}}{{$.L.T "pat.configured"}}{{else}}{{$.L.T "pat.missing"}}{{end}}</td>
+<td><a href="/hosts/{{.ID}}/edit">{{$.L.T "link.edit"}}</a></td>
 </tr>{{end}}</tbody></table>
 {{end}}
 </div>
@@ -94,17 +95,17 @@ button.secondary { background: #6b7280; }
 <h1>{{.FormTitle}}</h1>
 {{if .ErrMsg}}<div class="flash error">{{.ErrMsg}}</div>{{end}}
 <form method="post" action="{{.Action}}">
-<label>Name</label><input name="name" value="{{.Host.Name}}" required>
-<label>Kind</label>
+<label>{{.L.T "form.name"}}</label><input name="name" value="{{.Host.Name}}" required>
+<label>{{.L.T "form.kind"}}</label>
 <select name="kind">
 <option value="github" {{selected .Host.Kind "github"}}>GitHub</option>
 <option value="gitea" {{selected .Host.Kind "gitea"}}>Gitea</option>
 </select>
-<label>API Base URL</label><input name="api_base_url" value="{{.Host.APIBaseURL}}" required>
-<label>Web Base URL</label><input name="web_base_url" value="{{.Host.WebBaseURL}}" required>
-<label>Host PAT {{.PATHint}}</label><input name="host_pat" type="password" autocomplete="new-password">
-{{if .ShowClearPAT}}<label><input type="checkbox" name="clear_pat"> Clear stored PAT</label>{{end}}
-<p style="margin-top:1rem"><button type="submit">Save</button> <a class="btn secondary" href="/hosts">Cancel</a></p>
+<label>{{.L.T "form.api_base_url"}}</label><input name="api_base_url" value="{{.Host.APIBaseURL}}" required>
+<label>{{.L.T "form.web_base_url"}}</label><input name="web_base_url" value="{{.Host.WebBaseURL}}" required>
+<label>{{.L.T "form.host_pat"}} {{.PATHint}}</label><input name="host_pat" type="password" autocomplete="new-password">
+{{if .ShowClearPAT}}<label><input type="checkbox" name="clear_pat"> {{.L.T "form.clear_pat"}}</label>{{end}}
+<p style="margin-top:1rem"><button type="submit">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/hosts">{{.L.T "btn.cancel"}}</a></p>
 </form>
 </div>
 {{template "foot" .}}
@@ -114,14 +115,14 @@ button.secondary { background: #6b7280; }
 {{template "head" .}}
 {{template "flash" .}}
 <div class="card">
-<h1>Registered Repos</h1>
-<p><a class="btn" href="/repos/new">Add Repo</a></p>
-{{if not .Repos}}<p>No repos registered.</p>{{else}}
-<table><thead><tr><th>Host</th><th>Repo</th><th>Label</th><th>Enabled</th><th></th></tr></thead>
+<h1>{{.L.T "page.repos"}}</h1>
+<p><a class="btn" href="/repos/new">{{.L.T "btn.add_repo"}}</a></p>
+{{if not .Repos}}<p>{{.L.T "repos.none"}}</p>{{else}}
+<table><thead><tr><th>{{.L.T "table.host"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.label"}}</th><th>{{.L.T "table.enabled"}}</th><th></th></tr></thead>
 <tbody>{{range .Repos}}<tr>
 <td>{{.HostName}}</td><td>{{.Owner}}/{{.Name}}</td><td>{{.TriggerLabel}}</td>
-<td>{{yesNo .Enabled}}</td>
-<td><a href="/repos/{{.ID}}/edit">Edit</a> · <a href="/repos/{{.ID}}/runs">Runs</a></td>
+<td>{{if .Enabled}}{{$.L.T "yes"}}{{else}}{{$.L.T "no"}}{{end}}</td>
+<td><a href="/repos/{{.ID}}/edit">{{$.L.T "link.edit"}}</a> · <a href="/repos/{{.ID}}/runs">{{$.L.T "link.runs"}}</a></td>
 </tr>{{end}}</tbody></table>
 {{end}}
 </div>
@@ -134,26 +135,33 @@ button.secondary { background: #6b7280; }
 <h1>{{.FormTitle}}</h1>
 {{if .ErrMsg}}<div class="flash error">{{.ErrMsg}}</div>{{end}}
 <form method="post" action="{{.Action}}">
-<label>Git Host</label>
+<label>{{.L.T "form.git_host"}}</label>
 <select name="git_host_id">{{range .Hosts}}<option value="{{.ID}}" {{selectedInt $.Repo.GitHostID .ID}}>{{.Name}}</option>{{end}}</select>
-<label>Owner</label><input name="owner" value="{{.Repo.Owner}}" required>
-<label>Name</label><input name="name" value="{{.Repo.Name}}" required>
-<label>Default Branch</label><input name="default_branch" value="{{defaultStr .Repo.DefaultBranch "main"}}" required>
-<label>Trigger Label</label><input name="trigger_label" value="{{.Repo.TriggerLabel}}" required>
-<label>Poll Interval Override (seconds, optional)</label><input name="poll_interval_seconds" value="{{.PollInterval}}" type="number" min="0">
-<label>Comment Mode</label>
+<label>{{.L.T "form.owner"}}</label><input name="owner" value="{{.Repo.Owner}}" required>
+<label>{{.L.T "form.repo_name"}}</label><input name="name" value="{{.Repo.Name}}" required>
+<label>{{.L.T "form.default_branch"}}</label><input name="default_branch" value="{{defaultStr .Repo.DefaultBranch "main"}}" required>
+<label>{{.L.T "form.trigger_label"}}</label><input name="trigger_label" value="{{.Repo.TriggerLabel}}" required>
+<label>{{.L.T "form.poll_interval"}}</label><input name="poll_interval_seconds" value="{{.PollInterval}}" type="number" min="0">
+<label>{{.L.T "form.comment_mode"}}</label>
 <select name="comment_mode">
-<option value="inline" {{selected .Repo.CommentMode "inline"}}>Inline review</option>
-<option value="comment" {{selected .Repo.CommentMode "comment"}}>Single comment</option>
+<option value="inline" {{selected .Repo.CommentMode "inline"}}>{{.L.T "form.comment_inline"}}</option>
+<option value="comment" {{selected .Repo.CommentMode "comment"}}>{{.L.T "form.comment_single"}}</option>
 </select>
-<label><input type="checkbox" name="remove_label_after_review" {{checked .Repo.RemoveLabelAfterReview}}> Remove trigger label after successful review</label>
-<label><input type="checkbox" name="enabled" {{checked .Repo.Enabled}}> Enabled</label>
-<label>OCR Model Override</label><input name="ocr_model" value="{{.Repo.OCRModel}}">
-<label>OCR Rule Override</label><textarea name="ocr_rule" rows="4">{{.Repo.OCRRule}}</textarea>
-<label>OCR Requirement</label><textarea name="ocr_requirement" rows="3">{{.Repo.OCRRequirement}}</textarea>
-<label>Repo PAT (optional override)</label><input name="repo_pat" type="password" autocomplete="new-password">
-{{if .ShowClearPAT}}<label><input type="checkbox" name="clear_pat"> Clear stored Repo PAT</label>{{end}}
-<p style="margin-top:1rem"><button type="submit">Save</button> <a class="btn secondary" href="/repos">Cancel</a></p>
+<label><input type="checkbox" name="remove_label_after_review" {{checked .Repo.RemoveLabelAfterReview}}> {{.L.T "form.remove_label"}}</label>
+<label><input type="checkbox" name="enabled" {{checked .Repo.Enabled}}> {{.L.T "form.enabled"}}</label>
+<label>{{.L.T "form.review_language"}}</label>
+<select name="review_language">
+<option value="" {{selected .Repo.ReviewLanguage ""}}>{{.L.T "form.review_lang_global"}}</option>
+<option value="Japanese" {{selected .Repo.ReviewLanguage "Japanese"}}>{{.L.T "settings.review_japanese"}}</option>
+<option value="English" {{selected .Repo.ReviewLanguage "English"}}>{{.L.T "settings.review_english"}}</option>
+<option value="Chinese" {{selected .Repo.ReviewLanguage "Chinese"}}>{{.L.T "settings.review_chinese"}}</option>
+</select>
+<label>{{.L.T "form.ocr_model"}}</label><input name="ocr_model" value="{{.Repo.OCRModel}}">
+<label>{{.L.T "form.ocr_rule"}}</label><textarea name="ocr_rule" rows="4">{{.Repo.OCRRule}}</textarea>
+<label>{{.L.T "form.ocr_requirement"}}</label><textarea name="ocr_requirement" rows="3">{{.Repo.OCRRequirement}}</textarea>
+<label>{{.L.T "form.repo_pat"}}</label><input name="repo_pat" type="password" autocomplete="new-password">
+{{if .ShowClearPAT}}<label><input type="checkbox" name="clear_pat"> {{.L.T "form.clear_repo_pat"}}</label>{{end}}
+<p style="margin-top:1rem"><button type="submit">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/repos">{{.L.T "btn.cancel"}}</a></p>
 </form>
 </div>
 {{template "foot" .}}
@@ -163,13 +171,13 @@ button.secondary { background: #6b7280; }
 {{template "head" .}}
 {{template "flash" .}}
 <div class="card">
-<h1>{{.Repo.Owner}}/{{.Repo.Name}} — Review Runs</h1>
+<h1>{{.Repo.Owner}}/{{.Repo.Name}} — {{.L.T "page.runs"}}</h1>
 <form method="post" action="/repos/{{.Repo.ID}}/review" style="margin-bottom:1rem">
-<label>Manual re-review PR #</label>
+<label>{{.L.T "repo_runs.manual"}}</label>
 <input name="pr_number" type="number" min="1" required style="max-width:8rem;display:inline-block">
-<button type="submit" style="margin-left:.5rem">Run</button>
+<button type="submit" style="margin-left:.5rem">{{.L.T "btn.run"}}</button>
 </form>
-<table><thead><tr><th>ID</th><th>PR</th><th>Status</th><th>Trigger</th><th>Head</th><th>Created</th></tr></thead>
+<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.head"}}</th><th>{{.L.T "table.created"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
 <td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
 <td>#{{.PRNumber}}</td><td><span class="badge {{.Status}}">{{.Status}}</span></td>
@@ -182,8 +190,8 @@ button.secondary { background: #6b7280; }
 {{define "runs"}}
 {{template "head" .}}
 <div class="card">
-<h1>Review Runs</h1>
-<table><thead><tr><th>ID</th><th>Repo</th><th>PR</th><th>Status</th><th>Trigger</th><th>Created</th></tr></thead>
+<h1>{{.L.T "page.runs"}}</h1>
+<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.created"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
 <td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
 <td>{{.RepoID}}</td><td>#{{.PRNumber}}</td>
@@ -198,10 +206,10 @@ button.secondary { background: #6b7280; }
 {{template "head" .}}
 <div class="card">
 <h1>Review Run #{{.Run.ID}}</h1>
-<p>Repo ID: {{.Run.RepoID}} · PR #{{.Run.PRNumber}} · Status: <span class="badge {{.Run.Status}}">{{.Run.Status}}</span></p>
+<p>{{.L.T "run_detail.repo_id"}}: {{.Run.RepoID}} · PR #{{.Run.PRNumber}} · {{.L.T "table.status"}}: <span class="badge {{.Run.Status}}">{{.Run.Status}}</span></p>
 {{if .Run.ErrorMessage}}<div class="flash error">{{.Run.ErrorMessage}}</div>{{end}}
-{{if .Run.CommentURL}}<p><a href="{{.Run.CommentURL}}">View posted comment/review</a></p>{{end}}
-{{if .OCRJSON}}<h2>OCR Output</h2><pre style="overflow:auto;background:#111827;color:#e5e7eb;padding:1rem;border-radius:6px">{{.OCRJSON}}</pre>{{end}}
+{{if .Run.CommentURL}}<p><a href="{{.Run.CommentURL}}">{{.L.T "run_detail.view_post"}}</a></p>{{end}}
+{{if .OCRJSON}}<h2>{{.L.T "run_detail.ocr_output"}}</h2><pre style="overflow:auto;background:#111827;color:#e5e7eb;padding:1rem;border-radius:6px">{{.OCRJSON}}</pre>{{end}}
 </div>
 {{template "foot" .}}
 {{end}}
@@ -210,14 +218,26 @@ button.secondary { background: #6b7280; }
 {{template "head" .}}
 {{template "flash" .}}
 <div class="card">
-<h1>Global Settings</h1>
+<h1>{{.L.T "page.settings"}}</h1>
 <form method="post" action="/settings">
-<label>Default Poll Interval (seconds)</label><input name="poll_interval_seconds" type="number" value="{{.Settings.PollIntervalSeconds}}" min="1" required>
-<label>Minimum Poll Interval (seconds)</label><input name="min_poll_interval_seconds" type="number" value="{{.Settings.MinPollIntervalSeconds}}" min="1" required>
-<label>Max Concurrent Reviews</label><input name="max_concurrent_reviews" type="number" value="{{.Settings.MaxConcurrentReviews}}" min="1" required>
-<label>Review Run Retention (days)</label><input name="review_run_retention_days" type="number" value="{{.Settings.ReviewRunRetentionDays}}" min="1" required>
-<label>Global OCR Config JSON</label><textarea name="ocr_config_json" rows="12">{{.Settings.OCRConfigJSON}}</textarea>
-<p style="margin-top:1rem"><button type="submit">Save</button></p>
+<h2>{{.L.T "settings.language_section"}}</h2>
+<label>{{.L.T "settings.ui_language"}}</label>
+<select name="ui_language">
+<option value="ja" {{selected .Settings.UILanguage "ja"}}>{{.L.T "settings.lang_ja"}}</option>
+<option value="en" {{selected .Settings.UILanguage "en"}}>{{.L.T "settings.lang_en"}}</option>
+</select>
+<label>{{.L.T "settings.review_language"}}</label>
+<select name="review_language">
+<option value="Japanese" {{selected .Settings.ReviewLanguage "Japanese"}}>{{.L.T "settings.review_japanese"}}</option>
+<option value="English" {{selected .Settings.ReviewLanguage "English"}}>{{.L.T "settings.review_english"}}</option>
+<option value="Chinese" {{selected .Settings.ReviewLanguage "Chinese"}}>{{.L.T "settings.review_chinese"}}</option>
+</select>
+<label>{{.L.T "settings.poll_interval"}}</label><input name="poll_interval_seconds" type="number" value="{{.Settings.PollIntervalSeconds}}" min="1" required>
+<label>{{.L.T "settings.min_poll_interval"}}</label><input name="min_poll_interval_seconds" type="number" value="{{.Settings.MinPollIntervalSeconds}}" min="1" required>
+<label>{{.L.T "settings.max_concurrent"}}</label><input name="max_concurrent_reviews" type="number" value="{{.Settings.MaxConcurrentReviews}}" min="1" required>
+<label>{{.L.T "settings.retention"}}</label><input name="review_run_retention_days" type="number" value="{{.Settings.ReviewRunRetentionDays}}" min="1" required>
+<label>{{.L.T "settings.ocr_config"}}</label><textarea name="ocr_config_json" rows="12">{{.Settings.OCRConfigJSON}}</textarea>
+<p style="margin-top:1rem"><button type="submit">{{.L.T "btn.save"}}</button></p>
 </form>
 </div>
 {{template "foot" .}}
