@@ -535,14 +535,18 @@ func scanReviewRun(scanner interface {
 }) (ReviewRun, error) {
 	var r ReviewRun
 	var errMsg, commentURL, ocrPath sql.NullString
+	var summary sql.NullInt64
 	var started, finished, created sql.NullString
 	err := scanner.Scan(
 		&r.ID, &r.RepoID, &r.PRNumber, &r.HeadSHA, &r.BaseRef, &r.Status, &r.TriggerKind,
-		&errMsg, &commentURL, &ocrPath, &r.SummaryTotalCount,
+		&errMsg, &commentURL, &ocrPath, &summary,
 		&started, &finished, &created,
 	)
 	if err != nil {
 		return ReviewRun{}, err
+	}
+	if summary.Valid {
+		r.SummaryTotalCount = int(summary.Int64)
 	}
 	if errMsg.Valid {
 		r.ErrorMessage = errMsg.String
@@ -560,6 +564,18 @@ func scanReviewRun(scanner interface {
 		r.CreatedAt = t
 	}
 	return r, nil
+}
+
+func (s *Store) FailInterruptedReviewRuns(ctx context.Context, reason string) (int64, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE review_runs
+		SET status='failed', error_message=?, finished_at=?
+		WHERE status IN ('pending', 'running')`, reason, now)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 func (s *Store) PurgeOldReviewRuns(ctx context.Context, retentionDays int) (int64, error) {

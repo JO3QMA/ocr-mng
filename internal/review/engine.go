@@ -73,6 +73,14 @@ func (e *Engine) TriggerManual(repoID int64, prNumber int) {
 }
 
 func (e *Engine) Run(ctx context.Context) {
+	const interrupted = "interrupted: process restarted while review was in progress"
+	if n, err := e.store.FailInterruptedReviewRuns(ctx, interrupted); err != nil {
+		e.log.Error("recover interrupted reviews", "err", err)
+	} else if n > 0 {
+		e.log.Info("marked interrupted reviews as failed", "count", n)
+	}
+	gitwork.PruneMirrors(ctx, filepath.Join(e.cfg.DataDir, "mirrors"))
+
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	retention := time.NewTicker(24 * time.Hour)
