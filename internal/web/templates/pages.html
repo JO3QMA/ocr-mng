@@ -164,7 +164,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 </select>
 <label>{{.L.T "form.ocr_model"}}</label><input name="ocr_model" value="{{.Repo.OCRModel}}">
 <label>{{.L.T "form.ocr_rule"}}</label><textarea name="ocr_rule" rows="4">{{.Repo.OCRRule}}</textarea>
-<label>{{.L.T "form.ocr_requirement"}}</label><textarea name="ocr_requirement" rows="3">{{.Repo.OCRRequirement}}</textarea>
+<label>{{.L.T "form.ocr_requirement"}}</label><textarea name="ocr_requirement" rows="3" placeholder="{{.L.T "form.ocr_requirement_placeholder"}}">{{.Repo.OCRRequirement}}</textarea>
 <label>{{.L.T "form.repo_pat"}}</label><input name="repo_pat" type="password" autocomplete="new-password">
 {{if .ShowClearPAT}}<label><input type="checkbox" name="clear_pat"> {{.L.T "form.clear_repo_pat"}}</label>{{end}}
 <p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/repos">{{.L.T "btn.cancel"}}</a></p>
