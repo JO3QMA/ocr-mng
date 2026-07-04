@@ -54,7 +54,7 @@ func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, mod
 		args = append(args, "--rule", rule)
 	}
 	if requirement != "" {
-		args = append(args, "--requirement", requirement)
+		args = append(args, "--background", requirement)
 	}
 	cmd := exec.CommandContext(ctx, r.Binary, args...)
 	cmd.Dir = repoDir

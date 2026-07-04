@@ -26,3 +26,17 @@ func TestReviewWithFakeBinary(t *testing.T) {
 		t.Fatalf("unexpected result: %+v raw=%q", result, raw)
 	}
 }
+
+func TestReviewPassesBackground(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "fake-ocr")
+	script := "#!/bin/sh\ncase \"$*\" in *--background*) echo '{\"comments\":[],\"message\":\"ok\"}' ;; *) echo 'missing background' >&2; exit 1 ;; esac\n"
+	if err := os.WriteFile(binary, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := ocr.Runner{Binary: binary, HomeDir: t.TempDir()}
+	if _, _, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "need file_path"); err != nil {
+		t.Fatal(err)
+	}
+}
