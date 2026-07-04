@@ -38,3 +38,33 @@ func TestAsSingleCommentWithLine(t *testing.T) {
 		t.Fatalf("body: %q", body)
 	}
 }
+
+func TestAsSingleCommentUnresolvedFilePath(t *testing.T) {
+	body := review.AsSingleComment(ocr.Result{
+		Comments: []ocr.Comment{{StartLine: 630, Content: "fix path"}},
+	}, "English")
+	if strings.Contains(body, "(general)") || !strings.Contains(body, "(file unknown):630") {
+		t.Fatalf("body: %q", body)
+	}
+}
+
+func TestAsSingleCommentGeneralWithoutLine(t *testing.T) {
+	body := review.AsSingleComment(ocr.Result{
+		Comments: []ocr.Comment{{Content: "overall"}},
+	}, "English")
+	if !strings.Contains(body, "### (general)\n") {
+		t.Fatalf("body: %q", body)
+	}
+}
+
+func TestForInlineSkipsEmptyPathWithLine(t *testing.T) {
+	inline, summary := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{{StartLine: 10, Content: "orphan line"}},
+	}, "English")
+	if len(inline) != 0 {
+		t.Fatalf("inline: %+v", inline)
+	}
+	if !strings.Contains(summary, "(file unknown):10") {
+		t.Fatalf("summary: %q", summary)
+	}
+}

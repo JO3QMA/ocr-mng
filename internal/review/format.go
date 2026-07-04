@@ -15,6 +15,25 @@ func commentLine(c ocr.Comment) int {
 	return c.StartLine
 }
 
+func commentTitle(c ocr.Comment, w wrapperMsgs) string {
+	if c.FilePath != "" {
+		return c.FilePath
+	}
+	if commentLine(c) >= 1 {
+		return w.unknownFile
+	}
+	return w.general
+}
+
+func writeSummaryHeading(b *strings.Builder, c ocr.Comment, w wrapperMsgs) {
+	title := commentTitle(c, w)
+	if line := commentLine(c); line >= 1 {
+		fmt.Fprintf(b, "#### %s:%d\n%s\n\n", title, line, commentBody(c, w))
+		return
+	}
+	fmt.Fprintf(b, "#### %s\n%s\n\n", title, commentBody(c, w))
+}
+
 func commentBody(c ocr.Comment, w wrapperMsgs) string {
 	body := c.Content
 	if c.Suggestion != "" {
@@ -43,17 +62,13 @@ func ForInline(result ocr.Result, lang string) ([]githost.ReviewComment, string)
 	fmt.Fprintf(&b, w.foundComments, len(result.Comments))
 	for _, c := range result.Comments {
 		line := commentLine(c)
-		if line >= 1 {
+		if line >= 1 && c.FilePath != "" {
 			inline = append(inline, githost.ReviewComment{
 				Path: c.FilePath, Line: line, StartLine: c.StartLine, Body: commentBody(c, w),
 			})
 			continue
 		}
-		title := c.FilePath
-		if title == "" {
-			title = w.general
-		}
-		fmt.Fprintf(&b, "#### %s\n%s\n\n", title, commentBody(c, w))
+		writeSummaryHeading(&b, c, w)
 	}
 	if len(result.Warnings) > 0 {
 		b.WriteString(w.warnings)
@@ -78,10 +93,7 @@ func AsSingleComment(result ocr.Result, lang string) string {
 		return b.String()
 	}
 	for _, c := range result.Comments {
-		title := c.FilePath
-		if title == "" {
-			title = w.general
-		}
+		title := commentTitle(c, w)
 		if line := commentLine(c); line > 0 {
 			fmt.Fprintf(&b, "### %s:%d\n", title, line)
 		} else {
