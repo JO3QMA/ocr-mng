@@ -119,3 +119,15 @@ _Avoid_: コメント言語, OCR 言語（曖昧）
 **UI Language**:
 Administrator が Review Manager WebUI で見る表示言語。選択肢は ja / en。デフォルトは ja。Global Settings（`ui_language`）のみで設定し、Registered Repo では上書きしない。
 _Avoid_: 表示言語, ロケール（曖昧）
+
+**Primary Action Button**:
+Review Manager WebUI で設定の確定や新規リソース作成へ進むボタン。保存・Host 追加・Repo 追加に使う。色は青（`#2563eb`）。
+_Avoid_: メインボタン, 送信ボタン（曖昧）
+
+**Accent Action Button**:
+Review Manager WebUI で副作用を伴う即時実行に使うボタン。手動 Review Run が該当する。Primary Action Button（保存・追加）とは色を分け、緑（`#16a34a` 前後）を使う。
+_Avoid_: 実行ボタン, アクションボタン（曖昧）
+
+**Secondary Action Button**:
+Review Manager WebUI で変更を破棄し、一覧や前画面へ戻るボタン。キャンセルに使う。色は灰（`#6b7280`）。
+_Avoid_: 戻るボタン, リンクボタン（曖昧）
