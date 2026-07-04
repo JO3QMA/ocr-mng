@@ -162,7 +162,9 @@ func (e *Engine) pollRepo(ctx context.Context, repo store.RepoView, gs store.Glo
 			_ = e.store.SavePRSnapshot(ctx, deferSnap)
 			continue
 		}
-		// Label transition: off -> on
+		// Label transition: off -> on. Mark seen before enqueue so the next poll
+		// interval does not start a duplicate review while this one is still running.
+		_ = e.store.SavePRSnapshot(ctx, deferSnap)
 		baseRef := pr.BaseRef
 		if baseRef == "" {
 			baseRef = repo.DefaultBranch
