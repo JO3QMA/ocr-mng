@@ -93,7 +93,7 @@ _Avoid_: 投稿テンプレート, コメントヘッダー（曖昧）
 _Avoid_: 全体コメント, 総評（曖昧）
 
 **Unresolved File Path Comment**:
-行番号はあるが `file_path` が欠落した OCR 指摘。Review Comment Wrapper では `(general)` ではなく、Review Language ごとの「ファイル不明」ラベルで見出す。
+行番号はあるが `path` が欠落した OCR 指摘。Review Comment Wrapper では `(general)` ではなく、Review Language ごとの「ファイル不明」ラベルで見出す。
 _Avoid_: general コメント, パスなしコメント（曖昧）
 **Review Language Scope**:
 Review Language は Global Settings にデフォルトを持ち、Registered Repo の Repo OCR Overrides で上書きできる。UI Language は Global Settings のみで設定し、Repo ごとの上書きはしない。専用 UI で設定した Review Language は、Global OCR Config JSON 内の `language` より常に優先し、レビュー実行時に config へ注入する。
