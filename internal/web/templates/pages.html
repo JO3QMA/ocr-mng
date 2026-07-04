@@ -17,8 +17,14 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #e5e7eb; }
 label { display: block; margin-top: .75rem; font-weight: 600; }
 input, select, textarea { width: 100%; padding: .5rem; margin-top: .25rem; box-sizing: border-box; }
-button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 0; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; text-decoration: none; }
-button.secondary { background: #6b7280; }
+button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 0; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; text-decoration: none; font: inherit; line-height: inherit; box-sizing: border-box; vertical-align: middle; }
+.btn.secondary { background: #6b7280; }
+.btn.accent { background: #16a34a; }
+.btn:hover { filter: brightness(0.92); }
+.btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.btn-row { display: flex; gap: .5rem; margin-top: 1rem; flex-wrap: wrap; align-items: center; }
+.inline-action { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.inline-action input { width: auto; max-width: 8rem; margin-top: 0; }
 .flash { background: #ecfdf5; border: 1px solid #6ee7b7; padding: .75rem; border-radius: 6px; margin-bottom: 1rem; }
 .error { background: #fef2f2; border-color: #fca5a5; }
 .badge { display: inline-block; padding: .15rem .5rem; border-radius: 999px; font-size: .85rem; }
@@ -105,7 +111,7 @@ button.secondary { background: #6b7280; }
 <label>{{.L.T "form.web_base_url"}}</label><input name="web_base_url" value="{{.Host.WebBaseURL}}" required>
 <label>{{.L.T "form.host_pat"}} {{.PATHint}}</label><input name="host_pat" type="password" autocomplete="new-password">
 {{if .ShowClearPAT}}<label><input type="checkbox" name="clear_pat"> {{.L.T "form.clear_pat"}}</label>{{end}}
-<p style="margin-top:1rem"><button type="submit">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/hosts">{{.L.T "btn.cancel"}}</a></p>
+<p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/hosts">{{.L.T "btn.cancel"}}</a></p>
 </form>
 </div>
 {{template "foot" .}}
@@ -161,7 +167,7 @@ button.secondary { background: #6b7280; }
 <label>{{.L.T "form.ocr_requirement"}}</label><textarea name="ocr_requirement" rows="3">{{.Repo.OCRRequirement}}</textarea>
 <label>{{.L.T "form.repo_pat"}}</label><input name="repo_pat" type="password" autocomplete="new-password">
 {{if .ShowClearPAT}}<label><input type="checkbox" name="clear_pat"> {{.L.T "form.clear_repo_pat"}}</label>{{end}}
-<p style="margin-top:1rem"><button type="submit">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/repos">{{.L.T "btn.cancel"}}</a></p>
+<p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/repos">{{.L.T "btn.cancel"}}</a></p>
 </form>
 </div>
 {{template "foot" .}}
@@ -174,8 +180,10 @@ button.secondary { background: #6b7280; }
 <h1>{{.Repo.Owner}}/{{.Repo.Name}} — {{.L.T "page.runs"}}</h1>
 <form method="post" action="/repos/{{.Repo.ID}}/review" style="margin-bottom:1rem">
 <label>{{.L.T "repo_runs.manual"}}</label>
-<input name="pr_number" type="number" min="1" required style="max-width:8rem;display:inline-block">
-<button type="submit" style="margin-left:.5rem">{{.L.T "btn.run"}}</button>
+<div class="inline-action">
+<input name="pr_number" type="number" min="1" required>
+<button type="submit" class="btn accent">{{.L.T "btn.run"}}</button>
+</div>
 </form>
 <table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.head"}}</th><th>{{.L.T "table.created"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
@@ -237,7 +245,7 @@ button.secondary { background: #6b7280; }
 <label>{{.L.T "settings.max_concurrent"}}</label><input name="max_concurrent_reviews" type="number" value="{{.Settings.MaxConcurrentReviews}}" min="1" required>
 <label>{{.L.T "settings.retention"}}</label><input name="review_run_retention_days" type="number" value="{{.Settings.ReviewRunRetentionDays}}" min="1" required>
 <label>{{.L.T "settings.ocr_config"}}</label><textarea name="ocr_config_json" rows="12">{{.Settings.OCRConfigJSON}}</textarea>
-<p style="margin-top:1rem"><button type="submit">{{.L.T "btn.save"}}</button></p>
+<p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button></p>
 </form>
 </div>
 {{template "foot" .}}
