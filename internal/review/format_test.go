@@ -108,6 +108,18 @@ func TestCommentBodyFallbackFence(t *testing.T) {
 	}
 }
 
+func TestCommentBodyTrimsLeadingNewline(t *testing.T) {
+	inline, _ := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{{
+			FilePath: "a.go", StartLine: 1, Content: "fix",
+			Suggestion: "\nx = 1",
+		}},
+	}, englishFmt())
+	if strings.Contains(inline[0].Body, "```suggestion\n\n") {
+		t.Fatalf("leading newline should be trimmed: %q", inline[0].Body)
+	}
+}
+
 func TestCommentBodyTrimsTrailingNewline(t *testing.T) {
 	inline, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{

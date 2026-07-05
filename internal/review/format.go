@@ -39,6 +39,12 @@ var fenceLangByExt = map[string]string{
 	".yml":  "yaml",
 	".json": "json",
 	".md":   "markdown",
+	".c":    "c",
+	".cpp":  "cpp",
+	".h":    "c",
+	".hpp":  "cpp",
+	".xml":  "xml",
+	".toml": "toml",
 }
 
 func commentLine(c ocr.Comment) int {
@@ -63,7 +69,7 @@ func fenceLang(path string) string {
 }
 
 func trimSuggestion(code string) string {
-	return strings.TrimRight(code, " \t\r\n")
+	return strings.TrimRight(strings.TrimLeft(code, "\n\r"), " \t\r\n")
 }
 
 func formatSuggestion(c ocr.Comment, cf CommentFormat, w wrapperMsgs, asInlineComment bool) string {
@@ -76,9 +82,9 @@ func formatSuggestion(c ocr.Comment, cf CommentFormat, w wrapperMsgs, asInlineCo
 	}
 	lang := fenceLang(c.FilePath)
 	if lang != "" {
-		return "\n\n" + w.suggestion + "```" + lang + "\n" + code + "\n```"
+		return "\n\n" + w.suggestion + "\n```" + lang + "\n" + code + "\n```"
 	}
-	return "\n\n" + w.suggestion + "```\n" + code + "\n```"
+	return "\n\n" + w.suggestion + "\n```\n" + code + "\n```"
 }
 
 func commentBody(c ocr.Comment, cf CommentFormat, w wrapperMsgs, asInlineComment bool) string {
