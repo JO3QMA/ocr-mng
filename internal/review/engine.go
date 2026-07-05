@@ -328,7 +328,7 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host st
 	run.SummaryTotalCount = len(result.Comments)
 
 	apiCtx := githost.WithPAT(ctx, pat)
-	commentURL, postErr := e.postResult(apiCtx, client, repo, pr, result, reviewLang)
+	commentURL, postErr := e.postResult(apiCtx, client, repo, pr, result, reviewLang, host.Kind)
 	if postErr != nil {
 		return postErr
 	}
@@ -342,18 +342,19 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host st
 	return nil
 }
 
-func (e *Engine) postResult(ctx context.Context, client *githost.Client, repo store.RepoView, pr githost.PullRequest, result ocr.Result, lang string) (string, error) {
+func (e *Engine) postResult(ctx context.Context, client *githost.Client, repo store.RepoView, pr githost.PullRequest, result ocr.Result, lang, hostKind string) (string, error) {
+	cf := CommentFormat{Lang: lang, HostKind: hostKind}
 	mode := repo.CommentMode
 	if mode == "" {
 		mode = "inline"
 	}
 	if mode == "comment" {
-		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, lang))
+		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
 	}
-	inline, body := ForInline(result, lang)
+	inline, body := ForInline(result, cf)
 	url, err := client.CreateInlineReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, body, inline)
 	if err != nil {
-		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, lang))
+		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
 	}
 	return url, nil
 }
