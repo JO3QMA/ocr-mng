@@ -72,8 +72,12 @@ func trimSuggestion(code string) string {
 	return strings.TrimRight(strings.TrimLeft(code, "\n\r"), " \t\r\n")
 }
 
+func escapeFenceBreakers(code string) string {
+	return strings.ReplaceAll(code, "```", "\\`\\`\\`")
+}
+
 func formatSuggestion(c ocr.Comment, cf CommentFormat, w wrapperMsgs, asInlineComment bool) string {
-	code := trimSuggestion(c.Suggestion)
+	code := escapeFenceBreakers(trimSuggestion(c.Suggestion))
 	if code == "" {
 		return ""
 	}

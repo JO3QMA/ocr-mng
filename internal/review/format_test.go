@@ -108,6 +108,21 @@ func TestCommentBodyFallbackFence(t *testing.T) {
 	}
 }
 
+func TestCommentBodyEscapesTripleBackticks(t *testing.T) {
+	inline, _ := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{{
+			FilePath: "a.go", StartLine: 1, Content: "fix",
+			Suggestion: "x := ````",
+		}},
+	}, englishFmt())
+	if strings.Contains(inline[0].Body, "```suggestion\nx := ```") {
+		t.Fatalf("triple backticks should be escaped: %q", inline[0].Body)
+	}
+	if !strings.Contains(inline[0].Body, "x := \\`\\`\\`") {
+		t.Fatalf("body: %q", inline[0].Body)
+	}
+}
+
 func TestCommentBodyTrimsLeadingNewline(t *testing.T) {
 	inline, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{
