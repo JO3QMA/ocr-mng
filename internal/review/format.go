@@ -2,11 +2,50 @@ package review
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/jo3qma/ocr-mng/internal/githost"
 	"github.com/jo3qma/ocr-mng/internal/ocr"
 )
+
+// CommentFormat controls how OCR comments are rendered for a Git Host.
+type CommentFormat struct {
+	Lang     string
+	HostKind string // "github" or "gitea"
+}
+
+var fenceLangByExt = map[string]string{
+	".go":   "go",
+	".ts":   "typescript",
+	".tsx":  "tsx",
+	".js":   "javascript",
+	".jsx":  "jsx",
+	".py":   "python",
+	".rb":   "ruby",
+	".java": "java",
+	".kt":   "kotlin",
+	".swift": "swift",
+	".cs":   "csharp",
+	".php":  "php",
+	".rs":   "rust",
+	".vue":  "vue",
+	".html": "html",
+	".css":  "css",
+	".scss": "scss",
+	".sql":  "sql",
+	".sh":   "bash",
+	".yaml": "yaml",
+	".yml":  "yaml",
+	".json": "json",
+	".md":   "markdown",
+	".c":    "c",
+	".cpp":  "cpp",
+	".h":    "c",
+	".hpp":  "cpp",
+	".xml":  "xml",
+	".toml": "toml",
+}
 
 func commentLine(c ocr.Comment) int {
 	if c.EndLine >= 1 {
@@ -25,26 +64,49 @@ func commentTitle(c ocr.Comment, w wrapperMsgs) string {
 	return w.general
 }
 
-func writeSummaryHeading(b *strings.Builder, c ocr.Comment, w wrapperMsgs) {
-	title := commentTitle(c, w)
-	if line := commentLine(c); line >= 1 {
-		fmt.Fprintf(b, "#### %s:%d\n%s\n\n", title, line, commentBody(c, w))
-		return
-	}
-	fmt.Fprintf(b, "#### %s\n%s\n\n", title, commentBody(c, w))
+func fenceLang(path string) string {
+	return fenceLangByExt[strings.ToLower(filepath.Ext(path))]
 }
 
-func commentBody(c ocr.Comment, w wrapperMsgs) string {
-	body := c.Content
-	if c.Suggestion != "" {
-		body += "\n\n" + w.suggestion + c.Suggestion
+func trimSuggestion(code string) string {
+	return strings.TrimRight(strings.TrimLeft(code, "\n\r"), " \t\r\n")
+}
+
+func escapeFenceBreakers(code string) string {
+	return strings.ReplaceAll(code, "```", "\\`\\`\\`")
+}
+
+func formatSuggestion(c ocr.Comment, cf CommentFormat, w wrapperMsgs, asInlineComment bool) string {
+	code := escapeFenceBreakers(trimSuggestion(c.Suggestion))
+	if code == "" {
+		return ""
 	}
-	return body
+	if asInlineComment && cf.HostKind == "github" {
+		return "\n\n```suggestion\n" + code + "\n```"
+	}
+	lang := fenceLang(c.FilePath)
+	if lang != "" {
+		return "\n\n" + w.suggestion + "\n```" + lang + "\n" + code + "\n```"
+	}
+	return "\n\n" + w.suggestion + "\n```\n" + code + "\n```"
+}
+
+func commentBody(c ocr.Comment, cf CommentFormat, w wrapperMsgs, asInlineComment bool) string {
+	return c.Content + formatSuggestion(c, cf, w, asInlineComment)
+}
+
+func writeSummaryHeading(b *strings.Builder, c ocr.Comment, cf CommentFormat, w wrapperMsgs) {
+	title := commentTitle(c, w)
+	if line := commentLine(c); line >= 1 {
+		fmt.Fprintf(b, "#### %s:%d\n%s\n\n", title, line, commentBody(c, cf, w, false))
+		return
+	}
+	fmt.Fprintf(b, "#### %s\n%s\n\n", title, commentBody(c, cf, w, false))
 }
 
 // ForInline splits OCR output into inline review comments and a summary markdown body.
-func ForInline(result ocr.Result, lang string) ([]githost.ReviewComment, string) {
-	w := wrapperFor(lang)
+func ForInline(result ocr.Result, cf CommentFormat) ([]githost.ReviewComment, string) {
+	w := wrapperFor(cf.Lang)
 	var inline []githost.ReviewComment
 	var b strings.Builder
 	b.WriteString(w.title)
@@ -61,11 +123,12 @@ func ForInline(result ocr.Result, lang string) ([]githost.ReviewComment, string)
 		line := commentLine(c)
 		if line >= 1 && c.FilePath != "" {
 			inline = append(inline, githost.ReviewComment{
-				Path: c.FilePath, Line: line, StartLine: c.StartLine, Body: commentBody(c, w),
+				Path: c.FilePath, Line: line, StartLine: c.StartLine,
+				Body: commentBody(c, cf, w, true),
 			})
 			continue
 		}
-		writeSummaryHeading(&b, c, w)
+		writeSummaryHeading(&b, c, cf, w)
 	}
 	if len(result.Warnings) > 0 {
 		b.WriteString(w.warnings)
@@ -77,8 +140,8 @@ func ForInline(result ocr.Result, lang string) ([]githost.ReviewComment, string)
 }
 
 // AsSingleComment renders all OCR comments as one issue comment body.
-func AsSingleComment(result ocr.Result, lang string) string {
-	w := wrapperFor(lang)
+func AsSingleComment(result ocr.Result, cf CommentFormat) string {
+	w := wrapperFor(cf.Lang)
 	var b strings.Builder
 	b.WriteString(w.title)
 	if len(result.Comments) == 0 {
@@ -96,7 +159,7 @@ func AsSingleComment(result ocr.Result, lang string) string {
 		} else {
 			fmt.Fprintf(&b, "### %s\n", title)
 		}
-		fmt.Fprintf(&b, "%s\n\n", commentBody(c, w))
+		fmt.Fprintf(&b, "%s\n\n", commentBody(c, cf, w, false))
 	}
 	return b.String()
 }
