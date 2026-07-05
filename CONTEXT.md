@@ -84,12 +84,16 @@ _Avoid_: グローバル設定（曖昧）
 Registered Repo ごとに Global OCR Settings を上書きするレビュー実行パラメータ。モデル名、カスタムルール、追加コンテキスト（requirement）、Review Language を含む。
 _Avoid_: Repo 設定（曖昧）
 
+**OCR Review Output**:
+Open Code Review CLI が `--format json` で返す構造化レビュー結果。`comments` 配列の各要素に `path`, `content`, `suggestion_code`, `existing_code`, `start_line`, `end_line` を含む。スキーマと抽象化サンプルは [`docs/ocr-review-output.md`](docs/ocr-review-output.md) を参照。
+_Avoid_: OCR JSON, レビュー結果（曖昧）
+
 **Review Comment Wrapper**:
 Review Manager が OCR 出力を Git Host に投稿する際に付与する Markdown の定型部分（見出し、指摘説明、Suggestion のコード表示、Warnings、件数サマリー等）。GitHub インラインでは GitHub Suggestion Block を使い、それ以外では Fallback Code Fence と提案ラベルを使う。OCR 本文と同様に Review Language に合わせる。
 _Avoid_: 投稿テンプレート, コメントヘッダー（曖昧）
 
 **GitHub Suggestion Block**:
-GitHub インライン review 専用の Markdown コードフェンス（`suggestion` タグ）で OCR の suggestion_code を包む表示形式。Pull Request 上で Apply ボタンを出す。existing_code は表示しない（diff 上の該当行が現状として見えるため）。
+GitHub インライン review 専用の Markdown コードフェンス（`suggestion` タグ）で OCR の suggestion_code を包む表示形式。Pull Request 上で Apply ボタンを出す。existing_code は表示しない（diff 上の該当行が現状として見えるため）。投稿前に suggestion_code の先頭・末尾の改行のみ除去し、インデント（スペース・タブ）は保持する。
 _Avoid_: suggestion 構文, コード提案（曖昧）
 
 **Fallback Code Fence**:

@@ -123,6 +123,39 @@ func TestCommentBodyEscapesTripleBackticks(t *testing.T) {
 	}
 }
 
+func TestCommentBodyPreservesLeadingTab(t *testing.T) {
+	inline, _ := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{{
+			FilePath: "internal/application/auction/preview_usecase.go", StartLine: 25, EndLine: 25,
+			Content: "remove json tag",
+			Suggestion: "\tMarketEstimate *domainmarket.MarketEstimate",
+		}},
+	}, englishFmt())
+	if len(inline) != 1 {
+		t.Fatalf("inline: %+v", inline)
+	}
+	want := "```suggestion\n\tMarketEstimate *domainmarket.MarketEstimate\n```"
+	if !strings.Contains(inline[0].Body, want) {
+		t.Fatalf("leading tab should be preserved: %q", inline[0].Body)
+	}
+}
+
+func TestCommentBodyPreservesTrailingTab(t *testing.T) {
+	inline, _ := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{{
+			FilePath: "a.go", StartLine: 1, Content: "fix",
+			Suggestion: "if x {\n\treturn 1\n\t",
+		}},
+	}, englishFmt())
+	if len(inline) != 1 {
+		t.Fatalf("inline: %+v", inline)
+	}
+	want := "```suggestion\nif x {\n\treturn 1\n\t\n```"
+	if !strings.Contains(inline[0].Body, want) {
+		t.Fatalf("trailing tab should be preserved: %q", inline[0].Body)
+	}
+}
+
 func TestCommentBodyTrimsLeadingNewline(t *testing.T) {
 	inline, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{

@@ -68,8 +68,10 @@ func fenceLang(path string) string {
 	return fenceLangByExt[strings.ToLower(filepath.Ext(path))]
 }
 
+// trimSuggestion strips only leading/trailing newlines so Markdown fences
+// stay valid. Indentation (spaces, tabs) is preserved verbatim.
 func trimSuggestion(code string) string {
-	return strings.TrimRight(strings.TrimLeft(code, "\n\r"), " \t\r\n")
+	return strings.Trim(code, "\n\r")
 }
 
 func escapeFenceBreakers(code string) string {
