@@ -69,7 +69,7 @@ _Avoid_: フェッチ間隔, スキャン間隔
 _Avoid_: ジョブ, タスク（曖昧）
 
 **Pull Request Snapshot**:
-Review Trigger 判定と重複防止のため Pull Request ごとに保持する最小状態。Trigger Label の有無、最後にレビューした head commit、最後の Review Run への参照。
+Review Trigger 判定と重複防止のため Pull Request ごとに保持する最小状態。Trigger Label の有無、最後にレビューした head commit、最後の Review Run への参照。タイトル・本文は含めない（Review Run 実行時に Git Host API から都度取得する）。
 _Avoid_: PR 状態, キャッシュ（曖昧）
 
 **Review Concurrency**:
@@ -83,6 +83,14 @@ _Avoid_: グローバル設定（曖昧）
 **Repo OCR Overrides**:
 Registered Repo ごとに Global OCR Settings を上書きするレビュー実行パラメータ。モデル名、カスタムルール、追加コンテキスト（requirement）、Review Language を含む。
 _Avoid_: Repo 設定（曖昧）
+
+**Review Background**:
+Review Run 実行時に Open Code Review CLI の `--background` に渡す結合済みテキスト。先頭に PR Description Context、続けて言語別デフォルト requirement と Registered Repo の OCR Requirement を結合する。セクション見出しと Title/Body ラベルは Review Language に合わせる。
+_Avoid_: プロンプト, prompt（OCR テンプレート用語との混同）
+
+**PR Description Context**:
+Review Background に含める Pull Request のタイトルと本文。コード diff とは別に LLM へ渡し、変更の意図をレビューに反映させる。本文が空の場合はタイトルのみ渡す。Registered Repo ごとの ON/OFF は設けず、Review Run では常に含める。本文は先頭から 8,000 ルーンで切り詰め、超過分は省略マーカーで示す。タイトルも本文も取得できない場合は PR Description Context ごと省略し、requirement のみでレビューを続行する。
+_Avoid_: PR プロンプト, PR メタデータ（曖昧）
 
 **OCR Review Output**:
 Open Code Review CLI が `--format json` で返す構造化レビュー結果。`comments` 配列の各要素に `path`, `content`, `suggestion_code`, `existing_code`, `start_line`, `end_line` を含む。スキーマと抽象化サンプルは [`docs/ocr-review-output.md`](docs/ocr-review-output.md) を参照。
