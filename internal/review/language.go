@@ -111,11 +111,14 @@ func BuildReviewBackground(lang, title, body, repoRequirement string) string {
 }
 
 func truncateRunes(s string, max int, marker string) string {
-	runes := []rune(s)
-	if len(runes) <= max {
-		return s
+	count := 0
+	for i := range s {
+		if count >= max {
+			return s[:i] + marker
+		}
+		count++
 	}
-	return string(runes[:max]) + marker
+	return s
 }
 
 // MergeOCRRequirement prepends the language-specific path requirement.
