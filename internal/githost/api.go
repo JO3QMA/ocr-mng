@@ -15,6 +15,8 @@ var httpClient = &http.Client{Timeout: 60 * time.Second}
 
 type PullRequest struct {
 	Number  int
+	Title   string
+	Body    string
 	BaseRef string
 	HeadSHA string
 	Labels  []string
@@ -59,7 +61,9 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, repo string) (
 		return nil, err
 	}
 	var raw []struct {
-		Number int `json:"number"`
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+		Body   string `json:"body"`
 		Base   struct {
 			Ref string `json:"ref"`
 		} `json:"base"`
@@ -81,6 +85,8 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, repo string) (
 		}
 		out = append(out, PullRequest{
 			Number:  pr.Number,
+			Title:   pr.Title,
+			Body:    pr.Body,
 			BaseRef: pr.Base.Ref,
 			HeadSHA: pr.Head.SHA,
 			Labels:  labels,
