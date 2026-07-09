@@ -350,16 +350,12 @@ func (e *Engine) postResult(ctx context.Context, client *githost.Client, repo st
 		mode = "inline"
 	}
 	if mode == "comment" {
-		url, err := client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
-		if err != nil {
-			return "", err
-		}
 		if wantApprove {
 			if _, err := client.CreatePullRequestReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, ApprovalBody(lang), "APPROVE", nil); err != nil {
-				return url, fmt.Errorf("approve review: %w", err)
+				return "", fmt.Errorf("approve review: %w", err)
 			}
 		}
-		return url, nil
+		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
 	}
 	inline, body := ForInline(result, cf)
 	event := "COMMENT"
@@ -371,14 +367,10 @@ func (e *Engine) postResult(ctx context.Context, client *githost.Client, repo st
 		if !wantApprove {
 			return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
 		}
-		url, err = client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
-		if err != nil {
-			return "", err
-		}
 		if _, err := client.CreatePullRequestReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, ApprovalBody(lang), "APPROVE", nil); err != nil {
-			return url, fmt.Errorf("approve review: %w", err)
+			return "", fmt.Errorf("approve review: %w", err)
 		}
-		return url, nil
+		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
 	}
 	return url, nil
 }

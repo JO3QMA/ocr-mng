@@ -180,7 +180,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		`ALTER TABLE repos ADD COLUMN approve_on_zero_findings INTEGER NOT NULL DEFAULT 0`,
 	} {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
-			return err
+			return fmt.Errorf("migration %q: %w", stmt, err)
 		}
 	}
 	return nil

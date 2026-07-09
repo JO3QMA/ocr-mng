@@ -133,7 +133,7 @@ OCR Review Output の `comments` 配列が空の Review Run。`warnings` や `me
 _Avoid_: 指摘なしレビュー, クリーンレビュー（曖昧）
 
 **Zero-Finding Approval**:
-Zero-Finding Review でコメント投稿が成功したあと、Post-Review Label Removal の前に Review Manager が Git Host の Pull Request レビュー API で Approve を投稿する動作。Registered Repo ごとにオプトインでき、デフォルトは無効。GitHub の Registered Repo のみ対象とし、Gitea ではスキップする（コメント投稿まで成功すれば Review Run Success）。Review Comment Mode が inline のときは、サマリー付き PR レビュー 1 回の `event` を `APPROVE` にする（`COMMENT` との二重投稿はしない）。Review Comment Mode が comment のときは、Issue コメントでサマリーを投稿したあと、別途 `APPROVE` レビューを 1 回投稿する（Approve body は Review Language の短い定型文のみとし、サマリーを重複させない）。inline で `APPROVE` 投稿が失敗したときは Issue コメントへフォールバックし、成功後に `comment` モードと同様に別途 `APPROVE` を試す。同一 Pull Request で Review Run が複数回成功した場合も同じルールを適用し、Zero-Finding のたびに Approve を投稿する。指摘が 1 件以上ある Review Run では `COMMENT` のみとし、過去の Approve を取り消す処理は行わない。Approve が失敗した場合は Review Run Success にならない。
+Zero-Finding Review でコメント投稿が成功したあと、Post-Review Label Removal の前に Review Manager が Git Host の Pull Request レビュー API で Approve を投稿する動作。Registered Repo ごとにオプトインでき、デフォルトは無効。GitHub の Registered Repo のみ対象とし、Gitea ではスキップする（コメント投稿まで成功すれば Review Run Success）。Review Comment Mode が inline のときは、サマリー付き PR レビュー 1 回の `event` を `APPROVE` にする（`COMMENT` との二重投稿はしない）。Review Comment Mode が comment のときは、先に `APPROVE` レビュー（Review Language の短い定型文）を投稿し、続けて Issue コメントでサマリーを投稿する（Approve 失敗時のリトライで Issue コメントが重複しないよう順序を固定）。inline で `APPROVE` 投稿が失敗したときは Issue コメントへフォールバックするが、Zero-Finding Approval 有効時はフォールバックでも先に `APPROVE` を試してから Issue コメントを投稿する。同一 Pull Request で Review Run が複数回成功した場合も同じルールを適用し、Zero-Finding のたびに Approve を投稿する。指摘が 1 件以上ある Review Run では `COMMENT` のみとし、過去の Approve を取り消す処理は行わない。Approve が失敗した場合は Review Run Success にならない。
 _Avoid_: 自動承認, オートマージ（曖昧）
 
 **Global Settings**:
