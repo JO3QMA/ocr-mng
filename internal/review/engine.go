@@ -316,7 +316,7 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host st
 		HomeDir:    filepath.Join(e.cfg.DataDir, "ocr-home"),
 		ConfigJSON: configJSON,
 	}
-	result, raw, err := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, repo.OCRModel, repo.OCRRule, MergeOCRRequirement(reviewLang, repo.OCRRequirement))
+	result, raw, err := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, repo.OCRModel, repo.OCRRule, BuildReviewBackground(reviewLang, pr.Title, pr.Body, repo.OCRRequirement))
 	if err != nil {
 		return fmt.Errorf("ocr review: %w", err)
 	}

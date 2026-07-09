@@ -58,3 +58,62 @@ func TestMergeOCRRequirementRepoEmpty(t *testing.T) {
 		t.Fatalf("default only: %q", got)
 	}
 }
+
+func TestBuildReviewBackgroundMergeOrder(t *testing.T) {
+	got := review.BuildReviewBackground("English", "My PR", "Intent", "focus on tests")
+	if !strings.HasPrefix(got, "### PR Description Context") {
+		t.Fatalf("PR section first: %q", got)
+	}
+	if !strings.Contains(got, "**Title:** My PR") {
+		t.Fatalf("title: %q", got)
+	}
+	if !strings.Contains(got, "**Body:**\nIntent") {
+		t.Fatalf("body: %q", got)
+	}
+	idxPR := strings.Index(got, "### PR Description Context")
+	idxReq := strings.Index(got, "### Requirements")
+	if idxPR < 0 || idxReq < 0 || idxPR >= idxReq {
+		t.Fatalf("order: %q", got)
+	}
+	if !strings.Contains(got, "focus on tests") || !strings.Contains(got, "Every comment must set path") {
+		t.Fatalf("requirements: %q", got)
+	}
+}
+
+func TestBuildReviewBackgroundTitleOnly(t *testing.T) {
+	got := review.BuildReviewBackground("Japanese", "タイトルのみ", "", "")
+	if !strings.Contains(got, "**タイトル:** タイトルのみ") {
+		t.Fatalf("title only: %q", got)
+	}
+	if strings.Contains(got, "**本文:**") {
+		t.Fatalf("body label should be omitted: %q", got)
+	}
+}
+
+func TestBuildReviewBackgroundEmptyBoth(t *testing.T) {
+	got := review.BuildReviewBackground("English", "", "  ", "repo req")
+	if strings.Contains(got, "PR Description Context") {
+		t.Fatalf("PR section omitted: %q", got)
+	}
+	if !strings.HasPrefix(got, "### Requirements") {
+		t.Fatalf("requirements only: %q", got)
+	}
+}
+
+func TestBuildReviewBackgroundTruncation(t *testing.T) {
+	body := strings.Repeat("あ", 8001)
+	got := review.BuildReviewBackground("English", "T", body, "")
+	if strings.Count(got, "あ") != 8000 {
+		t.Fatalf("rune count: %d", strings.Count(got, "あ"))
+	}
+	if !strings.Contains(got, "truncated at 8,000 runes") {
+		t.Fatalf("marker: %q", got[len(got)-80:])
+	}
+}
+
+func TestBuildReviewBackgroundChineseLabels(t *testing.T) {
+	got := review.BuildReviewBackground("Chinese", "标题", "正文", "")
+	if !strings.Contains(got, "### PR 描述上下文") || !strings.Contains(got, "**标题:** 标题") {
+		t.Fatalf("chinese labels: %q", got)
+	}
+}
