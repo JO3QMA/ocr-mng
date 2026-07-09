@@ -79,6 +79,8 @@ var ja = map[string]string{
 	"form.comment_inline":     "インラインレビュー",
 	"form.comment_single":     "単一コメント",
 	"form.remove_label":       "レビュー成功後にトリガーラベルを外す",
+	"form.approve_zero_findings":      "指摘 0 件のとき Pull Request を Approve する",
+	"form.approve_zero_findings_hint": "GitHub のみ。Gitea では無視されます。",
 	"form.enabled":            "有効",
 	"form.ocr_model":          "OCR モデル上書き",
 	"form.ocr_rule":           "OCR ルール上書き",

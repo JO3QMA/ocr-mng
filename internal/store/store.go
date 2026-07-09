@@ -42,6 +42,7 @@ type Repo struct {
 	PollIntervalSeconds    *int
 	CommentMode            string
 	RemoveLabelAfterReview bool
+	ApproveOnZeroFindings  bool
 	OCRModel               string
 	OCRRule                string
 	OCRRequirement         string
@@ -174,9 +175,13 @@ func (s *Store) ensureDefaults(ctx context.Context) error {
 }
 
 func (s *Store) migrate(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `ALTER TABLE repos ADD COLUMN review_language TEXT`)
-	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
-		return err
+	for _, stmt := range []string{
+		`ALTER TABLE repos ADD COLUMN review_language TEXT`,
+		`ALTER TABLE repos ADD COLUMN approve_on_zero_findings INTEGER NOT NULL DEFAULT 0`,
+	} {
+		if _, err := s.db.ExecContext(ctx, stmt); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+			return fmt.Errorf("migration %q: %w", stmt, err)
+		}
 	}
 	return nil
 }
@@ -332,17 +337,21 @@ func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, erro
 	if r.RemoveLabelAfterReview {
 		remove = 1
 	}
+	approve := 0
+	if r.ApproveOnZeroFindings {
+		approve = 1
+	}
 	enabled := 0
 	if r.Enabled {
 		enabled = 1
 	}
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO repos(git_host_id, owner, name, default_branch, trigger_label, poll_interval_seconds,
-			repo_pat_encrypted, comment_mode, remove_label_after_review, ocr_model, ocr_rule, ocr_requirement,
-			review_language, enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			repo_pat_encrypted, comment_mode, remove_label_after_review, approve_on_zero_findings,
+			ocr_model, ocr_rule, ocr_requirement, review_language, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
-		nullIfEmpty(enc), r.CommentMode, remove, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
+		nullIfEmpty(enc), r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
 		nullStr(r.ReviewLanguage), enabled, now, now)
 	if err != nil {
 		return 0, err
@@ -356,6 +365,10 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 	if r.RemoveLabelAfterReview {
 		remove = 1
 	}
+	approve := 0
+	if r.ApproveOnZeroFindings {
+		approve = 1
+	}
 	enabled := 0
 	if r.Enabled {
 		enabled = 1
@@ -368,10 +381,11 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 		_, err = s.db.ExecContext(ctx, `
 			UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
 				poll_interval_seconds=?, repo_pat_encrypted=?, comment_mode=?, remove_label_after_review=?,
-				ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?, enabled=?, updated_at=?
+				approve_on_zero_findings=?, ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?,
+				enabled=?, updated_at=?
 			WHERE id=?`,
 			r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds, enc,
-			r.CommentMode, remove, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
+			r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
 			nullStr(r.ReviewLanguage), enabled, now, r.ID)
 		return err
 	}
@@ -379,20 +393,21 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 		_, err := s.db.ExecContext(ctx, `
 			UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
 				poll_interval_seconds=?, repo_pat_encrypted=NULL, comment_mode=?, remove_label_after_review=?,
-				ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?, enabled=?, updated_at=?
+				approve_on_zero_findings=?, ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?,
+				enabled=?, updated_at=?
 			WHERE id=?`,
 			r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
-			r.CommentMode, remove, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
+			r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
 			nullStr(r.ReviewLanguage), enabled, now, r.ID)
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
-			poll_interval_seconds=?, comment_mode=?, remove_label_after_review=?,
+			poll_interval_seconds=?, comment_mode=?, remove_label_after_review=?, approve_on_zero_findings=?,
 			ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?, enabled=?, updated_at=?
 		WHERE id=?`,
 		r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
-		r.CommentMode, remove, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
+		r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
 		nullStr(r.ReviewLanguage), enabled, now, r.ID)
 	return err
 }
@@ -403,12 +418,12 @@ func scanRepo(scanner interface {
 	var rv RepoView
 	var poll sql.NullInt64
 	var lastPolled sql.NullString
-	var remove, enabled int
+	var remove, approve, enabled int
 	var ocrModel, ocrRule, ocrReq, reviewLang sql.NullString
 	var created, updated string
 	err := scanner.Scan(
 		&rv.ID, &rv.GitHostID, &rv.Owner, &rv.Name, &rv.DefaultBranch, &rv.TriggerLabel, &poll,
-		&rv.CommentMode, &remove, &ocrModel, &ocrRule, &ocrReq, &reviewLang, &enabled, &lastPolled, &created, &updated,
+		&rv.CommentMode, &remove, &approve, &ocrModel, &ocrRule, &ocrReq, &reviewLang, &enabled, &lastPolled, &created, &updated,
 		&rv.HostName, &rv.HostKind,
 	)
 	if err != nil {
@@ -419,6 +434,7 @@ func scanRepo(scanner interface {
 		rv.PollIntervalSeconds = &v
 	}
 	rv.RemoveLabelAfterReview = remove == 1
+	rv.ApproveOnZeroFindings = approve == 1
 	rv.Enabled = enabled == 1
 	if ocrModel.Valid {
 		rv.OCRModel = ocrModel.String
@@ -444,7 +460,7 @@ func scanRepo(scanner interface {
 func (s *Store) ListRepos(ctx context.Context) ([]RepoView, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT r.id, r.git_host_id, r.owner, r.name, r.default_branch, r.trigger_label, r.poll_interval_seconds,
-			r.comment_mode, r.remove_label_after_review, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.review_language,
+			r.comment_mode, r.remove_label_after_review, r.approve_on_zero_findings, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.review_language,
 			r.enabled, r.last_polled_at, r.created_at, r.updated_at, h.name, h.kind
 		FROM repos r JOIN git_hosts h ON h.id = r.git_host_id
 		ORDER BY h.name, r.owner, r.name`)
@@ -466,7 +482,7 @@ func (s *Store) ListRepos(ctx context.Context) ([]RepoView, error) {
 func (s *Store) GetRepo(ctx context.Context, id int64) (RepoView, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT r.id, r.git_host_id, r.owner, r.name, r.default_branch, r.trigger_label, r.poll_interval_seconds,
-			r.comment_mode, r.remove_label_after_review, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.review_language,
+			r.comment_mode, r.remove_label_after_review, r.approve_on_zero_findings, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.review_language,
 			r.enabled, r.last_polled_at, r.created_at, r.updated_at, h.name, h.kind
 		FROM repos r JOIN git_hosts h ON h.id = r.git_host_id
 		WHERE r.id=?`, id)

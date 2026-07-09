@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS repos (
     repo_pat_encrypted TEXT,
     comment_mode TEXT NOT NULL DEFAULT 'inline' CHECK (comment_mode IN ('inline', 'comment')),
     remove_label_after_review INTEGER NOT NULL DEFAULT 0,
+    approve_on_zero_findings INTEGER NOT NULL DEFAULT 0,
     ocr_model TEXT,
     ocr_rule TEXT,
     ocr_requirement TEXT,

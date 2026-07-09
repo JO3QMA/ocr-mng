@@ -369,6 +369,7 @@ func parseRepoForm(r *http.Request) (store.Repo, string, error) {
 		TriggerLabel:           strings.TrimSpace(r.FormValue("trigger_label")),
 		CommentMode:            strings.TrimSpace(r.FormValue("comment_mode")),
 		RemoveLabelAfterReview: r.FormValue("remove_label_after_review") == "on",
+		ApproveOnZeroFindings:  r.FormValue("approve_on_zero_findings") == "on",
 		Enabled:                r.FormValue("enabled") == "on",
 		OCRModel:               strings.TrimSpace(r.FormValue("ocr_model")),
 		OCRRule:                strings.TrimSpace(r.FormValue("ocr_rule")),

@@ -154,6 +154,8 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <option value="comment" {{selected .Repo.CommentMode "comment"}}>{{.L.T "form.comment_single"}}</option>
 </select>
 <label><input type="checkbox" name="remove_label_after_review" {{checked .Repo.RemoveLabelAfterReview}}> {{.L.T "form.remove_label"}}</label>
+<label><input type="checkbox" name="approve_on_zero_findings" {{checked .Repo.ApproveOnZeroFindings}}> {{.L.T "form.approve_zero_findings"}}</label>
+<p class="hint">{{.L.T "form.approve_zero_findings_hint"}}</p>
 <label><input type="checkbox" name="enabled" {{checked .Repo.Enabled}}> {{.L.T "form.enabled"}}</label>
 <label>{{.L.T "form.review_language"}}</label>
 <select name="review_language">

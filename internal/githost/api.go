@@ -101,7 +101,7 @@ func (c *Client) RemoveLabel(ctx context.Context, owner, repo string, prNumber i
 	return err
 }
 
-func (c *Client) CreateInlineReview(ctx context.Context, owner, repo string, prNumber int, headSHA, body string, comments []ReviewComment) (string, error) {
+func (c *Client) CreatePullRequestReview(ctx context.Context, owner, repo string, prNumber int, headSHA, body, event string, comments []ReviewComment) (string, error) {
 	type payloadComment struct {
 		Path      string `json:"path"`
 		Line      int    `json:"line,omitempty"`
@@ -110,6 +110,9 @@ func (c *Client) CreateInlineReview(ctx context.Context, owner, repo string, prN
 	}
 	commentsPayload := make([]payloadComment, 0, len(comments))
 	for _, cm := range comments {
+		if cm.Path == "" {
+			continue
+		}
 		line := cm.Line
 		if line <= 0 {
 			line = cm.StartLine
@@ -118,10 +121,13 @@ func (c *Client) CreateInlineReview(ctx context.Context, owner, repo string, prN
 			Path: cm.Path, Line: line, StartLine: cm.StartLine, Body: cm.Body,
 		})
 	}
+	if event == "" {
+		event = "COMMENT"
+	}
 	payload := map[string]any{
 		"commit_id": headSHA,
 		"body":      body,
-		"event":     "COMMENT",
+		"event":     event,
 		"comments":  commentsPayload,
 	}
 	respBody, err := c.do(ctx, http.MethodPost,

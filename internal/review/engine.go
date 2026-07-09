@@ -328,7 +328,7 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host st
 	run.SummaryTotalCount = len(result.Comments)
 
 	apiCtx := githost.WithPAT(ctx, pat)
-	commentURL, postErr := e.postResult(apiCtx, client, repo, pr, result, reviewLang, host.Kind)
+	commentURL, postErr := e.postResult(apiCtx, client, repo, pr, result, reviewLang)
 	if postErr != nil {
 		return postErr
 	}
@@ -342,18 +342,34 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host st
 	return nil
 }
 
-func (e *Engine) postResult(ctx context.Context, client *githost.Client, repo store.RepoView, pr githost.PullRequest, result ocr.Result, lang, hostKind string) (string, error) {
-	cf := CommentFormat{Lang: lang, HostKind: hostKind}
+func (e *Engine) postResult(ctx context.Context, client *githost.Client, repo store.RepoView, pr githost.PullRequest, result ocr.Result, lang string) (string, error) {
+	cf := CommentFormat{Lang: lang, HostKind: repo.HostKind}
+	wantApprove := ZeroFindingApprovalEnabled(repo, len(result.Comments))
 	mode := repo.CommentMode
 	if mode == "" {
 		mode = "inline"
 	}
 	if mode == "comment" {
+		if wantApprove {
+			if _, err := client.CreatePullRequestReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, ApprovalBody(lang), "APPROVE", nil); err != nil {
+				return "", fmt.Errorf("approve review: %w", err)
+			}
+		}
 		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
 	}
 	inline, body := ForInline(result, cf)
-	url, err := client.CreateInlineReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, body, inline)
+	event := "COMMENT"
+	if wantApprove {
+		event = "APPROVE"
+	}
+	url, err := client.CreatePullRequestReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, body, event, inline)
 	if err != nil {
+		if !wantApprove {
+			return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
+		}
+		if _, err := client.CreatePullRequestReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, ApprovalBody(lang), "APPROVE", nil); err != nil {
+			return "", fmt.Errorf("approve review: %w", err)
+		}
 		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
 	}
 	return url, nil

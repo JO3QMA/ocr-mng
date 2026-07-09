@@ -134,6 +134,23 @@ func MergeOCRRequirement(lang, repoRequirement string) string {
 	return base + "\n\n" + repo
 }
 
+// ApprovalBody is the short body for a separate APPROVE review (comment mode / inline fallback).
+func ApprovalBody(lang string) string {
+	switch lang {
+	case "English":
+		return "Open Code Review: No findings."
+	case "Chinese":
+		return "Open Code Review: 未发现问题。"
+	default:
+		return "Open Code Review: 指摘はありませんでした。"
+	}
+}
+
+// ZeroFindingApprovalEnabled reports whether this run should post APPROVE on GitHub.
+func ZeroFindingApprovalEnabled(repo store.RepoView, commentCount int) bool {
+	return commentCount == 0 && repo.ApproveOnZeroFindings && repo.HostKind == "github"
+}
+
 // EffectiveReviewLanguage returns repo override or global default.
 func EffectiveReviewLanguage(gs store.GlobalSettings, repoLang string) string {
 	if repoLang != "" {
