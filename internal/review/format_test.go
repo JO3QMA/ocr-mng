@@ -18,7 +18,7 @@ func TestForInline(t *testing.T) {
 			FilePath: "main.go", StartLine: 1, EndLine: 2, Content: "fix me",
 		}},
 	}
-	inline, summary := review.ForInline(result, englishFmt())
+	inline, summary, _ := review.ForInline(result, englishFmt(), nil)
 	if len(inline) != 1 || inline[0].Line != 2 {
 		t.Fatalf("inline: %+v", inline)
 	}
@@ -28,7 +28,7 @@ func TestForInline(t *testing.T) {
 }
 
 func TestForInlineNoComments(t *testing.T) {
-	_, summary := review.ForInline(ocr.Result{Message: "clean"}, englishFmt())
+	_, summary, _ := review.ForInline(ocr.Result{Message: "clean"}, englishFmt(), nil)
 	if !strings.Contains(summary, "clean") {
 		t.Fatalf("summary: %q", summary)
 	}
@@ -62,9 +62,9 @@ func TestAsSingleCommentGeneralWithoutLine(t *testing.T) {
 }
 
 func TestForInlineSkipsEmptyPathWithLine(t *testing.T) {
-	inline, summary := review.ForInline(ocr.Result{
+	inline, summary, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{StartLine: 10, Content: "orphan line"}},
-	}, englishFmt())
+	}, englishFmt(), nil)
 	if len(inline) != 0 {
 		t.Fatalf("inline: %+v", inline)
 	}
@@ -74,13 +74,13 @@ func TestForInlineSkipsEmptyPathWithLine(t *testing.T) {
 }
 
 func TestCommentBodyGitHubSuggestion(t *testing.T) {
-	inline, _ := review.ForInline(ocr.Result{
+	inline, _, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{
 			FilePath: "frontend/src/VrcUserCacheDetail.vue", StartLine: 153, EndLine: 158,
 			Content: "check attrs",
 			Suggestion: " <VrcUserTagChip\n class=\"tag-chip\"\n />\n",
 		}},
-	}, review.CommentFormat{Lang: "English", HostKind: "github"})
+	}, review.CommentFormat{Lang: "English", HostKind: "github"}, nil)
 	if len(inline) != 1 {
 		t.Fatalf("inline: %+v", inline)
 	}
@@ -109,12 +109,12 @@ func TestCommentBodyFallbackFence(t *testing.T) {
 }
 
 func TestCommentBodyEscapesTripleBackticks(t *testing.T) {
-	inline, _ := review.ForInline(ocr.Result{
+	inline, _, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{
 			FilePath: "a.go", StartLine: 1, Content: "fix",
 			Suggestion: "x := ````",
 		}},
-	}, englishFmt())
+	}, englishFmt(), nil)
 	if strings.Contains(inline[0].Body, "```suggestion\nx := ```") {
 		t.Fatalf("triple backticks should be escaped: %q", inline[0].Body)
 	}
@@ -124,13 +124,13 @@ func TestCommentBodyEscapesTripleBackticks(t *testing.T) {
 }
 
 func TestCommentBodyPreservesLeadingTab(t *testing.T) {
-	inline, _ := review.ForInline(ocr.Result{
+	inline, _, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{
 			FilePath: "internal/application/auction/preview_usecase.go", StartLine: 25, EndLine: 25,
 			Content: "remove json tag",
 			Suggestion: "\tMarketEstimate *domainmarket.MarketEstimate",
 		}},
-	}, englishFmt())
+	}, englishFmt(), nil)
 	if len(inline) != 1 {
 		t.Fatalf("inline: %+v", inline)
 	}
@@ -141,12 +141,12 @@ func TestCommentBodyPreservesLeadingTab(t *testing.T) {
 }
 
 func TestCommentBodyPreservesTrailingTab(t *testing.T) {
-	inline, _ := review.ForInline(ocr.Result{
+	inline, _, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{
 			FilePath: "a.go", StartLine: 1, Content: "fix",
 			Suggestion: "if x {\n\treturn 1\n\t",
 		}},
-	}, englishFmt())
+	}, englishFmt(), nil)
 	if len(inline) != 1 {
 		t.Fatalf("inline: %+v", inline)
 	}
@@ -157,24 +157,24 @@ func TestCommentBodyPreservesTrailingTab(t *testing.T) {
 }
 
 func TestCommentBodyTrimsLeadingNewline(t *testing.T) {
-	inline, _ := review.ForInline(ocr.Result{
+	inline, _, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{
 			FilePath: "a.go", StartLine: 1, Content: "fix",
 			Suggestion: "\nx = 1",
 		}},
-	}, englishFmt())
+	}, englishFmt(), nil)
 	if strings.Contains(inline[0].Body, "```suggestion\n\n") {
 		t.Fatalf("leading newline should be trimmed: %q", inline[0].Body)
 	}
 }
 
 func TestCommentBodyTrimsTrailingNewline(t *testing.T) {
-	inline, _ := review.ForInline(ocr.Result{
+	inline, _, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{
 			FilePath: "a.go", StartLine: 1, Content: "fix",
 			Suggestion: "x = 1\n\n",
 		}},
-	}, englishFmt())
+	}, englishFmt(), nil)
 	if strings.Contains(inline[0].Body, "x = 1\n\n```") {
 		t.Fatalf("trailing newlines should be trimmed: %q", inline[0].Body)
 	}

@@ -117,9 +117,11 @@ func (c *Client) CreatePullRequestReview(ctx context.Context, owner, repo string
 		if line <= 0 {
 			line = cm.StartLine
 		}
-		commentsPayload = append(commentsPayload, payloadComment{
-			Path: cm.Path, Line: line, StartLine: cm.StartLine, Body: cm.Body,
-		})
+		pc := payloadComment{Path: cm.Path, Line: line, Body: cm.Body}
+		if cm.StartLine > 0 && cm.StartLine < line {
+			pc.StartLine = cm.StartLine
+		}
+		commentsPayload = append(commentsPayload, pc)
 	}
 	if event == "" {
 		event = "COMMENT"

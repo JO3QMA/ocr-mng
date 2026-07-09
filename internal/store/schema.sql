@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS review_runs (
     status TEXT NOT NULL CHECK (status IN ('pending', 'running', 'success', 'failed')),
     trigger_kind TEXT NOT NULL CHECK (trigger_kind IN ('label', 'manual')),
     error_message TEXT,
+    post_warning TEXT,
     comment_url TEXT,
     ocr_output_path TEXT,
     summary_total_count INTEGER,

@@ -108,5 +108,6 @@ var en = map[string]string{
 	"repo_runs.manual":     "Manual re-review PR #",
 	"run_detail.repo_id":   "Repo ID",
 	"run_detail.view_post": "View posted comment/review",
+	"run_detail.post_warning": "Post warnings",
 	"run_detail.ocr_output": "OCR Output",
 }

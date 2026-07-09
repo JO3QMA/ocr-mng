@@ -107,9 +107,12 @@ func writeSummaryHeading(b *strings.Builder, c ocr.Comment, cf CommentFormat, w 
 }
 
 // ForInline splits OCR output into inline review comments and a summary markdown body.
-func ForInline(result ocr.Result, cf CommentFormat) ([]githost.ReviewComment, string) {
+// When diff is non-nil, comment anchors are clamped to lines present in the PR diff;
+// comments with no overlapping diff lines are demoted to the summary body.
+func ForInline(result ocr.Result, cf CommentFormat, diff DiffLineSet) ([]githost.ReviewComment, string, []string) {
 	w := wrapperFor(cf.Lang)
 	var inline []githost.ReviewComment
+	var demoted []string
 	var b strings.Builder
 	b.WriteString(w.title)
 	if len(result.Comments) == 0 {
@@ -118,14 +121,34 @@ func ForInline(result ocr.Result, cf CommentFormat) ([]githost.ReviewComment, st
 			msg = w.noComments
 		}
 		fmt.Fprintf(&b, "✅ %s\n", msg)
-		return inline, b.String()
+		return inline, b.String(), demoted
 	}
 	fmt.Fprintf(&b, w.foundComments, len(result.Comments))
 	for _, c := range result.Comments {
-		line := commentLine(c)
-		if line >= 1 && c.FilePath != "" {
+		start := c.StartLine
+		end := commentLine(c)
+		if start < 1 {
+			start = end
+		}
+		if end < 1 {
+			end = start
+		}
+		if start > end {
+			start, end = end, start
+		}
+		if end >= 1 && c.FilePath != "" {
+			line, startLine := end, start
+			if diff != nil {
+				var ok bool
+				line, startLine, ok = clampToDiff(c.FilePath, start, end, diff)
+				if !ok {
+					demoted = append(demoted, fmt.Sprintf("demoted to summary: %s:%d-%d", c.FilePath, start, end))
+					writeSummaryHeading(&b, c, cf, w)
+					continue
+				}
+			}
 			inline = append(inline, githost.ReviewComment{
-				Path: c.FilePath, Line: line, StartLine: c.StartLine,
+				Path: c.FilePath, Line: line, StartLine: startLine,
 				Body: commentBody(c, cf, w, true),
 			})
 			continue
@@ -138,7 +161,7 @@ func ForInline(result ocr.Result, cf CommentFormat) ([]githost.ReviewComment, st
 			fmt.Fprintf(&b, "- %s\n", warn)
 		}
 	}
-	return inline, b.String()
+	return inline, b.String(), demoted
 }
 
 // AsSingleComment renders all OCR comments as one issue comment body.

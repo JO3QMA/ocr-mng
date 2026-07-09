@@ -27,6 +27,8 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 .inline-action input { width: auto; max-width: 8rem; margin-top: 0; }
 .flash { background: #ecfdf5; border: 1px solid #6ee7b7; padding: .75rem; border-radius: 6px; margin-bottom: 1rem; }
 .error { background: #fef2f2; border-color: #fca5a5; }
+.warning { background: #fffbeb; border-color: #fcd34d; }
+.hint { color: #6b7280; font-size: .9rem; }
 .badge { display: inline-block; padding: .15rem .5rem; border-radius: 999px; font-size: .85rem; }
 .badge.success { background: #dcfce7; }
 .badge.failed { background: #fee2e2; }
@@ -218,6 +220,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <h1>Review Run #{{.Run.ID}}</h1>
 <p>{{.L.T "run_detail.repo_id"}}: {{.Run.RepoID}} · PR #{{.Run.PRNumber}} · {{.L.T "table.status"}}: <span class="badge {{.Run.Status}}">{{.Run.Status}}</span></p>
 {{if .Run.ErrorMessage}}<div class="flash error">{{.Run.ErrorMessage}}</div>{{end}}
+{{if .Run.PostWarning}}<div class="flash warning"><strong>{{.L.T "run_detail.post_warning"}}</strong><pre style="white-space:pre-wrap;margin:.5rem 0 0;font:inherit">{{.Run.PostWarning}}</pre></div>{{end}}
 {{if .Run.CommentURL}}<p><a href="{{.Run.CommentURL}}">{{.L.T "run_detail.view_post"}}</a></p>{{end}}
 {{if .OCRJSON}}<h2>{{.L.T "run_detail.ocr_output"}}</h2><pre style="overflow:auto;background:#111827;color:#e5e7eb;padding:1rem;border-radius:6px">{{.OCRJSON}}</pre>{{end}}
 </div>
