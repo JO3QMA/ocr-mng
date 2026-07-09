@@ -26,7 +26,7 @@ Open Code Review CLI が `--format json` で返すレビュー結果の形式。
 | `start_line` | `StartLine` | 対象行の開始（1-based） |
 | `end_line` | `EndLine` | 対象行の終了（1-based）。未指定時は `start_line` を使う |
 
-`path` と `start_line` / `end_line` が揃っているコメントは GitHub インラインレビューに投稿する。欠落時はサマリーコメントへフォールバックする。
+`path` と `start_line` / `end_line` が揃っているコメントは GitHub インラインレビュー候補になる。Review Manager は Review Worktree の `git diff` と突き合わせ、diff 上に存在する行へアンカーをクランプする。交差が空、または `path` / 行番号が欠落しているコメントはサマリー本文へフォールバックする。
 
 ## Review Manager の加工ポリシー
 

@@ -13,7 +13,7 @@ func TestForInlineJapanese(t *testing.T) {
 	result := ocr.Result{
 		Comments: []ocr.Comment{{FilePath: "main.go", StartLine: 1, Content: "fix"}},
 	}
-	_, summary := review.ForInline(result, review.CommentFormat{Lang: "Japanese", HostKind: "github"})
+	_, summary, _ := review.ForInline(result, review.CommentFormat{Lang: "Japanese", HostKind: "github"}, nil)
 	if !strings.Contains(summary, "件のコメント") {
 		t.Fatalf("summary: %q", summary)
 	}

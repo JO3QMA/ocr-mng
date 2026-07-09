@@ -328,7 +328,11 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host st
 	run.SummaryTotalCount = len(result.Comments)
 
 	apiCtx := githost.WithPAT(ctx, pat)
-	commentURL, postErr := e.postResult(apiCtx, client, repo, pr, result, reviewLang)
+	diffLines, err := CollectDiffLines(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA)
+	if err != nil {
+		return fmt.Errorf("collect diff lines: %w", err)
+	}
+	commentURL, postErr := e.postResult(apiCtx, client, repo, pr, result, reviewLang, diffLines, run)
 	if postErr != nil {
 		return postErr
 	}
@@ -342,7 +346,17 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host st
 	return nil
 }
 
-func (e *Engine) postResult(ctx context.Context, client *githost.Client, repo store.RepoView, pr githost.PullRequest, result ocr.Result, lang string) (string, error) {
+func appendPostWarning(run *store.ReviewRun, line string) {
+	if run == nil || line == "" {
+		return
+	}
+	if run.PostWarning != "" {
+		run.PostWarning += "\n"
+	}
+	run.PostWarning += line
+}
+
+func (e *Engine) postResult(ctx context.Context, client *githost.Client, repo store.RepoView, pr githost.PullRequest, result ocr.Result, lang string, diff DiffLineSet, run *store.ReviewRun) (string, error) {
 	cf := CommentFormat{Lang: lang, HostKind: repo.HostKind}
 	wantApprove := ZeroFindingApprovalEnabled(repo, len(result.Comments))
 	mode := repo.CommentMode
@@ -350,27 +364,41 @@ func (e *Engine) postResult(ctx context.Context, client *githost.Client, repo st
 		mode = "inline"
 	}
 	if mode == "comment" {
+		url, err := client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
+		if err != nil {
+			return "", err
+		}
 		if wantApprove {
 			if _, err := client.CreatePullRequestReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, ApprovalBody(lang), "APPROVE", nil); err != nil {
-				return "", fmt.Errorf("approve review: %w", err)
+				return url, fmt.Errorf("approve review: %w", err)
 			}
 		}
-		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
+		return url, nil
 	}
-	inline, body := ForInline(result, cf)
+	inline, body, demoted := ForInline(result, cf, diff)
+	for _, d := range demoted {
+		appendPostWarning(run, d)
+		e.log.Info("inline comment demoted to summary", "run", run.ID, "detail", d)
+	}
 	event := "COMMENT"
 	if wantApprove {
 		event = "APPROVE"
 	}
 	url, err := client.CreatePullRequestReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, body, event, inline)
 	if err != nil {
+		appendPostWarning(run, fmt.Sprintf("inline review fallback: %v", err))
+		e.log.Warn("inline review fallback", "run", run.ID, "pr", pr.Number, "err", err)
 		if !wantApprove {
 			return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
 		}
-		if _, err := client.CreatePullRequestReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, ApprovalBody(lang), "APPROVE", nil); err != nil {
-			return "", fmt.Errorf("approve review: %w", err)
+		url, err = client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
+		if err != nil {
+			return "", err
 		}
-		return client.CreateIssueComment(ctx, repo.Owner, repo.Name, pr.Number, AsSingleComment(result, cf))
+		if _, err := client.CreatePullRequestReview(ctx, repo.Owner, repo.Name, pr.Number, pr.HeadSHA, ApprovalBody(lang), "APPROVE", nil); err != nil {
+			return url, fmt.Errorf("approve review: %w", err)
+		}
+		return url, nil
 	}
 	return url, nil
 }

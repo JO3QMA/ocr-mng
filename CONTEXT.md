@@ -25,8 +25,12 @@ _Avoid_: レビューラベル, ターゲットラベル
 _Avoid_: ラベル自動削除, ラベルクリーンアップ
 
 **Review Comment Mode**:
-OCR 結果を Pull Request に投稿する方式。Repo ごとに設定でき、デフォルトは行単位のインラインレビュー。Gitea や PAT 権限不足など投稿できない場合は Markdown 単一コメントへフォールバックできる。
+OCR 結果を Pull Request に投稿する方式。Repo ごとに設定でき、デフォルトは行単位のインラインレビュー。インラインアンカーは PR diff 上で解決できる行にクランプする（詳細は ADR 0006）。Gitea や PAT 権限不足、行解決失敗など投稿できない場合は Markdown 単一コメントへフォールバックできる。
 _Avoid_: コメント形式, 投稿モード
+
+**Post Warning**:
+Review Run が Success でも、インライン投稿のフォールバックやサマリー降格があったときに Review Manager が記録する人間可読な警告文。Review Run 詳細の WebUI に表示する。
+_Avoid_: エラーメッセージ（Review Run failed 用の `error_message` と混同しない）
 
 **Git Host**:
 GitHub または Gitea の API エンドポイント。Registered Repo が属するホスト単位で PAT を保持できる。

@@ -108,5 +108,6 @@ var ja = map[string]string{
 	"repo_runs.manual":      "手動再レビュー PR #",
 	"run_detail.repo_id":    "リポジトリ ID",
 	"run_detail.view_post":  "投稿コメントを表示",
+	"run_detail.post_warning": "投稿時の警告",
 	"run_detail.ocr_output": "OCR 出力",
 }
