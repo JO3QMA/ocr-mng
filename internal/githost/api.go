@@ -104,6 +104,9 @@ func (c *Client) CreatePullRequestReview(ctx context.Context, owner, repo string
 	}
 	commentsPayload := make([]payloadComment, 0, len(comments))
 	for _, cm := range comments {
+		if cm.Path == "" {
+			continue
+		}
 		line := cm.Line
 		if line <= 0 {
 			line = cm.StartLine
