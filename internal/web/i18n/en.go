@@ -79,6 +79,8 @@ var en = map[string]string{
 	"form.comment_inline":    "Inline review",
 	"form.comment_single":    "Single comment",
 	"form.remove_label":      "Remove trigger label after successful review",
+	"form.approve_zero_findings":     "Approve pull request when there are zero findings",
+	"form.approve_zero_findings_hint": "GitHub only. Ignored for Gitea.",
 	"form.enabled":           "Enabled",
 	"form.ocr_model":         "OCR Model Override",
 	"form.ocr_rule":          "OCR Rule Override",

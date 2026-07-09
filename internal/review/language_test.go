@@ -6,6 +6,7 @@ import (
 
 	"github.com/jo3qma/ocr-mng/internal/ocr"
 	"github.com/jo3qma/ocr-mng/internal/review"
+	"github.com/jo3qma/ocr-mng/internal/store"
 )
 
 func TestForInlineJapanese(t *testing.T) {
@@ -25,6 +26,29 @@ func TestMergeOCRRequirement(t *testing.T) {
 	}
 	if !strings.HasPrefix(got, "Every comment must set path") {
 		t.Fatalf("default should be first: %q", got)
+	}
+}
+
+func TestZeroFindingApprovalEnabled(t *testing.T) {
+	repo := store.RepoView{
+		Repo: store.Repo{ApproveOnZeroFindings: true},
+		HostKind: "github",
+	}
+	if !review.ZeroFindingApprovalEnabled(repo, 0) {
+		t.Fatal("expected enabled for zero findings on github")
+	}
+	if review.ZeroFindingApprovalEnabled(repo, 1) {
+		t.Fatal("expected disabled when comments exist")
+	}
+	repo.HostKind = "gitea"
+	if review.ZeroFindingApprovalEnabled(repo, 0) {
+		t.Fatal("expected disabled on gitea")
+	}
+}
+
+func TestApprovalBody(t *testing.T) {
+	if review.ApprovalBody("Japanese") == "" || review.ApprovalBody("English") == "" {
+		t.Fatal("expected non-empty approval bodies")
 	}
 }
 
