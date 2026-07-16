@@ -69,7 +69,7 @@ _Avoid_: フェッチ間隔, スキャン間隔
 _Avoid_: ジョブ, タスク（曖昧）
 
 **Pull Request Snapshot**:
-Review Trigger 判定と重複防止のため Pull Request ごとに保持する最小状態。Trigger Label の有無、最後にレビューした head commit、最後の Review Run への参照。タイトル・本文は含めない（Review Run 実行時に Git Host API から都度取得する）。
+Review Trigger 判定と重複防止のため Pull Request ごとに保持する最小状態。Trigger Label の有無のみを持つ。タイトル・本文は含めない（Review Run 実行時に Git Host API から都度取得する）。
 _Avoid_: PR 状態, キャッシュ（曖昧）
 
 **Review Concurrency**:

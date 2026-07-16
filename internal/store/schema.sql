@@ -42,8 +42,6 @@ CREATE TABLE IF NOT EXISTS pr_snapshots (
     repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
     pr_number INTEGER NOT NULL,
     has_trigger_label INTEGER NOT NULL DEFAULT 0,
-    last_reviewed_head_sha TEXT,
-    last_run_id INTEGER,
     updated_at TEXT NOT NULL,
     UNIQUE (repo_id, pr_number)
 );

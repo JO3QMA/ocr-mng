@@ -60,13 +60,11 @@ type RepoView struct {
 }
 
 type PRSnapshot struct {
-	ID                   int64
-	RepoID               int64
-	PRNumber             int
-	HasTriggerLabel      bool
-	LastReviewedHeadSHA  string
-	LastRunID            *int64
-	UpdatedAt            time.Time
+	ID              int64
+	RepoID          int64
+	PRNumber        int
+	HasTriggerLabel bool
+	UpdatedAt       time.Time
 }
 
 type ReviewRun struct {
@@ -178,6 +176,8 @@ func (s *Store) migrate(ctx context.Context) error {
 		`ALTER TABLE repos ADD COLUMN review_language TEXT`,
 		`ALTER TABLE repos ADD COLUMN approve_on_zero_findings INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE review_runs DROP COLUMN summary_total_count`,
+		`ALTER TABLE pr_snapshots DROP COLUMN last_reviewed_head_sha`,
+		`ALTER TABLE pr_snapshots DROP COLUMN last_run_id`,
 	} {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
 			msg := strings.ToLower(err.Error())
@@ -463,13 +463,11 @@ func (s *Store) MarkRepoPolled(ctx context.Context, repoID int64, t time.Time) e
 func (s *Store) GetPRSnapshot(ctx context.Context, repoID int64, prNumber int) (PRSnapshot, error) {
 	var snap PRSnapshot
 	var has int
-	var lastSHA sql.NullString
-	var lastRun sql.NullInt64
 	var updated string
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, repo_id, pr_number, has_trigger_label, last_reviewed_head_sha, last_run_id, updated_at
+		SELECT id, repo_id, pr_number, has_trigger_label, updated_at
 		FROM pr_snapshots WHERE repo_id=? AND pr_number=?`, repoID, prNumber).
-		Scan(&snap.ID, &snap.RepoID, &snap.PRNumber, &has, &lastSHA, &lastRun, &updated)
+		Scan(&snap.ID, &snap.RepoID, &snap.PRNumber, &has, &updated)
 	if err == sql.ErrNoRows {
 		return PRSnapshot{RepoID: repoID, PRNumber: prNumber}, nil
 	}
@@ -477,13 +475,6 @@ func (s *Store) GetPRSnapshot(ctx context.Context, repoID int64, prNumber int) (
 		return PRSnapshot{}, err
 	}
 	snap.HasTriggerLabel = has == 1
-	if lastSHA.Valid {
-		snap.LastReviewedHeadSHA = lastSHA.String
-	}
-	if lastRun.Valid {
-		v := lastRun.Int64
-		snap.LastRunID = &v
-	}
 	snap.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 	return snap, nil
 }
@@ -491,14 +482,12 @@ func (s *Store) GetPRSnapshot(ctx context.Context, repoID int64, prNumber int) (
 func (s *Store) SavePRSnapshot(ctx context.Context, snap PRSnapshot) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO pr_snapshots(repo_id, pr_number, has_trigger_label, last_reviewed_head_sha, last_run_id, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO pr_snapshots(repo_id, pr_number, has_trigger_label, updated_at)
+		VALUES (?, ?, ?, ?)
 		ON CONFLICT(repo_id, pr_number) DO UPDATE SET
 			has_trigger_label=excluded.has_trigger_label,
-			last_reviewed_head_sha=excluded.last_reviewed_head_sha,
-			last_run_id=excluded.last_run_id,
 			updated_at=excluded.updated_at`,
-		snap.RepoID, snap.PRNumber, b2i(snap.HasTriggerLabel), nullStr(snap.LastReviewedHeadSHA), snap.LastRunID, now)
+		snap.RepoID, snap.PRNumber, b2i(snap.HasTriggerLabel), now)
 	return err
 }
 
