@@ -263,7 +263,7 @@ func (s *Store) CreateGitHost(ctx context.Context, h GitHost, pat string) (int64
 func (s *Store) UpdateGitHost(ctx context.Context, h GitHost, pat string, clearPAT bool) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	setPAT, clear := 0, 0
-	var enc any
+	enc := ""
 	if pat != "" {
 		e, err := s.encryptPAT(pat)
 		if err != nil {
@@ -350,7 +350,7 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 	now := time.Now().UTC().Format(time.RFC3339)
 	remove, approve, enabled := b2i(r.RemoveLabelAfterReview), b2i(r.ApproveOnZeroFindings), b2i(r.Enabled)
 	setPAT, clear := 0, 0
-	var enc any
+	enc := ""
 	if pat != "" {
 		e, err := s.encryptPAT(pat)
 		if err != nil {
