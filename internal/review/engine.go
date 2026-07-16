@@ -23,26 +23,27 @@ type Engine struct {
 	store      *store.Store
 	log        *slog.Logger
 	running    atomic.Int32
-	manualCh   chan manualRequest
-	repoLocks  sync.Map // repoID -> *sync.Mutex
+	dispatchMu sync.Mutex // ponytail: single-process only; SQL claim when splitting workers
+	repoLocks  sync.Map   // repoID -> *sync.Mutex
 }
 
-type manualRequest struct {
-	RepoID   int64
-	PRNumber int
+type ScheduleRequest struct {
+	RepoID      int64
+	PRNumber    int
+	HeadSHA     string
+	BaseRef     string
+	TriggerKind string
 }
 
 func NewEngine(cfg config.Config, st *store.Store, log *slog.Logger) *Engine {
 	if log == nil {
 		log = slog.Default()
 	}
-	e := &Engine{
-		cfg:      cfg,
-		store:    st,
-		log:      log,
-		manualCh: make(chan manualRequest, 32),
+	return &Engine{
+		cfg:   cfg,
+		store: st,
+		log:   log,
 	}
-	return e
 }
 
 func (e *Engine) acquireGlobal(ctx context.Context) bool {
@@ -66,11 +67,37 @@ func (e *Engine) releaseGlobal() {
 	e.running.Add(-1)
 }
 
-func (e *Engine) TriggerManual(repoID int64, prNumber int) {
-	select {
-	case e.manualCh <- manualRequest{RepoID: repoID, PRNumber: prNumber}:
-	default:
+// ScheduleReview persists a pending Review Run, or no-ops when one is already active.
+// ponytail: no max pending depth; monitor SQLite size in ops if the queue backs up.
+func (e *Engine) ScheduleReview(ctx context.Context, req ScheduleRequest) error {
+	active, err := e.store.HasActiveReviewRun(ctx, req.RepoID, req.PRNumber)
+	if err != nil {
+		return err
 	}
+	if active {
+		return nil
+	}
+	if req.HeadSHA == "" {
+		_, _, _, pr, baseRef, err := e.fetchPR(ctx, req.RepoID, req.PRNumber)
+		if err != nil {
+			return err
+		}
+		req.HeadSHA = pr.HeadSHA
+		req.BaseRef = baseRef
+	}
+	_, err = e.store.CreateReviewRun(ctx, store.ReviewRun{
+		RepoID:      req.RepoID,
+		PRNumber:    req.PRNumber,
+		HeadSHA:     req.HeadSHA,
+		BaseRef:     req.BaseRef,
+		Status:      "pending",
+		TriggerKind: req.TriggerKind,
+	})
+	if err != nil {
+		return err
+	}
+	e.tryDispatch()
+	return nil
 }
 
 func (e *Engine) Run(ctx context.Context) {
@@ -80,6 +107,7 @@ func (e *Engine) Run(ctx context.Context) {
 	} else if n > 0 {
 		e.log.Info("marked interrupted reviews as failed", "count", n)
 	}
+	e.tryDispatch()
 	gitwork.PruneMirrors(ctx, filepath.Join(e.cfg.DataDir, "mirrors"))
 
 	ticker := time.NewTicker(time.Minute)
@@ -100,9 +128,30 @@ func (e *Engine) Run(ctx context.Context) {
 					e.log.Info("purged old review runs", "count", n)
 				}
 			}
-		case req := <-e.manualCh:
-			go e.runManual(ctx, req.RepoID, req.PRNumber)
 		}
+	}
+}
+
+func (e *Engine) tryDispatch() {
+	e.dispatchMu.Lock()
+	defer e.dispatchMu.Unlock()
+
+	ctx := context.Background()
+	for {
+		if !e.acquireGlobal(ctx) {
+			return
+		}
+		run, ok, err := e.store.ClaimNextPendingReviewRun(ctx)
+		if err != nil {
+			e.releaseGlobal()
+			e.log.Error("claim pending review", "err", err)
+			return
+		}
+		if !ok {
+			e.releaseGlobal()
+			return
+		}
+		go e.runReview(run)
 	}
 }
 
@@ -132,14 +181,14 @@ func (e *Engine) pollAll(ctx context.Context) {
 		if repo.LastPolledAt != nil && now.Sub(*repo.LastPolledAt) < time.Duration(interval)*time.Second {
 			continue
 		}
-		if err := e.pollRepo(ctx, repo, gs); err != nil {
+		if err := e.pollRepo(ctx, repo); err != nil {
 			e.log.Error("poll repo", "repo", repo.Owner+"/"+repo.Name, "err", err)
 		}
 		_ = e.store.MarkRepoPolled(ctx, repo.ID, now)
 	}
 }
 
-func (e *Engine) pollRepo(ctx context.Context, repo store.RepoView, gs store.GlobalSettings) error {
+func (e *Engine) pollRepo(ctx context.Context, repo store.RepoView) error {
 	host, err := e.store.GetGitHost(ctx, repo.GitHostID)
 	if err != nil {
 		return err
@@ -159,7 +208,6 @@ func (e *Engine) pollRepo(ctx context.Context, repo store.RepoView, gs store.Glo
 		if err != nil {
 			return err
 		}
-		// Always update label presence for next transition detection
 		deferSnap := snap
 		deferSnap.HasTriggerLabel = hasLabel
 		if !hasLabel {
@@ -170,125 +218,125 @@ func (e *Engine) pollRepo(ctx context.Context, repo store.RepoView, gs store.Glo
 			_ = e.store.SavePRSnapshot(ctx, deferSnap)
 			continue
 		}
-		// Label transition: off -> on. Mark seen before enqueue so the next poll
-		// interval does not start a duplicate review while this one is still running.
-		_ = e.store.SavePRSnapshot(ctx, deferSnap)
 		baseRef := pr.BaseRef
 		if baseRef == "" {
 			baseRef = repo.DefaultBranch
 		}
-		e.enqueueReview(repo, client, pat, gs, pr, baseRef, "label")
-	}
-	return nil
-}
-
-func (e *Engine) runManual(ctx context.Context, repoID int64, prNumber int) {
-	repo, err := e.store.GetRepo(ctx, repoID)
-	if err != nil {
-		e.log.Error("manual review repo", "err", err)
-		return
-	}
-	host, err := e.store.GetGitHost(ctx, repo.GitHostID)
-	if err != nil {
-		e.log.Error("manual review host", "err", err)
-		return
-	}
-	pat, err := e.store.RepoPAT(ctx, repo.ID)
-	if err != nil {
-		e.log.Error("manual review pat", "err", err)
-		return
-	}
-	client := githost.New(host.Kind, host.APIBaseURL, host.WebBaseURL)
-	prs, err := client.ListOpenPullRequests(ctx, pat, repo.Owner, repo.Name)
-	if err != nil {
-		e.log.Error("manual list prs", "err", err)
-		return
-	}
-	var target *githost.PullRequest
-	for i := range prs {
-		if prs[i].Number == prNumber {
-			target = &prs[i]
-			break
-		}
-	}
-	if target == nil {
-		e.log.Error("manual review pr not found", "pr", prNumber)
-		return
-	}
-	gs, _ := e.store.GetGlobalSettings(ctx)
-	baseRef := target.BaseRef
-	if baseRef == "" {
-		baseRef = repo.DefaultBranch
-	}
-	e.enqueueReview(repo, client, pat, gs, *target, baseRef, "manual")
-}
-
-func (e *Engine) enqueueReview(repo store.RepoView, client *githost.Client, pat string, gs store.GlobalSettings, pr githost.PullRequest, baseRef, triggerKind string) {
-	go func() {
-		if !e.acquireGlobal(context.Background()) {
-			e.log.Warn("review skipped: concurrency limit", "repo", repo.ID, "pr", pr.Number)
-			return
-		}
-		defer e.releaseGlobal()
-
-		mu := e.repoMutex(repo.ID)
-		mu.Lock()
-		defer mu.Unlock()
-
-		ctx := context.Background()
-		runID, err := e.store.CreateReviewRun(ctx, store.ReviewRun{
+		if err := e.ScheduleReview(ctx, ScheduleRequest{
 			RepoID:      repo.ID,
 			PRNumber:    pr.Number,
 			HeadSHA:     pr.HeadSHA,
 			BaseRef:     baseRef,
-			Status:      "pending",
-			TriggerKind: triggerKind,
-		})
-		if err != nil {
-			e.log.Error("create review run", "err", err)
-			return
+			TriggerKind: "label",
+		}); err != nil {
+			e.log.Error("schedule review", "repo_id", repo.ID, "pr_number", pr.Number, "err", err)
+			continue
 		}
-		started := time.Now()
-		run := store.ReviewRun{
-			ID:        runID,
-			RepoID:    repo.ID,
-			PRNumber:  pr.Number,
-			HeadSHA:   pr.HeadSHA,
-			BaseRef:   baseRef,
-			Status:    "running",
-			StartedAt: &started,
-		}
-		_ = e.store.UpdateReviewRun(ctx, run)
+		_ = e.store.SavePRSnapshot(ctx, deferSnap)
+	}
+	return nil
+}
 
-		err = e.executeReview(ctx, repo, client, pat, gs, pr, baseRef, &run)
-		finished := time.Now()
-		run.FinishedAt = &finished
-		if err != nil {
-			run.Status = "failed"
-			run.ErrorMessage = err.Error()
-			_ = e.store.UpdateReviewRun(ctx, run)
-			// Mark label seen to avoid repoll loop; manual retry remains available.
-			_ = e.store.SavePRSnapshot(ctx, store.PRSnapshot{
-				RepoID:          repo.ID,
-				PRNumber:        pr.Number,
-				HasTriggerLabel: true,
-			})
-			e.log.Error("review failed", "run", runID, "err", err)
-			return
-		}
-		run.Status = "success"
-		_ = e.store.UpdateReviewRun(ctx, run)
+func (e *Engine) runReview(run store.ReviewRun) {
+	defer func() {
+		e.releaseGlobal()
+		e.tryDispatch()
+	}()
 
-		snap := store.PRSnapshot{
+	ctx := context.Background()
+	mu := e.repoMutex(run.RepoID)
+	mu.Lock()
+	defer mu.Unlock()
+
+	repo, client, pat, pr, baseRef, err := e.fetchPR(ctx, run.RepoID, run.PRNumber)
+	if err != nil {
+		e.finishFailed(ctx, run, repo, pr, err)
+		return
+	}
+
+	run.HeadSHA = pr.HeadSHA
+	run.BaseRef = baseRef
+	_ = e.store.UpdateReviewRun(ctx, run)
+
+	gs, err := e.store.GetGlobalSettings(ctx)
+	if err != nil {
+		e.finishFailed(ctx, run, repo, pr, err)
+		return
+	}
+
+	err = e.executeReview(ctx, repo, client, pat, gs, pr, baseRef, &run)
+	finished := time.Now()
+	run.FinishedAt = &finished
+	if err != nil {
+		run.Status = "failed"
+		run.ErrorMessage = err.Error()
+		_ = e.store.UpdateReviewRun(ctx, run)
+		_ = e.store.SavePRSnapshot(ctx, store.PRSnapshot{
 			RepoID:          repo.ID,
 			PRNumber:        pr.Number,
-			HasTriggerLabel: !repo.RemoveLabelAfterReview && slices.Contains(pr.Labels, repo.TriggerLabel),
+			HasTriggerLabel: true,
+		})
+		e.log.Error("review failed", "run_id", run.ID, "repo_id", repo.ID, "pr_number", pr.Number, "err", err)
+		return
+	}
+	run.Status = "success"
+	_ = e.store.UpdateReviewRun(ctx, run)
+
+	snap := store.PRSnapshot{
+		RepoID:          repo.ID,
+		PRNumber:        pr.Number,
+		HasTriggerLabel: !repo.RemoveLabelAfterReview && slices.Contains(pr.Labels, repo.TriggerLabel),
+	}
+	if repo.RemoveLabelAfterReview {
+		snap.HasTriggerLabel = false
+	}
+	_ = e.store.SavePRSnapshot(ctx, snap)
+}
+
+func (e *Engine) finishFailed(ctx context.Context, run store.ReviewRun, repo store.RepoView, pr githost.PullRequest, err error) {
+	finished := time.Now()
+	run.Status = "failed"
+	run.ErrorMessage = err.Error()
+	run.FinishedAt = &finished
+	_ = e.store.UpdateReviewRun(ctx, run)
+	if repo.ID != 0 {
+		_ = e.store.SavePRSnapshot(ctx, store.PRSnapshot{
+			RepoID:          repo.ID,
+			PRNumber:        run.PRNumber,
+			HasTriggerLabel: true,
+		})
+	}
+	e.log.Error("review failed", "run_id", run.ID, "repo_id", run.RepoID, "pr_number", run.PRNumber, "err", err)
+}
+
+func (e *Engine) fetchPR(ctx context.Context, repoID int64, prNumber int) (store.RepoView, *githost.Client, string, githost.PullRequest, string, error) {
+	repo, err := e.store.GetRepo(ctx, repoID)
+	if err != nil {
+		return store.RepoView{}, nil, "", githost.PullRequest{}, "", err
+	}
+	host, err := e.store.GetGitHost(ctx, repo.GitHostID)
+	if err != nil {
+		return repo, nil, "", githost.PullRequest{}, "", err
+	}
+	pat, err := e.store.RepoPAT(ctx, repo.ID)
+	if err != nil {
+		return repo, nil, "", githost.PullRequest{}, "", err
+	}
+	client := githost.New(host.Kind, host.APIBaseURL, host.WebBaseURL)
+	prs, err := client.ListOpenPullRequests(ctx, pat, repo.Owner, repo.Name)
+	if err != nil {
+		return repo, client, pat, githost.PullRequest{}, "", err
+	}
+	for i := range prs {
+		if prs[i].Number == prNumber {
+			baseRef := prs[i].BaseRef
+			if baseRef == "" {
+				baseRef = repo.DefaultBranch
+			}
+			return repo, client, pat, prs[i], baseRef, nil
 		}
-		if repo.RemoveLabelAfterReview {
-			snap.HasTriggerLabel = false
-		}
-		_ = e.store.SavePRSnapshot(ctx, snap)
-	}()
+	}
+	return repo, client, pat, githost.PullRequest{}, "", fmt.Errorf("pull request not open: #%d", prNumber)
 }
 
 func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client *githost.Client, pat string, gs store.GlobalSettings, pr githost.PullRequest, baseRef string, run *store.ReviewRun) error {
