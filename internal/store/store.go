@@ -333,26 +333,15 @@ func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, erro
 		return 0, err
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	remove := 0
-	if r.RemoveLabelAfterReview {
-		remove = 1
-	}
-	approve := 0
-	if r.ApproveOnZeroFindings {
-		approve = 1
-	}
-	enabled := 0
-	if r.Enabled {
-		enabled = 1
-	}
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO repos(git_host_id, owner, name, default_branch, trigger_label, poll_interval_seconds,
 			repo_pat_encrypted, comment_mode, remove_label_after_review, approve_on_zero_findings,
 			ocr_model, ocr_rule, ocr_requirement, review_language, enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
-		nullStr(enc), r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
-		nullStr(r.ReviewLanguage), enabled, now, now)
+		nullStr(enc), r.CommentMode, b2i(r.RemoveLabelAfterReview), b2i(r.ApproveOnZeroFindings),
+		nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
+		nullStr(r.ReviewLanguage), b2i(r.Enabled), now, now)
 	if err != nil {
 		return 0, err
 	}
@@ -361,18 +350,7 @@ func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, erro
 
 func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT bool) error {
 	now := time.Now().UTC().Format(time.RFC3339)
-	remove := 0
-	if r.RemoveLabelAfterReview {
-		remove = 1
-	}
-	approve := 0
-	if r.ApproveOnZeroFindings {
-		approve = 1
-	}
-	enabled := 0
-	if r.Enabled {
-		enabled = 1
-	}
+	remove, approve, enabled := b2i(r.RemoveLabelAfterReview), b2i(r.ApproveOnZeroFindings), b2i(r.Enabled)
 	if pat != "" {
 		enc, err := s.encryptPAT(pat)
 		if err != nil {
@@ -523,10 +501,6 @@ func (s *Store) GetPRSnapshot(ctx context.Context, repoID int64, prNumber int) (
 }
 
 func (s *Store) SavePRSnapshot(ctx context.Context, snap PRSnapshot) error {
-	has := 0
-	if snap.HasTriggerLabel {
-		has = 1
-	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO pr_snapshots(repo_id, pr_number, has_trigger_label, last_reviewed_head_sha, last_run_id, updated_at)
@@ -536,7 +510,7 @@ func (s *Store) SavePRSnapshot(ctx context.Context, snap PRSnapshot) error {
 			last_reviewed_head_sha=excluded.last_reviewed_head_sha,
 			last_run_id=excluded.last_run_id,
 			updated_at=excluded.updated_at`,
-		snap.RepoID, snap.PRNumber, has, nullStr(snap.LastReviewedHeadSHA), snap.LastRunID, now)
+		snap.RepoID, snap.PRNumber, b2i(snap.HasTriggerLabel), nullStr(snap.LastReviewedHeadSHA), snap.LastRunID, now)
 	return err
 }
 
@@ -665,6 +639,13 @@ func nullStr(s string) any {
 		return nil
 	}
 	return s
+}
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func formatTime(t *time.Time) any {
