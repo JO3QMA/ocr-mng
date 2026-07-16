@@ -253,7 +253,7 @@ func (s *Store) CreateGitHost(ctx context.Context, h GitHost, pat string) (int64
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO git_hosts(name, kind, api_base_url, web_base_url, host_pat_encrypted, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		h.Name, h.Kind, h.APIBaseURL, h.WebBaseURL, nullIfEmpty(enc), now, now)
+		h.Name, h.Kind, h.APIBaseURL, h.WebBaseURL, nullStr(enc), now, now)
 	if err != nil {
 		return 0, err
 	}
@@ -351,7 +351,7 @@ func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, erro
 			ocr_model, ocr_rule, ocr_requirement, review_language, enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
-		nullIfEmpty(enc), r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
+		nullStr(enc), r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
 		nullStr(r.ReviewLanguage), enabled, now, now)
 	if err != nil {
 		return 0, err
@@ -658,13 +658,6 @@ func (s *Store) PurgeOldReviewRuns(ctx context.Context, retentionDays int) (int6
 		return 0, err
 	}
 	return res.RowsAffected()
-}
-
-func nullIfEmpty(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
 }
 
 func nullStr(s string) any {
