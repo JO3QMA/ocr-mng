@@ -106,6 +106,14 @@ func writeSummaryHeading(b *strings.Builder, c ocr.Comment, cf CommentFormat, w 
 	fmt.Fprintf(b, "#### %s\n%s\n\n", title, commentBody(c, cf, w, false))
 }
 
+func writeZeroCommentBody(b *strings.Builder, result ocr.Result, w wrapperMsgs) {
+	msg := result.Message
+	if msg == "" {
+		msg = w.noComments
+	}
+	fmt.Fprintf(b, "✅ %s\n", msg)
+}
+
 // ForInline splits OCR output into inline review comments and a summary markdown body.
 func ForInline(result ocr.Result, cf CommentFormat) ([]githost.ReviewComment, string) {
 	w := wrapperFor(cf.Lang)
@@ -113,11 +121,7 @@ func ForInline(result ocr.Result, cf CommentFormat) ([]githost.ReviewComment, st
 	var b strings.Builder
 	b.WriteString(w.title)
 	if len(result.Comments) == 0 {
-		msg := result.Message
-		if msg == "" {
-			msg = w.noComments
-		}
-		fmt.Fprintf(&b, "✅ %s\n", msg)
+		writeZeroCommentBody(&b, result, w)
 		return inline, b.String()
 	}
 	fmt.Fprintf(&b, w.foundComments, len(result.Comments))
@@ -147,11 +151,7 @@ func AsSingleComment(result ocr.Result, cf CommentFormat) string {
 	var b strings.Builder
 	b.WriteString(w.title)
 	if len(result.Comments) == 0 {
-		msg := result.Message
-		if msg == "" {
-			msg = w.noComments
-		}
-		fmt.Fprintf(&b, "✅ %s\n", msg)
+		writeZeroCommentBody(&b, result, w)
 		return b.String()
 	}
 	for _, c := range result.Comments {
