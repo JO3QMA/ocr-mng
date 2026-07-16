@@ -264,6 +264,11 @@ func (e *Engine) runReview(run store.ReviewRun) {
 			run.ErrorMessage = fmt.Sprintf("panic: %v", r)
 			run.FinishedAt = &finished
 			_ = e.store.UpdateReviewRun(ctx, run)
+			_ = e.store.SavePRSnapshot(ctx, store.PRSnapshot{
+				RepoID:          run.RepoID,
+				PRNumber:        run.PRNumber,
+				HasTriggerLabel: true,
+			})
 			e.log.Error("review panic", "run_id", run.ID, "repo_id", run.RepoID, "pr_number", run.PRNumber, "panic", r)
 		}
 		e.releaseGlobal()
