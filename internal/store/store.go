@@ -585,6 +585,8 @@ func scanReviewRun(scanner interface {
 	return r, nil
 }
 
+// HasActiveReviewRun reports whether a pending or running run exists for repo+PR.
+// Production scheduling uses CreatePendingReviewRunIfAbsent; this helper supports tests.
 func (s *Store) HasActiveReviewRun(ctx context.Context, repoID int64, prNumber int) (bool, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx, `

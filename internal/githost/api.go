@@ -96,6 +96,47 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, pat, owner, repo stri
 	return out, nil
 }
 
+func (c *Client) GetPullRequest(ctx context.Context, pat, owner, repo string, prNumber int) (PullRequest, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/pulls/%d", c.apiBase, owner, repo, prNumber)
+	body, err := c.do(ctx, pat, http.MethodGet, url, nil)
+	if err != nil {
+		return PullRequest{}, err
+	}
+	var raw struct {
+		State  string `json:"state"`
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+		Body   string `json:"body"`
+		Base   struct {
+			Ref string `json:"ref"`
+		} `json:"base"`
+		Head struct {
+			SHA string `json:"sha"`
+		} `json:"head"`
+		Labels []struct {
+			Name string `json:"name"`
+		} `json:"labels"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return PullRequest{}, err
+	}
+	if raw.State != "open" {
+		return PullRequest{}, fmt.Errorf("pull request not open: #%d", prNumber)
+	}
+	labels := make([]string, 0, len(raw.Labels))
+	for _, l := range raw.Labels {
+		labels = append(labels, l.Name)
+	}
+	return PullRequest{
+		Number:  raw.Number,
+		Title:   raw.Title,
+		Body:    raw.Body,
+		BaseRef: raw.Base.Ref,
+		HeadSHA: raw.Head.SHA,
+		Labels:  labels,
+	}, nil
+}
+
 func (c *Client) RemoveLabel(ctx context.Context, pat, owner, repo string, prNumber int, label string) error {
 	url := fmt.Sprintf("%s/repos/%s/%s/issues/%d/labels/%s", c.apiBase, owner, repo, prNumber, label)
 	_, err := c.do(ctx, pat, http.MethodDelete, url, nil)

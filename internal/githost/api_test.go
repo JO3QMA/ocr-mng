@@ -83,3 +83,45 @@ func TestListOpenPullRequestsGiteaTitleBody(t *testing.T) {
 		t.Fatalf("pr: %+v", prs[0])
 	}
 }
+
+func TestGetPullRequestOpen(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/o/r/pulls/42" {
+			t.Fatalf("path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"state": "open",
+			"number": 42,
+			"title": "Fix bug",
+			"body": "Details",
+			"base": {"ref": "main"},
+			"head": {"sha": "abc123"},
+			"labels": [{"name": "review"}]
+		}`))
+	}))
+	defer srv.Close()
+
+	c := githost.New("github", srv.URL, "https://github.com")
+	pr, err := c.GetPullRequest(context.Background(), "", "o", "r", 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pr.Number != 42 || pr.HeadSHA != "abc123" {
+		t.Fatalf("pr: %+v", pr)
+	}
+}
+
+func TestGetPullRequestClosed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"state": "closed", "number": 7, "title": "", "body": "", "base": {"ref": "main"}, "head": {"sha": "x"}, "labels": []}`))
+	}))
+	defer srv.Close()
+
+	c := githost.New("github", srv.URL, "https://github.com")
+	_, err := c.GetPullRequest(context.Background(), "", "o", "r", 7)
+	if err == nil {
+		t.Fatal("expected error for closed PR")
+	}
+}

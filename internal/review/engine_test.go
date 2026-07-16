@@ -3,6 +3,8 @@ package review_test
 import (
 	"context"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/jo3qma/ocr-mng/internal/config"
@@ -86,6 +88,44 @@ func TestScheduleReview_duplicate_returnsNil(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("expected 1 run for PR 9, got %d", n)
+	}
+}
+
+func TestScheduleReview_manualClosedPR(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"state": "closed", "number": 5, "title": "", "body": "", "base": {"ref": "main"}, "head": {"sha": "x"}, "labels": []}`))
+	}))
+	defer srv.Close()
+
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+
+	hostID, err := st.CreateGitHost(ctx, store.GitHost{
+		Name: "github", Kind: "github",
+		APIBaseURL: srv.URL, WebBaseURL: "https://github.com",
+	}, "pat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repoID, err := st.CreateRepo(ctx, store.Repo{
+		GitHostID: hostID, Owner: "acme", Name: "app",
+		DefaultBranch: "main", TriggerLabel: "review", CommentMode: "inline", Enabled: true,
+	}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := review.NewEngine(config.Config{DataDir: t.TempDir()}, st, slog.Default())
+	err = e.ScheduleReview(ctx, review.ScheduleRequest{
+		RepoID: repoID, PRNumber: 5, TriggerKind: "manual",
+	})
+	if err == nil {
+		t.Fatal("expected error scheduling closed PR")
 	}
 }
 

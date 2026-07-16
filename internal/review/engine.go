@@ -47,12 +47,18 @@ func NewEngine(cfg config.Config, st *store.Store, log *slog.Logger) *Engine {
 }
 
 func (e *Engine) acquireGlobal(ctx context.Context) bool {
+	if err := ctx.Err(); err != nil {
+		return false
+	}
 	gs, err := e.store.GetGlobalSettings(ctx)
 	max := 2
 	if err == nil && gs.MaxConcurrentReviews > 0 {
 		max = gs.MaxConcurrentReviews
 	}
 	for {
+		if err := ctx.Err(); err != nil {
+			return false
+		}
 		cur := e.running.Load()
 		if int(cur) >= max {
 			return false
@@ -76,6 +82,14 @@ func (e *Engine) ScheduleReview(ctx context.Context, req ScheduleRequest) error 
 			return err
 		}
 		req.BaseRef = repo.DefaultBranch
+	}
+	if req.HeadSHA == "" && req.TriggerKind == "manual" {
+		_, _, _, pr, baseRef, err := e.fetchPR(ctx, req.RepoID, req.PRNumber)
+		if err != nil {
+			return err
+		}
+		req.HeadSHA = pr.HeadSHA
+		req.BaseRef = baseRef
 	}
 	_, created, err := e.store.CreatePendingReviewRunIfAbsent(ctx, store.ReviewRun{
 		RepoID:      req.RepoID,
@@ -139,6 +153,9 @@ func (e *Engine) tryDispatch(parent context.Context) {
 	defer cancel()
 
 	for {
+		if err := ctx.Err(); err != nil {
+			return
+		}
 		if !e.acquireGlobal(ctx) {
 			return
 		}
@@ -240,6 +257,15 @@ func (e *Engine) pollRepo(ctx context.Context, repo store.RepoView) error {
 
 func (e *Engine) runReview(run store.ReviewRun) {
 	defer func() {
+		if r := recover(); r != nil {
+			ctx := context.Background()
+			finished := time.Now()
+			run.Status = "failed"
+			run.ErrorMessage = fmt.Sprintf("panic: %v", r)
+			run.FinishedAt = &finished
+			_ = e.store.UpdateReviewRun(ctx, run)
+			e.log.Error("review panic", "run_id", run.ID, "repo_id", run.RepoID, "pr_number", run.PRNumber, "panic", r)
+		}
 		e.releaseGlobal()
 		e.tryDispatch(context.Background())
 	}()
@@ -324,20 +350,15 @@ func (e *Engine) fetchPR(ctx context.Context, repoID int64, prNumber int) (store
 		return repo, nil, "", githost.PullRequest{}, "", err
 	}
 	client := githost.New(host.Kind, host.APIBaseURL, host.WebBaseURL)
-	prs, err := client.ListOpenPullRequests(ctx, pat, repo.Owner, repo.Name)
+	pr, err := client.GetPullRequest(ctx, pat, repo.Owner, repo.Name, prNumber)
 	if err != nil {
 		return repo, client, pat, githost.PullRequest{}, "", err
 	}
-	for i := range prs {
-		if prs[i].Number == prNumber {
-			baseRef := prs[i].BaseRef
-			if baseRef == "" {
-				baseRef = repo.DefaultBranch
-			}
-			return repo, client, pat, prs[i], baseRef, nil
-		}
+	baseRef := pr.BaseRef
+	if baseRef == "" {
+		baseRef = repo.DefaultBranch
 	}
-	return repo, client, pat, githost.PullRequest{}, "", fmt.Errorf("pull request not open: #%d", prNumber)
+	return repo, client, pat, pr, baseRef, nil
 }
 
 func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client *githost.Client, pat string, gs store.GlobalSettings, pr githost.PullRequest, baseRef string, run *store.ReviewRun) error {
