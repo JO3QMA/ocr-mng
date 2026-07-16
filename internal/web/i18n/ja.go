@@ -33,8 +33,9 @@ var ja = map[string]string{
 	"flash.created":    "作成しました。",
 	"flash.updated":    "更新しました。",
 	"flash.saved":      "設定を保存しました。",
-	"flash.queued":     "レビューをキューに入れました。",
-	"flash.invalid_pr": "PR 番号が不正です。",
+	"flash.queued":       "レビューをキューに入れました。",
+	"flash.queue_failed": "レビューをキューに入れられませんでした。",
+	"flash.invalid_pr":   "PR 番号が不正です。",
 
 	"table.id":      "ID",
 	"table.repo":    "リポジトリ",

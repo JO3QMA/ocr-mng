@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -273,8 +274,17 @@ func (s *Server) repoManualReview(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, fmt.Sprintf("/repos/%d/runs?flash=invalid_pr", id), http.StatusSeeOther)
 		return
 	}
-	s.engine.TriggerManual(id, prNumber)
-	http.Redirect(w, r, fmt.Sprintf("/repos/%d/runs?flash=queued", id), http.StatusSeeOther)
+	err := s.engine.ScheduleReview(r.Context(), review.ScheduleRequest{
+		RepoID:      id,
+		PRNumber:    prNumber,
+		TriggerKind: "manual",
+	})
+	flash := "queued"
+	if err != nil {
+		slog.ErrorContext(r.Context(), "manual schedule review failed", "repo_id", id, "pr_number", prNumber, "err", err)
+		flash = "queue_failed"
+	}
+	http.Redirect(w, r, fmt.Sprintf("/repos/%d/runs?flash=%s", id, flash), http.StatusSeeOther)
 }
 
 func (s *Server) runsList(w http.ResponseWriter, r *http.Request) {

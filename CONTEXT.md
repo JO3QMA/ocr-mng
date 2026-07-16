@@ -13,7 +13,7 @@ _Avoid_: OpenCodeReview（曖昧な総称）, ocr（CLI コマンド名との混
 _Avoid_: OCR Manager, ocr-mng（実装名）
 
 **Review Trigger**:
-Pull Request に対して OCR レビューを起動する条件。Label が新たに付与された瞬間に 1 回実行し、UI からの手動再レビューでも起動できる。
+Pull Request に対して OCR レビューを起動する条件。Label が新たに付与された瞬間に 1 回実行し、UI からの手動再レビューでも起動できる。手動トリガーは HTTP リクエスト処理中に `pending` Review Run を DB へ同期的に作成してから応答する（インメモリチャネルだけに載せない）。
 _Avoid_: ポーリングトリガー, 自動レビュー（曖昧）
 
 **Trigger Label**:
@@ -65,15 +65,19 @@ Registered Repo の Pull Request を Git Host API で確認する周期。グロ
 _Avoid_: フェッチ間隔, スキャン間隔
 
 **Review Run**:
-1 回の OCR レビュー実行の記録。対象 Pull Request、開始・終了時刻、成否、投稿先、OCR 出力を含む。
+1 回の OCR レビュー実行の記録。対象 Pull Request、開始・終了時刻、成否、投稿先、OCR 出力を含む。`pending` は Review Concurrency の空き待ち、`running` は実行中、`success` / `failed` は終了状態。
 _Avoid_: ジョブ, タスク（曖昧）
 
+**Pending Review Run**:
+Review Concurrency の空きを待っている Review Run。SQLite に永続化され、Review Manager Process 再起動後も再スケジュールされる（`running` で中断された Run は再起動時に `failed` 化する）。同一 Registered Repo × 同一 Pull Request に `pending` または `running` が既にあるときは、新たな Review Run を作らない。実行開始時に Git Host から Pull Request を再取得し、その時点の HEAD・base・本文でレビューする（キュー投入時の HEAD に固定しない）。Trigger Label の有無は実行ゲートにはしない。
+_Avoid_: キューアイテム, ジョブ（曖昧）
+
 **Pull Request Snapshot**:
-Review Trigger 判定と重複防止のため Pull Request ごとに保持する最小状態。Trigger Label の有無のみを持つ。タイトル・本文は含めない（Review Run 実行時に Git Host API から都度取得する）。
+Review Trigger 判定と重複防止のため Pull Request ごとに保持する最小状態。Trigger Label の有無のみを持つ。タイトル・本文は含めない（Review Run 実行時に Git Host API から都度取得する）。ラベル遷移（off→on）では、`pending` Review Run の作成に成功してから Snapshot を更新する。
 _Avoid_: PR 状態, キャッシュ（曖昧）
 
 **Review Concurrency**:
-同時実行できる Review Run の上限。Registered Repo ごとには 1 件までとし、システム全体では UI 設定可能な最大並行数を超えない。
+同時実行できる Review Run の上限。Registered Repo ごとには 1 件までとし、システム全体では UI 設定可能な最大並行数を超えない。`pending` の消化は `created_at` 昇順の FIFO とし、対象 Registered Repo に既に `running` がある場合はその Run を飛ばして次を選ぶ。
 _Avoid_: ワーカー数, 並列度（曖昧）
 
 **Global OCR Settings**:

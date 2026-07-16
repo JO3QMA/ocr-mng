@@ -33,8 +33,9 @@ var en = map[string]string{
 	"flash.created":    "Created.",
 	"flash.updated":    "Updated.",
 	"flash.saved":      "Settings saved.",
-	"flash.queued":     "Review queued.",
-	"flash.invalid_pr": "Invalid PR number.",
+	"flash.queued":       "Review queued.",
+	"flash.queue_failed": "Could not queue review.",
+	"flash.invalid_pr":   "Invalid PR number.",
 
 	"table.id":      "ID",
 	"table.repo":    "Repo",

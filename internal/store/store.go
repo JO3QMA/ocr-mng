@@ -585,12 +585,94 @@ func scanReviewRun(scanner interface {
 	return r, nil
 }
 
+// HasActiveReviewRun reports whether a pending or running run exists for repo+PR.
+// Production scheduling uses CreatePendingReviewRunIfAbsent; this helper supports tests.
+func (s *Store) HasActiveReviewRun(ctx context.Context, repoID int64, prNumber int) (bool, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM review_runs
+		WHERE repo_id=? AND pr_number=? AND status IN ('pending', 'running')`,
+		repoID, prNumber).Scan(&n)
+	return n > 0, err
+}
+
+// CreatePendingReviewRunIfAbsent inserts a pending run when none is active for repo+PR.
+func (s *Store) CreatePendingReviewRunIfAbsent(ctx context.Context, run ReviewRun) (int64, bool, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := s.db.ExecContext(ctx, `
+		INSERT INTO review_runs(repo_id, pr_number, head_sha, base_ref, status, trigger_kind, created_at)
+		SELECT ?, ?, ?, ?, 'pending', ?, ?
+		WHERE NOT EXISTS (
+			SELECT 1 FROM review_runs
+			WHERE repo_id=? AND pr_number=? AND status IN ('pending', 'running')
+		)`,
+		run.RepoID, run.PRNumber, run.HeadSHA, run.BaseRef, run.TriggerKind, now,
+		run.RepoID, run.PRNumber)
+	if err != nil {
+		return 0, false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, false, err
+	}
+	if n == 0 {
+		return 0, false, nil
+	}
+	id, err := res.LastInsertId()
+	return id, true, err
+}
+
+func (s *Store) ClaimNextPendingReviewRun(ctx context.Context) (ReviewRun, bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return ReviewRun{}, false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	row := tx.QueryRowContext(ctx, `
+		SELECT id, repo_id, pr_number, head_sha, base_ref, status, trigger_kind, error_message,
+			comment_url, ocr_output_path, started_at, finished_at, created_at
+		FROM review_runs
+		WHERE status='pending'
+		  AND repo_id NOT IN (SELECT repo_id FROM review_runs WHERE status='running')
+		ORDER BY created_at ASC, id ASC
+		LIMIT 1`)
+	run, err := scanReviewRun(row)
+	if err == sql.ErrNoRows {
+		return ReviewRun{}, false, nil
+	}
+	if err != nil {
+		return ReviewRun{}, false, err
+	}
+	now := time.Now().UTC()
+	started := now.Format(time.RFC3339)
+	res, err := tx.ExecContext(ctx, `
+		UPDATE review_runs SET status='running', started_at=?
+		WHERE id=? AND status='pending'`, started, run.ID)
+	if err != nil {
+		return ReviewRun{}, false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return ReviewRun{}, false, err
+	}
+	if n == 0 {
+		return ReviewRun{}, false, nil
+	}
+	if err := tx.Commit(); err != nil {
+		return ReviewRun{}, false, err
+	}
+	run.Status = "running"
+	run.StartedAt = &now
+	return run, true, nil
+}
+
 func (s *Store) FailInterruptedReviewRuns(ctx context.Context, reason string) (int64, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE review_runs
 		SET status='failed', error_message=?, finished_at=?
-		WHERE status IN ('pending', 'running')`, reason, now)
+		WHERE status='running'`, reason, now)
 	if err != nil {
 		return 0, err
 	}
