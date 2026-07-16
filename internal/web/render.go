@@ -36,12 +36,6 @@ var pageTemplates = template.Must(
 			}
 			return ""
 		},
-		"yesNo": func(v bool) string {
-			if v {
-				return "yes"
-			}
-			return "no"
-		},
 		"defaultStr": func(v, fallback string) string {
 			if v == "" {
 				return fallback
