@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -154,7 +155,7 @@ func (e *Engine) pollRepo(ctx context.Context, repo store.RepoView, gs store.Glo
 		return err
 	}
 	for _, pr := range prs {
-		hasLabel := githost.HasLabel(pr.Labels, repo.TriggerLabel)
+		hasLabel := slices.Contains(pr.Labels, repo.TriggerLabel)
 		snap, err := e.store.GetPRSnapshot(ctx, repo.ID, pr.Number)
 		if err != nil {
 			return err
@@ -284,7 +285,7 @@ func (e *Engine) enqueueReview(repo store.RepoView, host store.GitHost, client *
 		snap := store.PRSnapshot{
 			RepoID:              repo.ID,
 			PRNumber:            pr.Number,
-			HasTriggerLabel:     !repo.RemoveLabelAfterReview && githost.HasLabel(pr.Labels, repo.TriggerLabel),
+			HasTriggerLabel:     !repo.RemoveLabelAfterReview && slices.Contains(pr.Labels, repo.TriggerLabel),
 			LastReviewedHeadSHA: pr.HeadSHA,
 			LastRunID:           &runIDCopy,
 		}

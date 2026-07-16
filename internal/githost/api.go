@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -38,8 +39,8 @@ type Client struct {
 
 func New(kind, apiBase, webBase string) *Client {
 	c := &Client{
-		apiBase:    trimSlash(apiBase),
-		webBase:    trimSlash(webBase),
+		apiBase:    strings.TrimRight(apiBase, "/"),
+		webBase:    strings.TrimRight(webBase, "/"),
 		authPrefix: "Bearer ",
 		listParam:  "per_page",
 	}
@@ -201,38 +202,19 @@ func patFromContext(ctx context.Context) (string, bool) {
 	return v, ok && v != ""
 }
 
-func HasLabel(labels []string, name string) bool {
-	for _, l := range labels {
-		if l == name {
-			return true
-		}
-	}
-	return false
-}
-
-func trimSlash(s string) string {
-	for len(s) > 0 && s[len(s)-1] == '/' {
-		s = s[:len(s)-1]
-	}
-	return s
-}
-
 func cloneURL(webBase, owner, repo, pat string) string {
 	if pat == "" {
 		return fmt.Sprintf("%s/%s/%s.git", webBase, owner, repo)
 	}
 	// ponytail: embed PAT in HTTPS URL for git clone; upgrade path is git credential helper
 	return fmt.Sprintf("https://oauth2:%s@%s/%s/%s.git",
-		pat, trimHost(webBase), owner, repo)
+		pat, hostOf(webBase), owner, repo)
 }
 
-func trimHost(webBase string) string {
-	u := trimSlash(webBase)
-	if len(u) > 8 && u[:8] == "https://" {
-		return u[8:]
+func hostOf(webBase string) string {
+	u, err := url.Parse(webBase)
+	if err != nil || u.Host == "" {
+		return strings.TrimPrefix(strings.TrimPrefix(webBase, "https://"), "http://")
 	}
-	if len(u) > 7 && u[:7] == "http://" {
-		return u[7:]
-	}
-	return u
+	return u.Host
 }
