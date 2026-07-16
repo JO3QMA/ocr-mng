@@ -262,25 +262,23 @@ func (s *Store) CreateGitHost(ctx context.Context, h GitHost, pat string) (int64
 
 func (s *Store) UpdateGitHost(ctx context.Context, h GitHost, pat string, clearPAT bool) error {
 	now := time.Now().UTC().Format(time.RFC3339)
+	setPAT, clear := 0, 0
+	enc := ""
 	if pat != "" {
-		enc, err := s.encryptPAT(pat)
+		e, err := s.encryptPAT(pat)
 		if err != nil {
 			return err
 		}
-		_, err = s.db.ExecContext(ctx, `
-			UPDATE git_hosts SET name=?, kind=?, api_base_url=?, web_base_url=?, host_pat_encrypted=?, updated_at=?
-			WHERE id=?`, h.Name, h.Kind, h.APIBaseURL, h.WebBaseURL, enc, now, h.ID)
-		return err
-	}
-	if clearPAT {
-		_, err := s.db.ExecContext(ctx, `
-			UPDATE git_hosts SET name=?, kind=?, api_base_url=?, web_base_url=?, host_pat_encrypted=NULL, updated_at=?
-			WHERE id=?`, h.Name, h.Kind, h.APIBaseURL, h.WebBaseURL, now, h.ID)
-		return err
+		setPAT, enc = 1, e
+	} else if clearPAT {
+		clear = 1
 	}
 	_, err := s.db.ExecContext(ctx, `
-		UPDATE git_hosts SET name=?, kind=?, api_base_url=?, web_base_url=?, updated_at=?
-		WHERE id=?`, h.Name, h.Kind, h.APIBaseURL, h.WebBaseURL, now, h.ID)
+		UPDATE git_hosts SET name=?, kind=?, api_base_url=?, web_base_url=?,
+			host_pat_encrypted=CASE WHEN ?=1 THEN ? WHEN ?=1 THEN NULL ELSE host_pat_encrypted END,
+			updated_at=?
+		WHERE id=?`,
+		h.Name, h.Kind, h.APIBaseURL, h.WebBaseURL, setPAT, enc, clear, now, h.ID)
 	return err
 }
 
@@ -351,40 +349,26 @@ func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, erro
 func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT bool) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	remove, approve, enabled := b2i(r.RemoveLabelAfterReview), b2i(r.ApproveOnZeroFindings), b2i(r.Enabled)
+	setPAT, clear := 0, 0
+	enc := ""
 	if pat != "" {
-		enc, err := s.encryptPAT(pat)
+		e, err := s.encryptPAT(pat)
 		if err != nil {
 			return err
 		}
-		_, err = s.db.ExecContext(ctx, `
-			UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
-				poll_interval_seconds=?, repo_pat_encrypted=?, comment_mode=?, remove_label_after_review=?,
-				approve_on_zero_findings=?, ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?,
-				enabled=?, updated_at=?
-			WHERE id=?`,
-			r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds, enc,
-			r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
-			nullStr(r.ReviewLanguage), enabled, now, r.ID)
-		return err
-	}
-	if clearPAT {
-		_, err := s.db.ExecContext(ctx, `
-			UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
-				poll_interval_seconds=?, repo_pat_encrypted=NULL, comment_mode=?, remove_label_after_review=?,
-				approve_on_zero_findings=?, ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?,
-				enabled=?, updated_at=?
-			WHERE id=?`,
-			r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
-			r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
-			nullStr(r.ReviewLanguage), enabled, now, r.ID)
-		return err
+		setPAT, enc = 1, e
+	} else if clearPAT {
+		clear = 1
 	}
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
-			poll_interval_seconds=?, comment_mode=?, remove_label_after_review=?, approve_on_zero_findings=?,
+			poll_interval_seconds=?,
+			repo_pat_encrypted=CASE WHEN ?=1 THEN ? WHEN ?=1 THEN NULL ELSE repo_pat_encrypted END,
+			comment_mode=?, remove_label_after_review=?, approve_on_zero_findings=?,
 			ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?, enabled=?, updated_at=?
 		WHERE id=?`,
 		r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
+		setPAT, enc, clear,
 		r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
 		nullStr(r.ReviewLanguage), enabled, now, r.ID)
 	return err

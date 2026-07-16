@@ -90,3 +90,85 @@ func TestFailInterruptedReviewRuns(t *testing.T) {
 		t.Fatalf("run: %+v", run[0])
 	}
 }
+
+func TestUpdatePATSetClearKeep(t *testing.T) {
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+
+	hostID, err := st.CreateGitHost(ctx, store.GitHost{
+		Name: "github", Kind: "github",
+		APIBaseURL: "https://api.github.com", WebBaseURL: "https://github.com",
+	}, "host-pat-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := st.GetGitHost(ctx, hostID)
+	if err != nil || !h.HasHostPAT {
+		t.Fatalf("host: %+v err=%v", h, err)
+	}
+	// keep
+	if err := st.UpdateGitHost(ctx, h, "", false); err != nil {
+		t.Fatal(err)
+	}
+	h, _ = st.GetGitHost(ctx, hostID)
+	if !h.HasHostPAT {
+		t.Fatal("expected PAT kept")
+	}
+	// set
+	if err := st.UpdateGitHost(ctx, h, "host-pat-2", false); err != nil {
+		t.Fatal(err)
+	}
+	h, _ = st.GetGitHost(ctx, hostID)
+	if !h.HasHostPAT {
+		t.Fatal("expected PAT set")
+	}
+	// clear
+	if err := st.UpdateGitHost(ctx, h, "", true); err != nil {
+		t.Fatal(err)
+	}
+	h, _ = st.GetGitHost(ctx, hostID)
+	if h.HasHostPAT {
+		t.Fatal("expected PAT cleared")
+	}
+
+	repoID, err := st.CreateRepo(ctx, store.Repo{
+		GitHostID: hostID, Owner: "acme", Name: "app",
+		DefaultBranch: "main", TriggerLabel: "review", CommentMode: "inline", Enabled: true,
+	}, "repo-pat-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.RepoPAT(ctx, repoID); err != nil {
+		t.Fatal(err)
+	}
+	rv, err := st.GetRepo(ctx, repoID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// keep (falls back to missing host PAT → error unless we set host again)
+	if err := st.UpdateGitHost(ctx, h, "host-again", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpdateRepo(ctx, rv.Repo, "", false); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.RepoPAT(ctx, repoID); err != nil || got != "repo-pat-1" {
+		t.Fatalf("keep repo pat: got=%q err=%v", got, err)
+	}
+	if err := st.UpdateRepo(ctx, rv.Repo, "repo-pat-2", false); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.RepoPAT(ctx, repoID); err != nil || got != "repo-pat-2" {
+		t.Fatalf("set repo pat: got=%q err=%v", got, err)
+	}
+	if err := st.UpdateRepo(ctx, rv.Repo, "", true); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.RepoPAT(ctx, repoID); err != nil || got != "host-again" {
+		t.Fatalf("clear repo pat falls back to host: got=%q err=%v", got, err)
+	}
+}
