@@ -81,9 +81,6 @@ func TestResolveLLM_ledgerPair(t *testing.T) {
 	if m["provider"] != "anthropic" {
 		t.Fatalf("config: %s", sel.ConfigJSON)
 	}
-	if strings.Contains(sel.ConfigJSON, "sk-test") {
-		// key is present in config by design; ensure we at least built providers section
-	}
 	providers := m["providers"].(map[string]any)
 	entry := providers["anthropic"].(map[string]any)
 	if entry["api_key"] != "sk-test" {
