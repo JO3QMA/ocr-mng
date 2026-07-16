@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/jo3qma/ocr-mng/internal/config"
 	"github.com/jo3qma/ocr-mng/internal/review"
@@ -127,6 +128,125 @@ func TestScheduleReview_manualClosedPR(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error scheduling closed PR")
 	}
+}
+
+func TestTryDispatch_drainsPendingWhenSlotFrees(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		var body string
+		switch r.URL.Path {
+		case "/repos/acme/app/pulls/1":
+			body = `{"state":"open","number":1,"title":"one","body":"","base":{"ref":"main"},"head":{"sha":"aaa"},"labels":[]}`
+		case "/repos/acme/app/pulls/2":
+			body = `{"state":"open","number":2,"title":"two","body":"","base":{"ref":"main"},"head":{"sha":"bbb"},"labels":[]}`
+		default:
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+
+	hostID, err := st.CreateGitHost(ctx, store.GitHost{
+		Name: "github", Kind: "github",
+		APIBaseURL: srv.URL, WebBaseURL: "https://github.com",
+	}, "pat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repoID, err := st.CreateRepo(ctx, store.Repo{
+		GitHostID: hostID, Owner: "acme", Name: "app",
+		DefaultBranch: "main", TriggerLabel: "review", CommentMode: "inline", Enabled: true,
+	}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs, err := st.GetGlobalSettings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs.MaxConcurrentReviews = 1
+	if err := st.SaveGlobalSettings(ctx, gs); err != nil {
+		t.Fatal(err)
+	}
+
+	e := review.NewEngine(config.Config{DataDir: t.TempDir()}, st, slog.Default())
+	req := func(pr int, sha string) review.ScheduleRequest {
+		return review.ScheduleRequest{
+			RepoID: repoID, PRNumber: pr, HeadSHA: sha, BaseRef: "main", TriggerKind: "label",
+		}
+	}
+	if err := e.ScheduleReview(ctx, req(1, "aaa")); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.ScheduleReview(ctx, req(2, "bbb")); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		runs, err := st.ListReviewRuns(ctx, repoID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		byPR := map[int]store.ReviewRun{}
+		for _, r := range runs {
+			byPR[r.PRNumber] = r
+		}
+		r1, ok1 := byPR[1]
+		r2, ok2 := byPR[2]
+		if !ok1 || !ok2 {
+			time.Sleep(20 * time.Millisecond)
+			continue
+		}
+		if r1.Status == "pending" && r2.Status == "pending" {
+			time.Sleep(20 * time.Millisecond)
+			continue
+		}
+		if r1.Status != "pending" && r2.Status == "pending" {
+			// First run claimed the only slot; second is still queued.
+			break
+		}
+		if r1.Status != "pending" && r2.Status != "pending" {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	deadline = time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		runs, err := st.ListReviewRuns(ctx, repoID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		done := 0
+		pending := 0
+		for _, r := range runs {
+			if r.PRNumber != 1 && r.PRNumber != 2 {
+				continue
+			}
+			switch r.Status {
+			case "pending":
+				pending++
+			case "success", "failed":
+				done++
+			default:
+				// running — keep waiting
+			}
+		}
+		if done == 2 && pending == 0 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for queued run to finish after slot freed")
 }
 
 func mustRepo(t *testing.T, st *store.Store, ctx context.Context) int64 {
