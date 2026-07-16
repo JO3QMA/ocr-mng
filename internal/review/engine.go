@@ -115,9 +115,10 @@ func (e *Engine) Run(ctx context.Context) {
 	} else if n > 0 {
 		e.log.Info("marked interrupted reviews as failed", "count", n)
 	}
-	e.tryDispatch(ctx)
+	// Prune before dispatch so in-flight run-* homes are not deleted under running reviews.
 	gitwork.PruneMirrors(ctx, filepath.Join(e.cfg.DataDir, "mirrors"))
 	PruneOrphanOCRHomes(filepath.Join(e.cfg.DataDir, "ocr-home"))
+	e.tryDispatch(ctx)
 
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
