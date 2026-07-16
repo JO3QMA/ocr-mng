@@ -55,9 +55,9 @@ func (c *Client) CloneURL(owner, repo, pat string) string {
 	return cloneURL(c.webBase, owner, repo, pat)
 }
 
-func (c *Client) ListOpenPullRequests(ctx context.Context, owner, repo string) ([]PullRequest, error) {
+func (c *Client) ListOpenPullRequests(ctx context.Context, pat, owner, repo string) ([]PullRequest, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s/pulls?state=open&%s=100", c.apiBase, owner, repo, c.listParam)
-	body, err := c.do(ctx, http.MethodGet, url, nil)
+	body, err := c.do(ctx, pat, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -96,13 +96,13 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, repo string) (
 	return out, nil
 }
 
-func (c *Client) RemoveLabel(ctx context.Context, owner, repo string, prNumber int, label string) error {
+func (c *Client) RemoveLabel(ctx context.Context, pat, owner, repo string, prNumber int, label string) error {
 	url := fmt.Sprintf("%s/repos/%s/%s/issues/%d/labels/%s", c.apiBase, owner, repo, prNumber, label)
-	_, err := c.do(ctx, http.MethodDelete, url, nil)
+	_, err := c.do(ctx, pat, http.MethodDelete, url, nil)
 	return err
 }
 
-func (c *Client) CreatePullRequestReview(ctx context.Context, owner, repo string, prNumber int, headSHA, body, event string, comments []ReviewComment) (string, error) {
+func (c *Client) CreatePullRequestReview(ctx context.Context, pat, owner, repo string, prNumber int, headSHA, body, event string, comments []ReviewComment) (string, error) {
 	type payloadComment struct {
 		Path      string `json:"path"`
 		Line      int    `json:"line,omitempty"`
@@ -131,7 +131,7 @@ func (c *Client) CreatePullRequestReview(ctx context.Context, owner, repo string
 		"event":     event,
 		"comments":  commentsPayload,
 	}
-	respBody, err := c.do(ctx, http.MethodPost,
+	respBody, err := c.do(ctx, pat, http.MethodPost,
 		fmt.Sprintf("%s/repos/%s/%s/pulls/%d/reviews", c.apiBase, owner, repo, prNumber), payload)
 	if err != nil {
 		return "", err
@@ -143,8 +143,8 @@ func (c *Client) CreatePullRequestReview(ctx context.Context, owner, repo string
 	return out.HTMLURL, nil
 }
 
-func (c *Client) CreateIssueComment(ctx context.Context, owner, repo string, prNumber int, body string) (string, error) {
-	respBody, err := c.do(ctx, http.MethodPost,
+func (c *Client) CreateIssueComment(ctx context.Context, pat, owner, repo string, prNumber int, body string) (string, error) {
+	respBody, err := c.do(ctx, pat, http.MethodPost,
 		fmt.Sprintf("%s/repos/%s/%s/issues/%d/comments", c.apiBase, owner, repo, prNumber),
 		map[string]string{"body": body})
 	if err != nil {
@@ -157,7 +157,7 @@ func (c *Client) CreateIssueComment(ctx context.Context, owner, repo string, prN
 	return out.HTMLURL, nil
 }
 
-func (c *Client) do(ctx context.Context, method, url string, payload any) ([]byte, error) {
+func (c *Client) do(ctx context.Context, pat, method, url string, payload any) ([]byte, error) {
 	var body io.Reader
 	if payload != nil {
 		b, err := json.Marshal(payload)
@@ -174,7 +174,7 @@ func (c *Client) do(ctx context.Context, method, url string, payload any) ([]byt
 		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/json")
-	if pat, ok := patFromContext(ctx); ok {
+	if pat != "" {
 		req.Header.Set("Authorization", c.authPrefix+pat)
 	}
 	resp, err := httpClient.Do(req)
@@ -187,19 +187,6 @@ func (c *Client) do(ctx context.Context, method, url string, payload any) ([]byt
 		return nil, fmt.Errorf("git host API %s %s: %s", method, url, strings.TrimSpace(string(respBody)))
 	}
 	return respBody, nil
-}
-
-type ctxKey string
-
-const patKey ctxKey = "pat"
-
-func WithPAT(ctx context.Context, pat string) context.Context {
-	return context.WithValue(ctx, patKey, pat)
-}
-
-func patFromContext(ctx context.Context) (string, bool) {
-	v, ok := ctx.Value(patKey).(string)
-	return v, ok && v != ""
 }
 
 func cloneURL(webBase, owner, repo, pat string) string {
