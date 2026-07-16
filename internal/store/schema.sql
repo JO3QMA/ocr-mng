@@ -14,6 +14,30 @@ CREATE TABLE IF NOT EXISTS git_hosts (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS llm_providers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    provider_key TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('builtin', 'custom')),
+    api_base_url TEXT,
+    protocol TEXT,
+    api_key_encrypted TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS llm_provider_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_id INTEGER NOT NULL REFERENCES llm_providers(id) ON DELETE CASCADE,
+    model_name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (provider_id, model_name)
+);
+
 CREATE TABLE IF NOT EXISTS repos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     git_host_id INTEGER NOT NULL REFERENCES git_hosts(id) ON DELETE CASCADE,
@@ -30,6 +54,8 @@ CREATE TABLE IF NOT EXISTS repos (
     ocr_rule TEXT,
     ocr_requirement TEXT,
     review_language TEXT,
+    llm_provider_id INTEGER REFERENCES llm_providers(id),
+    llm_model_id INTEGER REFERENCES llm_provider_models(id),
     enabled INTEGER NOT NULL DEFAULT 1,
     last_polled_at TEXT,
     created_at TEXT NOT NULL,
@@ -64,3 +90,4 @@ CREATE TABLE IF NOT EXISTS review_runs (
 
 CREATE INDEX IF NOT EXISTS idx_review_runs_repo ON review_runs(repo_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_repos_host ON repos(git_host_id);
+CREATE INDEX IF NOT EXISTS idx_llm_models_provider ON llm_provider_models(provider_id);

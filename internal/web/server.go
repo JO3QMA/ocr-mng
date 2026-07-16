@@ -340,6 +340,11 @@ func (s *Server) settingsSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+	// PR1: settings form does not yet edit LLM pair; preserve so saves do not clear it.
+	if prev, err := s.store.GetGlobalSettings(r.Context()); err == nil {
+		gs.DefaultLLMProviderID = prev.DefaultLLMProviderID
+		gs.DefaultLLMModelID = prev.DefaultLLMModelID
+	}
 	if err := s.store.SaveGlobalSettings(r.Context(), gs); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
