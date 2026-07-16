@@ -45,7 +45,7 @@ func TestListOpenPullRequestsTitleBody(t *testing.T) {
 	defer srv.Close()
 
 	c := githost.New("github", srv.URL, "https://github.com")
-	prs, err := c.ListOpenPullRequests(context.Background(), "o", "r")
+	prs, err := c.ListOpenPullRequests(context.Background(), "", "o", "r")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestListOpenPullRequestsGiteaTitleBody(t *testing.T) {
 	defer srv.Close()
 
 	c := githost.New("gitea", srv.URL, "https://git.example")
-	prs, err := c.ListOpenPullRequests(context.Background(), "o", "r")
+	prs, err := c.ListOpenPullRequests(context.Background(), "", "o", "r")
 	if err != nil {
 		t.Fatal(err)
 	}
