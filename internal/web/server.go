@@ -234,7 +234,7 @@ func (s *Server) repoUpdate(w http.ResponseWriter, r *http.Request) {
 	repo.ID = id
 	if err := s.store.UpdateRepo(r.Context(), repo, pat, r.FormValue("clear_pat") == "on"); err != nil {
 		hosts, _ := s.store.ListGitHosts(r.Context())
-		opts, _ := s.llmPairOptions(r.Context())
+		opts, _ := s.llmPairOptionsWithCurrent(r.Context(), repo.LLMProviderID, repo.LLMModelID)
 		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, opts, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 		return
 	}
@@ -250,7 +250,7 @@ func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo sto
 		repo.Enabled = true
 	}
 	if llmOpts == nil {
-		llmOpts, _ = s.llmPairOptions(r.Context())
+		llmOpts, _ = s.llmPairOptionsWithCurrent(r.Context(), repo.LLMProviderID, repo.LLMModelID)
 	}
 	p := s.page(r, titleKey)
 	render(w, "repo_form", struct {
@@ -347,7 +347,7 @@ func (s *Server) settingsForm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	opts, _ := s.llmPairOptions(r.Context())
+	opts, _ := s.llmPairOptionsWithCurrent(r.Context(), gs.DefaultLLMProviderID, gs.DefaultLLMModelID)
 	render(w, "settings", struct {
 		page
 		Settings     store.GlobalSettings

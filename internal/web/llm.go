@@ -19,24 +19,35 @@ type llmPairOption struct {
 }
 
 func (s *Server) llmPairOptions(ctx context.Context) ([]llmPairOption, error) {
+	return s.llmPairOptionsWithCurrent(ctx, 0, 0)
+}
+
+// llmPairOptionsWithCurrent lists enabled pairs, and always includes the current
+// provider/model pair (even if disabled) so settings/repo forms cannot drop it.
+func (s *Server) llmPairOptionsWithCurrent(ctx context.Context, curProviderID, curModelID int64) ([]llmPairOption, error) {
 	providers, err := s.store.ListLLMProviders(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var out []llmPairOption
-	for _, p := range providers {
-		if !p.Enabled {
-			continue
+	seen := map[string]bool{}
+	add := func(opt llmPairOption) {
+		if seen[opt.Value] {
+			return
 		}
+		seen[opt.Value] = true
+		out = append(out, opt)
+	}
+	for _, p := range providers {
 		models, err := s.store.ListLLMProviderModels(ctx, p.ID)
 		if err != nil {
 			return nil, err
 		}
 		for _, m := range models {
-			if !m.Enabled {
+			if !p.Enabled || !m.Enabled {
 				continue
 			}
-			out = append(out, llmPairOption{
+			add(llmPairOption{
 				ProviderID: p.ID,
 				ModelID:    m.ID,
 				Value:      formatLLMPair(p.ID, m.ID),
@@ -44,7 +55,38 @@ func (s *Server) llmPairOptions(ctx context.Context) ([]llmPairOption, error) {
 			})
 		}
 	}
+	if curProviderID != 0 && curModelID != 0 {
+		val := formatLLMPair(curProviderID, curModelID)
+		if !seen[val] {
+			label, err := s.llmPairLabel(ctx, curProviderID, curModelID)
+			if err != nil {
+				label = val
+			}
+			add(llmPairOption{
+				ProviderID: curProviderID,
+				ModelID:    curModelID,
+				Value:      val,
+				Label:      label,
+			})
+		}
+	}
 	return out, nil
+}
+
+func (s *Server) llmPairLabel(ctx context.Context, providerID, modelID int64) (string, error) {
+	p, err := s.store.GetLLMProvider(ctx, providerID)
+	if err != nil {
+		return "", err
+	}
+	m, err := s.store.GetLLMProviderModel(ctx, modelID)
+	if err != nil {
+		return "", err
+	}
+	suffix := ""
+	if !p.Enabled || !m.Enabled {
+		suffix = " (disabled)"
+	}
+	return p.Name + " / " + m.ModelName + suffix, nil
 }
 
 func parseLLMPairField(v string) (providerID, modelID int64, err error) {
