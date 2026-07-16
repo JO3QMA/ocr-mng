@@ -4,20 +4,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/jo3qma/ocr-mng/internal/githost"
 )
-
-func TestHasLabel(t *testing.T) {
-	labels := []string{"review", "bug"}
-	if !githost.HasLabel(labels, "review") {
-		t.Fatal("expected review label")
-	}
-	if githost.HasLabel(labels, "feature") {
-		t.Fatal("unexpected label")
-	}
-}
 
 func TestNewClientAuth(t *testing.T) {
 	gh := githost.New("github", "https://api.github.com/", "https://github.com/")
@@ -68,7 +59,7 @@ func TestListOpenPullRequestsTitleBody(t *testing.T) {
 	if pr.BaseRef != "main" || pr.HeadSHA != "abc123" {
 		t.Fatalf("refs: %+v", pr)
 	}
-	if !githost.HasLabel(pr.Labels, "review") {
+	if !slices.Contains(pr.Labels, "review") {
 		t.Fatal("expected review label")
 	}
 }
