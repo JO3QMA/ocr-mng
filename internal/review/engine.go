@@ -279,13 +279,10 @@ func (e *Engine) enqueueReview(repo store.RepoView, client *githost.Client, pat 
 		run.Status = "success"
 		_ = e.store.UpdateReviewRun(ctx, run)
 
-		runIDCopy := runID
 		snap := store.PRSnapshot{
-			RepoID:              repo.ID,
-			PRNumber:            pr.Number,
-			HasTriggerLabel:     !repo.RemoveLabelAfterReview && slices.Contains(pr.Labels, repo.TriggerLabel),
-			LastReviewedHeadSHA: pr.HeadSHA,
-			LastRunID:           &runIDCopy,
+			RepoID:          repo.ID,
+			PRNumber:        pr.Number,
+			HasTriggerLabel: !repo.RemoveLabelAfterReview && slices.Contains(pr.Labels, repo.TriggerLabel),
 		}
 		if repo.RemoveLabelAfterReview {
 			snap.HasTriggerLabel = false
