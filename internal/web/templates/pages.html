@@ -39,6 +39,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <nav style="margin-top: .5rem;">
 <a href="/">{{.L.T "nav.dashboard"}}</a>
 <a href="/hosts">{{.L.T "nav.hosts"}}</a>
+<a href="/llm-providers">{{.L.T "nav.llm_providers"}}</a>
 <a href="/repos">{{.L.T "nav.repos"}}</a>
 <a href="/runs">{{.L.T "nav.runs"}}</a>
 <a href="/settings">{{.L.T "nav.settings"}}</a>
@@ -117,6 +118,79 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 {{template "foot" .}}
 {{end}}
 
+{{define "llm_providers"}}
+{{template "head" .}}
+{{template "flash" .}}
+<div class="card">
+<h1>{{.L.T "page.llm_providers"}}</h1>
+<p><a class="btn" href="/llm-providers/new">{{.L.T "btn.add_llm_provider"}}</a></p>
+{{if not .Providers}}<p>{{.L.T "llm.none"}}</p>{{else}}
+<table><thead><tr><th>{{.L.T "table.name"}}</th><th>{{.L.T "table.kind"}}</th><th>{{.L.T "form.provider_key"}}</th><th>{{.L.T "table.api_key"}}</th><th>{{.L.T "table.enabled"}}</th><th></th></tr></thead>
+<tbody>{{range .Providers}}<tr>
+<td>{{.Name}}</td><td>{{.Kind}}</td><td><code>{{.ProviderKey}}</code></td>
+<td>{{if .HasAPIKey}}{{$.L.T "pat.configured"}}{{else}}{{$.L.T "pat.missing"}}{{end}}</td>
+<td>{{if .Enabled}}{{$.L.T "yes"}}{{else}}{{$.L.T "no"}}{{end}}</td>
+<td><a href="/llm-providers/{{.ID}}/edit">{{$.L.T "link.edit"}}</a></td>
+</tr>{{end}}</tbody></table>
+{{end}}
+</div>
+{{template "foot" .}}
+{{end}}
+
+{{define "llm_provider_form"}}
+{{template "head" .}}
+{{template "flash" .}}
+<div class="card">
+<h1>{{.FormTitle}}</h1>
+{{if .ErrMsg}}<div class="flash error">{{.ErrMsg}}</div>{{end}}
+<form method="post" action="{{.Action}}">
+<label>{{.L.T "form.name"}}</label><input name="name" value="{{.Provider.Name}}" required>
+<label>{{.L.T "form.provider_key"}}</label><input name="provider_key" value="{{.Provider.ProviderKey}}" required>
+<label>{{.L.T "form.kind"}}</label>
+<select name="kind">
+<option value="builtin" {{selected .Provider.Kind "builtin"}}>{{.L.T "llm.kind_builtin"}}</option>
+<option value="custom" {{selected .Provider.Kind "custom"}}>{{.L.T "llm.kind_custom"}}</option>
+</select>
+<label>{{.L.T "form.api_base_url"}}</label><input name="api_base_url" value="{{.Provider.APIBaseURL}}" placeholder="https://...">
+<label>{{.L.T "form.protocol"}}</label><input name="protocol" value="{{.Provider.Protocol}}" placeholder="openai / anthropic">
+<label>{{.L.T "form.api_key"}} {{.KeyHint}}</label><input name="api_key" type="password" autocomplete="new-password">
+{{if .ShowClearKey}}<label><input type="checkbox" name="clear_api_key"> {{.L.T "form.clear_api_key"}}</label>{{end}}
+<label><input type="checkbox" name="enabled" {{checked .Provider.Enabled}}> {{.L.T "form.enabled"}}</label>
+<p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/llm-providers">{{.L.T "btn.cancel"}}</a></p>
+</form>
+{{if .Provider.ID}}
+<hr style="margin:1.5rem 0;border:none;border-top:1px solid #e5e7eb">
+<h2>{{.L.T "llm.models"}}</h2>
+{{if .Models}}
+<table><thead><tr><th>{{.L.T "form.model_name"}}</th><th>{{.L.T "table.enabled"}}</th><th></th></tr></thead>
+<tbody>{{range .Models}}<tr>
+<td colspan="3">
+<form method="post" action="/llm-providers/{{$.Provider.ID}}/models/{{.ID}}" class="inline-action" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+<input name="model_name" value="{{.ModelName}}" required>
+<label><input type="checkbox" name="enabled" {{checked .Enabled}}> {{$.L.T "form.enabled"}}</label>
+<button type="submit" class="btn">{{$.L.T "btn.save"}}</button>
+</form>
+<form method="post" action="/llm-providers/{{$.Provider.ID}}/models/{{.ID}}/delete" style="display:inline">
+<button type="submit" class="btn secondary">{{$.L.T "btn.delete"}}</button>
+</form>
+</td>
+</tr>{{end}}</tbody></table>
+{{else}}<p>{{.L.T "llm.models_none"}}</p>{{end}}
+<form method="post" action="/llm-providers/{{.Provider.ID}}/models" style="margin-top:1rem">
+<label>{{.L.T "llm.add_model"}}</label>
+<div class="inline-action">
+<input name="model_name" required placeholder="claude-sonnet-4-6">
+<button type="submit" class="btn">{{.L.T "btn.add"}}</button>
+</div>
+</form>
+<form method="post" action="/llm-providers/{{.Provider.ID}}/delete" style="margin-top:2rem" onsubmit="return confirm('{{.L.T "llm.delete_confirm"}}')">
+<button type="submit" class="btn secondary">{{.L.T "btn.delete_provider"}}</button>
+</form>
+{{end}}
+</div>
+{{template "foot" .}}
+{{end}}
+
 {{define "repos"}}
 {{template "head" .}}
 {{template "flash" .}}
@@ -164,7 +238,14 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <option value="English" {{selected .Repo.ReviewLanguage "English"}}>{{.L.T "settings.review_english"}}</option>
 <option value="Chinese" {{selected .Repo.ReviewLanguage "Chinese"}}>{{.L.T "settings.review_chinese"}}</option>
 </select>
+<label>{{.L.T "form.llm_pair"}}</label>
+<select name="llm_pair">
+<option value="0:0" {{selected .LLMPairValue "0:0"}}>{{.L.T "form.llm_pair_global"}}</option>
+{{range .LLMOptions}}<option value="{{.Value}}" {{selected $.LLMPairValue .Value}}>{{.Label}}</option>{{end}}
+</select>
+<p class="hint">{{.L.T "form.llm_pair_hint"}}</p>
 <label>{{.L.T "form.ocr_model"}}</label><input name="ocr_model" value="{{.Repo.OCRModel}}">
+<p class="hint">{{.L.T "form.ocr_model_legacy_hint"}}</p>
 <label>{{.L.T "form.ocr_rule"}}</label><textarea name="ocr_rule" rows="4">{{.Repo.OCRRule}}</textarea>
 <label>{{.L.T "form.ocr_requirement"}}</label><textarea name="ocr_requirement" rows="3" placeholder="{{.L.T "form.ocr_requirement_placeholder"}}">{{.Repo.OCRRequirement}}</textarea>
 <label>{{.L.T "form.repo_pat"}}</label><input name="repo_pat" type="password" autocomplete="new-password">
@@ -247,7 +328,16 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <label>{{.L.T "settings.min_poll_interval"}}</label><input name="min_poll_interval_seconds" type="number" value="{{.Settings.MinPollIntervalSeconds}}" min="1" required>
 <label>{{.L.T "settings.max_concurrent"}}</label><input name="max_concurrent_reviews" type="number" value="{{.Settings.MaxConcurrentReviews}}" min="1" required>
 <label>{{.L.T "settings.retention"}}</label><input name="review_run_retention_days" type="number" value="{{.Settings.ReviewRunRetentionDays}}" min="1" required>
+<h2>{{.L.T "settings.llm_section"}}</h2>
+<label>{{.L.T "settings.default_llm_pair"}}</label>
+<select name="default_llm_pair">
+{{if not .LedgerMode}}<option value="0:0" {{selected .LLMPairValue "0:0"}}>{{.L.T "settings.llm_pair_legacy"}}</option>{{end}}
+{{range .LLMOptions}}<option value="{{.Value}}" {{selected $.LLMPairValue .Value}}>{{.Label}}</option>{{end}}
+</select>
+{{if .LedgerMode}}<p class="hint">{{.L.T "settings.llm_pair_locked_hint"}}</p>{{else}}<p class="hint">{{.L.T "settings.llm_pair_hint"}}</p>{{end}}
+<p><a href="/llm-providers">{{.L.T "settings.manage_llm_providers"}}</a></p>
 <label>{{.L.T "settings.ocr_config"}}</label><textarea name="ocr_config_json" rows="12">{{.Settings.OCRConfigJSON}}</textarea>
+{{if .LedgerMode}}<p class="hint">{{.L.T "settings.ocr_config_deprecated_hint"}}</p>{{else}}<p class="hint">{{.L.T "settings.ocr_config_legacy_hint"}}</p>{{end}}
 <p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button></p>
 </form>
 </div>

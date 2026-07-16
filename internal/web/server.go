@@ -52,6 +52,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /hosts", s.auth(s.hostCreate))
 	mux.HandleFunc("GET /hosts/{id}/edit", s.auth(s.hostEdit))
 	mux.HandleFunc("POST /hosts/{id}", s.auth(s.hostUpdate))
+	mux.HandleFunc("GET /llm-providers", s.auth(s.llmProvidersList))
+	mux.HandleFunc("GET /llm-providers/new", s.auth(s.llmProviderNew))
+	mux.HandleFunc("POST /llm-providers", s.auth(s.llmProviderCreate))
+	mux.HandleFunc("GET /llm-providers/{id}/edit", s.auth(s.llmProviderEdit))
+	mux.HandleFunc("POST /llm-providers/{id}", s.auth(s.llmProviderUpdate))
+	mux.HandleFunc("POST /llm-providers/{id}/delete", s.auth(s.llmProviderDelete))
+	mux.HandleFunc("POST /llm-providers/{id}/models", s.auth(s.llmModelCreate))
+	mux.HandleFunc("POST /llm-providers/{id}/models/{mid}", s.auth(s.llmModelUpdate))
+	mux.HandleFunc("POST /llm-providers/{id}/models/{mid}/delete", s.auth(s.llmModelDelete))
 	mux.HandleFunc("GET /repos", s.auth(s.reposList))
 	mux.HandleFunc("GET /repos/new", s.auth(s.repoNew))
 	mux.HandleFunc("POST /repos", s.auth(s.repoCreate))
@@ -185,19 +194,19 @@ func (s *Server) repoNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rv := store.RepoView{Repo: store.Repo{GitHostID: hosts[0].ID, DefaultBranch: "main", CommentMode: "inline", Enabled: true}}
-	s.renderRepoForm(w, r, rv, hosts, "", "/repos", "page.new_repo", false)
+	s.renderRepoForm(w, r, rv, hosts, nil, "", "/repos", "page.new_repo", false)
 }
 
 func (s *Server) repoCreate(w http.ResponseWriter, r *http.Request) {
 	repo, pat, err := parseRepoForm(r)
 	if err != nil {
 		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, err.Error(), "/repos", "page.new_repo", false)
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, err.Error(), "/repos", "page.new_repo", false)
 		return
 	}
 	if _, err := s.store.CreateRepo(r.Context(), repo, pat); err != nil {
 		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, err.Error(), "/repos", "page.new_repo", false)
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, err.Error(), "/repos", "page.new_repo", false)
 		return
 	}
 	http.Redirect(w, r, "/repos?flash=created", http.StatusSeeOther)
@@ -211,7 +220,7 @@ func (s *Server) repoEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hosts, _ := s.store.ListGitHosts(r.Context())
-	s.renderRepoForm(w, r, rv, hosts, "", fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
+	s.renderRepoForm(w, r, rv, hosts, nil, "", fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 }
 
 func (s *Server) repoUpdate(w http.ResponseWriter, r *http.Request) {
@@ -219,24 +228,20 @@ func (s *Server) repoUpdate(w http.ResponseWriter, r *http.Request) {
 	repo, pat, err := parseRepoForm(r)
 	if err != nil {
 		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 		return
 	}
 	repo.ID = id
-	// PR1: repo form does not yet edit LLM pair; preserve so saves do not clear it.
-	if prev, err := s.store.GetRepo(r.Context(), id); err == nil {
-		repo.LLMProviderID = prev.LLMProviderID
-		repo.LLMModelID = prev.LLMModelID
-	}
 	if err := s.store.UpdateRepo(r.Context(), repo, pat, r.FormValue("clear_pat") == "on"); err != nil {
 		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
+		opts, _ := s.llmPairOptions(r.Context())
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, opts, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 		return
 	}
 	http.Redirect(w, r, "/repos?flash=updated", http.StatusSeeOther)
 }
 
-func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo store.RepoView, hosts []store.GitHost, errMsg, action, titleKey string, showClear bool) {
+func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo store.RepoView, hosts []store.GitHost, llmOpts []llmPairOption, errMsg, action, titleKey string, showClear bool) {
 	poll := ""
 	if repo.PollIntervalSeconds != nil {
 		poll = strconv.Itoa(*repo.PollIntervalSeconds)
@@ -244,17 +249,26 @@ func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo sto
 	if repo.ID == 0 && !repo.Enabled {
 		repo.Enabled = true
 	}
+	if llmOpts == nil {
+		llmOpts, _ = s.llmPairOptions(r.Context())
+	}
 	p := s.page(r, titleKey)
 	render(w, "repo_form", struct {
 		page
 		Repo         store.RepoView
 		Hosts        []store.GitHost
+		LLMOptions   []llmPairOption
+		LLMPairValue string
 		FormTitle    string
 		Action       string
 		ErrMsg       string
 		PollInterval string
 		ShowClearPAT bool
-	}{page: p, Repo: repo, Hosts: hosts, FormTitle: p.Title, Action: action, ErrMsg: errMsg, PollInterval: poll, ShowClearPAT: showClear})
+	}{
+		page: p, Repo: repo, Hosts: hosts, LLMOptions: llmOpts,
+		LLMPairValue: formatLLMPair(repo.LLMProviderID, repo.LLMModelID),
+		FormTitle: p.Title, Action: action, ErrMsg: errMsg, PollInterval: poll, ShowClearPAT: showClear,
+	})
 }
 
 func (s *Server) repoRuns(w http.ResponseWriter, r *http.Request) {
@@ -333,10 +347,18 @@ func (s *Server) settingsForm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	opts, _ := s.llmPairOptions(r.Context())
 	render(w, "settings", struct {
 		page
-		Settings store.GlobalSettings
-	}{page: s.page(r, "page.settings"), Settings: gs})
+		Settings     store.GlobalSettings
+		LLMOptions   []llmPairOption
+		LLMPairValue string
+		LedgerMode   bool
+	}{
+		page: s.page(r, "page.settings"), Settings: gs, LLMOptions: opts,
+		LLMPairValue: formatLLMPair(gs.DefaultLLMProviderID, gs.DefaultLLMModelID),
+		LedgerMode:   ledgerModeActive(gs),
+	})
 }
 
 func (s *Server) settingsSave(w http.ResponseWriter, r *http.Request) {
@@ -344,11 +366,6 @@ func (s *Server) settingsSave(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), 400)
 		return
-	}
-	// PR1: settings form does not yet edit LLM pair; preserve so saves do not clear it.
-	if prev, err := s.store.GetGlobalSettings(r.Context()); err == nil {
-		gs.DefaultLLMProviderID = prev.DefaultLLMProviderID
-		gs.DefaultLLMModelID = prev.DefaultLLMModelID
 	}
 	if err := s.store.SaveGlobalSettings(r.Context(), gs); err != nil {
 		http.Error(w, err.Error(), 500)
@@ -414,6 +431,11 @@ func parseRepoForm(r *http.Request) (store.Repo, string, error) {
 		}
 		repo.PollIntervalSeconds = &n
 	}
+	pid, mid, err := parseLLMPairField(r.FormValue("llm_pair"))
+	if err != nil {
+		return repo, "", err
+	}
+	repo.LLMProviderID, repo.LLMModelID = pid, mid
 	return repo, strings.TrimSpace(r.FormValue("repo_pat")), nil
 }
 
@@ -454,6 +476,10 @@ func parseSettingsForm(r *http.Request) (store.GlobalSettings, error) {
 	if minPoll > poll {
 		return store.GlobalSettings{}, fmt.Errorf("min poll interval cannot exceed default poll interval")
 	}
+	pid, mid, err := parseLLMPairField(r.FormValue("default_llm_pair"))
+	if err != nil {
+		return store.GlobalSettings{}, err
+	}
 	return store.GlobalSettings{
 		PollIntervalSeconds:    poll,
 		MinPollIntervalSeconds: minPoll,
@@ -462,5 +488,7 @@ func parseSettingsForm(r *http.Request) (store.GlobalSettings, error) {
 		OCRConfigJSON:          ocrJSON,
 		UILanguage:             store.NormalizeUILanguage(strings.TrimSpace(r.FormValue("ui_language"))),
 		ReviewLanguage:         store.NormalizeReviewLanguage(strings.TrimSpace(r.FormValue("review_language"))),
+		DefaultLLMProviderID:   pid,
+		DefaultLLMModelID:      mid,
 	}.WithDefaults(), nil
 }
