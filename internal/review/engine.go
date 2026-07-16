@@ -178,7 +178,7 @@ func (e *Engine) pollRepo(ctx context.Context, repo store.RepoView, gs store.Glo
 		if baseRef == "" {
 			baseRef = repo.DefaultBranch
 		}
-		e.enqueueReview(repo, host, client, pat, gs, pr, baseRef, "label")
+		e.enqueueReview(repo, client, pat, gs, pr, baseRef, "label")
 	}
 	return nil
 }
@@ -222,10 +222,10 @@ func (e *Engine) runManual(ctx context.Context, repoID int64, prNumber int) {
 	if baseRef == "" {
 		baseRef = repo.DefaultBranch
 	}
-	e.enqueueReview(repo, host, client, pat, gs, *target, baseRef, "manual")
+	e.enqueueReview(repo, client, pat, gs, *target, baseRef, "manual")
 }
 
-func (e *Engine) enqueueReview(repo store.RepoView, host store.GitHost, client *githost.Client, pat string, gs store.GlobalSettings, pr githost.PullRequest, baseRef, triggerKind string) {
+func (e *Engine) enqueueReview(repo store.RepoView, client *githost.Client, pat string, gs store.GlobalSettings, pr githost.PullRequest, baseRef, triggerKind string) {
 	go func() {
 		if !e.acquireGlobal(context.Background()) {
 			e.log.Warn("review skipped: concurrency limit", "repo", repo.ID, "pr", pr.Number)
@@ -262,7 +262,7 @@ func (e *Engine) enqueueReview(repo store.RepoView, host store.GitHost, client *
 		}
 		_ = e.store.UpdateReviewRun(ctx, run)
 
-		err = e.executeReview(ctx, repo, host, client, pat, gs, pr, baseRef, &run)
+		err = e.executeReview(ctx, repo, client, pat, gs, pr, baseRef, &run)
 		finished := time.Now()
 		run.FinishedAt = &finished
 		if err != nil {
@@ -296,7 +296,7 @@ func (e *Engine) enqueueReview(repo store.RepoView, host store.GitHost, client *
 	}()
 }
 
-func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, host store.GitHost, client *githost.Client, pat string, gs store.GlobalSettings, pr githost.PullRequest, baseRef string, run *store.ReviewRun) error {
+func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client *githost.Client, pat string, gs store.GlobalSettings, pr githost.PullRequest, baseRef string, run *store.ReviewRun) error {
 	mirrorsRoot := filepath.Join(e.cfg.DataDir, "mirrors")
 	worktreesRoot := filepath.Join(e.cfg.DataDir, "worktrees")
 	cloneURL := client.CloneURL(repo.Owner, repo.Name, pat)
