@@ -23,7 +23,7 @@ type Engine struct {
 	store      *store.Store
 	log        *slog.Logger
 	running    atomic.Int32
-	dispatchMu sync.Mutex // ponytail: single-process only; SQL claim when splitting workers
+	dispatchMu sync.Mutex // single-process only; SQL claim when splitting workers
 	repoLocks  sync.Map   // repoID -> *sync.Mutex
 }
 
@@ -68,24 +68,16 @@ func (e *Engine) releaseGlobal() {
 }
 
 // ScheduleReview persists a pending Review Run, or no-ops when one is already active.
-// ponytail: no max pending depth; monitor SQLite size in ops if the queue backs up.
+// Note: no max pending depth; monitor SQLite size in ops if the queue backs up.
 func (e *Engine) ScheduleReview(ctx context.Context, req ScheduleRequest) error {
-	active, err := e.store.HasActiveReviewRun(ctx, req.RepoID, req.PRNumber)
-	if err != nil {
-		return err
-	}
-	if active {
-		return nil
-	}
-	if req.HeadSHA == "" {
-		_, _, _, pr, baseRef, err := e.fetchPR(ctx, req.RepoID, req.PRNumber)
+	if req.BaseRef == "" {
+		repo, err := e.store.GetRepo(ctx, req.RepoID)
 		if err != nil {
 			return err
 		}
-		req.HeadSHA = pr.HeadSHA
-		req.BaseRef = baseRef
+		req.BaseRef = repo.DefaultBranch
 	}
-	_, err = e.store.CreateReviewRun(ctx, store.ReviewRun{
+	_, created, err := e.store.CreatePendingReviewRunIfAbsent(ctx, store.ReviewRun{
 		RepoID:      req.RepoID,
 		PRNumber:    req.PRNumber,
 		HeadSHA:     req.HeadSHA,
@@ -96,7 +88,9 @@ func (e *Engine) ScheduleReview(ctx context.Context, req ScheduleRequest) error 
 	if err != nil {
 		return err
 	}
-	e.tryDispatch()
+	if created {
+		e.tryDispatch(ctx)
+	}
 	return nil
 }
 
@@ -107,7 +101,7 @@ func (e *Engine) Run(ctx context.Context) {
 	} else if n > 0 {
 		e.log.Info("marked interrupted reviews as failed", "count", n)
 	}
-	e.tryDispatch()
+	e.tryDispatch(ctx)
 	gitwork.PruneMirrors(ctx, filepath.Join(e.cfg.DataDir, "mirrors"))
 
 	ticker := time.NewTicker(time.Minute)
@@ -132,11 +126,18 @@ func (e *Engine) Run(ctx context.Context) {
 	}
 }
 
-func (e *Engine) tryDispatch() {
+const dispatchTimeout = 30 * time.Second
+
+func (e *Engine) tryDispatch(parent context.Context) {
 	e.dispatchMu.Lock()
 	defer e.dispatchMu.Unlock()
 
-	ctx := context.Background()
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, dispatchTimeout)
+	defer cancel()
+
 	for {
 		if !e.acquireGlobal(ctx) {
 			return
@@ -240,7 +241,7 @@ func (e *Engine) pollRepo(ctx context.Context, repo store.RepoView) error {
 func (e *Engine) runReview(run store.ReviewRun) {
 	defer func() {
 		e.releaseGlobal()
-		e.tryDispatch()
+		e.tryDispatch(context.Background())
 	}()
 
 	ctx := context.Background()

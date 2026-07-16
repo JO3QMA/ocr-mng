@@ -130,6 +130,61 @@ func TestHasActiveReviewRun(t *testing.T) {
 	}
 }
 
+func TestCreatePendingReviewRunIfAbsent(t *testing.T) {
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+	repoID := mustTestRepo(t, st, ctx)
+
+	run := store.ReviewRun{
+		RepoID: repoID, PRNumber: 11, HeadSHA: "sha", BaseRef: "main",
+		TriggerKind: "manual",
+	}
+	id, created, err := st.CreatePendingReviewRunIfAbsent(ctx, run)
+	if err != nil || !created || id <= 0 {
+		t.Fatalf("first insert: id=%d created=%v err=%v", id, created, err)
+	}
+	_, created, err = st.CreatePendingReviewRunIfAbsent(ctx, run)
+	if err != nil || created {
+		t.Fatalf("duplicate: created=%v err=%v", created, err)
+	}
+}
+
+func TestCreatePendingReviewRunIfAbsent_concurrent(t *testing.T) {
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+	repoID := mustTestRepo(t, st, ctx)
+
+	run := store.ReviewRun{
+		RepoID: repoID, PRNumber: 12, HeadSHA: "sha", BaseRef: "main",
+		TriggerKind: "manual",
+	}
+	const n = 8
+	created := make(chan bool, n)
+	for range n {
+		go func() {
+			_, ok, err := st.CreatePendingReviewRunIfAbsent(ctx, run)
+			created <- err == nil && ok
+		}()
+	}
+	var count int
+	for range n {
+		if <-created {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected exactly 1 created run, got %d", count)
+	}
+}
+
 func TestClaimNextPendingReviewRun_skipsBusyRepo(t *testing.T) {
 	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
 	if err != nil {

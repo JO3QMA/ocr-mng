@@ -594,6 +594,32 @@ func (s *Store) HasActiveReviewRun(ctx context.Context, repoID int64, prNumber i
 	return n > 0, err
 }
 
+// CreatePendingReviewRunIfAbsent inserts a pending run when none is active for repo+PR.
+func (s *Store) CreatePendingReviewRunIfAbsent(ctx context.Context, run ReviewRun) (int64, bool, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := s.db.ExecContext(ctx, `
+		INSERT INTO review_runs(repo_id, pr_number, head_sha, base_ref, status, trigger_kind, created_at)
+		SELECT ?, ?, ?, ?, 'pending', ?, ?
+		WHERE NOT EXISTS (
+			SELECT 1 FROM review_runs
+			WHERE repo_id=? AND pr_number=? AND status IN ('pending', 'running')
+		)`,
+		run.RepoID, run.PRNumber, run.HeadSHA, run.BaseRef, run.TriggerKind, now,
+		run.RepoID, run.PRNumber)
+	if err != nil {
+		return 0, false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, false, err
+	}
+	if n == 0 {
+		return 0, false, nil
+	}
+	id, err := res.LastInsertId()
+	return id, true, err
+}
+
 func (s *Store) ClaimNextPendingReviewRun(ctx context.Context) (ReviewRun, bool, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
