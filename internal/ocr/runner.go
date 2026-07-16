@@ -22,8 +22,7 @@ type Comment struct {
 	StartLine    int    `json:"start_line"`
 	EndLine      int    `json:"end_line"`
 	Content      string `json:"content"`
-	Suggestion   string `json:"suggestion_code"`
-	ExistingCode string `json:"existing_code"`
+	Suggestion string `json:"suggestion_code"`
 }
 
 type Runner struct {

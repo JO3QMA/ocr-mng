@@ -22,7 +22,6 @@ Open Code Review CLI が `--format json` で返すレビュー結果の形式。
 | `path` | `FilePath` | 対象ファイルパス（リポジトリルート相対） |
 | `content` | `Content` | 指摘本文（Markdown 可） |
 | `suggestion_code` | `Suggestion` | 提案コード。GitHub Suggestion Block にそのまま入る |
-| `existing_code` | `ExistingCode` | OCR が参照した現状コード。Review Manager は投稿しない |
 | `start_line` | `StartLine` | 対象行の開始（1-based） |
 | `end_line` | `EndLine` | 対象行の終了（1-based）。未指定時は `start_line` を使う |
 
@@ -35,8 +34,6 @@ Open Code Review CLI が `--format json` で返すレビュー結果の形式。
 1. **改行の前後除去** — 先頭・末尾の `\n` / `\r` のみ削除。Markdown フェンス直後の空行を防ぐため。
 2. **インデント保持** — スペース・タブは一切削除しない。Apply 時にそのまま適用される。
 3. **フェンス破壊のエスケープ** — 内容中の ` ``` ` は `\`\`\`` に置換する。
-4. **`existing_code` は非投稿** — diff 上の該当行が現状として見えるため、GitHub コメントには含めない。
-
 ## 運用上の注意
 
 - GitHub の Apply は `suggestion_code` の文字列を**そのまま**置換する。インデント（タブ・スペース）が欠けると Linter エラーになる。
