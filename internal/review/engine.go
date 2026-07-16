@@ -324,7 +324,6 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 	ocrPath := filepath.Join(ocrDir, fmt.Sprintf("run-%d.json", run.ID))
 	_ = os.WriteFile(ocrPath, raw, 0o644)
 	run.OCROutputPath = ocrPath
-	run.SummaryTotalCount = len(result.Comments)
 
 	commentURL, postErr := e.postResult(ctx, client, pat, repo, pr, result, reviewLang)
 	if postErr != nil {

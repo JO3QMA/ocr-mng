@@ -59,7 +59,6 @@ CREATE TABLE IF NOT EXISTS review_runs (
     error_message TEXT,
     comment_url TEXT,
     ocr_output_path TEXT,
-    summary_total_count INTEGER,
     started_at TEXT,
     finished_at TEXT,
     created_at TEXT NOT NULL

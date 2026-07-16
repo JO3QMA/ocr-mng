@@ -80,7 +80,6 @@ type ReviewRun struct {
 	ErrorMessage        string
 	CommentURL          string
 	OCROutputPath       string
-	SummaryTotalCount   int
 	StartedAt           *time.Time
 	FinishedAt          *time.Time
 	CreatedAt           time.Time
@@ -178,8 +177,13 @@ func (s *Store) migrate(ctx context.Context) error {
 	for _, stmt := range []string{
 		`ALTER TABLE repos ADD COLUMN review_language TEXT`,
 		`ALTER TABLE repos ADD COLUMN approve_on_zero_findings INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE review_runs DROP COLUMN summary_total_count`,
 	} {
-		if _, err := s.db.ExecContext(ctx, stmt); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
+			msg := strings.ToLower(err.Error())
+			if strings.Contains(msg, "duplicate column") || strings.Contains(msg, "no such column") {
+				continue
+			}
 			return fmt.Errorf("migration %q: %w", stmt, err)
 		}
 	}
@@ -513,17 +517,16 @@ func (s *Store) CreateReviewRun(ctx context.Context, run ReviewRun) (int64, erro
 func (s *Store) UpdateReviewRun(ctx context.Context, run ReviewRun) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE review_runs SET status=?, error_message=?, comment_url=?, ocr_output_path=?,
-			summary_total_count=?, started_at=?, finished_at=?
+			started_at=?, finished_at=?
 		WHERE id=?`,
 		run.Status, nullStr(run.ErrorMessage), nullStr(run.CommentURL), nullStr(run.OCROutputPath),
-		run.SummaryTotalCount,
 		formatTime(run.StartedAt), formatTime(run.FinishedAt), run.ID)
 	return err
 }
 
 func (s *Store) ListReviewRuns(ctx context.Context, repoID int64, limit int) ([]ReviewRun, error) {
 	q := `SELECT id, repo_id, pr_number, head_sha, base_ref, status, trigger_kind, error_message,
-		comment_url, ocr_output_path, summary_total_count, started_at, finished_at, created_at
+		comment_url, ocr_output_path, started_at, finished_at, created_at
 		FROM review_runs`
 	var rows *sql.Rows
 	var err error
@@ -544,7 +547,7 @@ func (s *Store) ListReviewRuns(ctx context.Context, repoID int64, limit int) ([]
 func (s *Store) GetReviewRun(ctx context.Context, id int64) (ReviewRun, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, repo_id, pr_number, head_sha, base_ref, status, trigger_kind, error_message,
-			comment_url, ocr_output_path, summary_total_count, started_at, finished_at, created_at
+			comment_url, ocr_output_path, started_at, finished_at, created_at
 		FROM review_runs WHERE id=?`, id)
 	return scanReviewRun(row)
 }
@@ -566,18 +569,14 @@ func scanReviewRun(scanner interface {
 }) (ReviewRun, error) {
 	var r ReviewRun
 	var errMsg, commentURL, ocrPath sql.NullString
-	var summary sql.NullInt64
 	var started, finished, created sql.NullString
 	err := scanner.Scan(
 		&r.ID, &r.RepoID, &r.PRNumber, &r.HeadSHA, &r.BaseRef, &r.Status, &r.TriggerKind,
-		&errMsg, &commentURL, &ocrPath, &summary,
+		&errMsg, &commentURL, &ocrPath,
 		&started, &finished, &created,
 	)
 	if err != nil {
 		return ReviewRun{}, err
-	}
-	if summary.Valid {
-		r.SummaryTotalCount = int(summary.Int64)
 	}
 	if errMsg.Valid {
 		r.ErrorMessage = errMsg.String
