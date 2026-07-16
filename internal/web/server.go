@@ -223,6 +223,11 @@ func (s *Server) repoUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repo.ID = id
+	// PR1: repo form does not yet edit LLM pair; preserve so saves do not clear it.
+	if prev, err := s.store.GetRepo(r.Context(), id); err == nil {
+		repo.LLMProviderID = prev.LLMProviderID
+		repo.LLMModelID = prev.LLMModelID
+	}
 	if err := s.store.UpdateRepo(r.Context(), repo, pat, r.FormValue("clear_pat") == "on"); err != nil {
 		hosts, _ := s.store.ListGitHosts(r.Context())
 		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
