@@ -298,3 +298,21 @@ func TestCommentMetaJapaneseLabels(t *testing.T) {
 		t.Fatalf("summary: %q", summary)
 	}
 }
+
+func TestCommentMetaEscapesMarkdown(t *testing.T) {
+	inline, summary := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{{
+			FilePath: "a.go", StartLine: 1, Content: "fix",
+			Severity: "*high*", Category: "style_x",
+		}},
+	}, englishFmt())
+	if !strings.HasPrefix(inline[0].Body, "**Severity:** \\*high\\* · **Category:** style\\_x\n\nfix") {
+		t.Fatalf("body: %q", inline[0].Body)
+	}
+	if !strings.Contains(summary, "**Severity:** \\*high\\* 1\n") {
+		t.Fatalf("summary: %q", summary)
+	}
+	if !strings.Contains(summary, "**Category:** style\\_x 1\n") {
+		t.Fatalf("summary category: %q", summary)
+	}
+}

@@ -98,15 +98,27 @@ func commentMetaValue(s string) string {
 	return strings.TrimSpace(s)
 }
 
+// escapeMarkdown softens OCR passthrough tokens so they do not break wrapper markup.
+func escapeMarkdown(s string) string {
+	return strings.NewReplacer(
+		`\`, `\\`,
+		"`", "\\`",
+		`*`, `\*`,
+		`_`, `\_`,
+		`[`, `\[`,
+		`]`, `\]`,
+	).Replace(s)
+}
+
 func formatMetaLine(c ocr.Comment, w wrapperMsgs) string {
 	sev := commentMetaValue(c.Severity)
 	cat := commentMetaValue(c.Category)
 	var parts []string
 	if sev != "" {
-		parts = append(parts, "**"+w.severityLabel+":** "+sev)
+		parts = append(parts, "**"+w.severityLabel+":** "+escapeMarkdown(sev))
 	}
 	if cat != "" {
-		parts = append(parts, "**"+w.categoryLabel+":** "+cat)
+		parts = append(parts, "**"+w.categoryLabel+":** "+escapeMarkdown(cat))
 	}
 	if len(parts) == 0 {
 		return ""
@@ -149,7 +161,7 @@ func formatCountPairs(counts map[string]int) string {
 	})
 	parts := make([]string, len(pairs))
 	for i, p := range pairs {
-		parts[i] = fmt.Sprintf("%s %d", p.key, p.count)
+		parts[i] = fmt.Sprintf("%s %d", escapeMarkdown(p.key), p.count)
 	}
 	return strings.Join(parts, ", ")
 }
