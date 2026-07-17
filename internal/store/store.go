@@ -70,19 +70,21 @@ type PRSnapshot struct {
 }
 
 type ReviewRun struct {
-	ID                  int64
-	RepoID              int64
-	PRNumber            int
-	HeadSHA             string
-	BaseRef             string
-	Status              string
-	TriggerKind         string
-	ErrorMessage        string
-	CommentURL          string
-	OCROutputPath       string
-	StartedAt           *time.Time
-	FinishedAt          *time.Time
-	CreatedAt           time.Time
+	ID               int64
+	RepoID           int64
+	PRNumber         int
+	HeadSHA          string
+	BaseRef          string
+	Status           string
+	TriggerKind      string
+	ErrorMessage     string
+	CommentURL       string
+	OCROutputPath    string
+	LLMProviderName string // snapshot at execution
+	LLMModelName     string // snapshot at execution
+	StartedAt        *time.Time
+	FinishedAt       *time.Time
+	CreatedAt        time.Time
 }
 
 type GlobalSettings struct {
@@ -181,6 +183,8 @@ func (s *Store) migrate(ctx context.Context) error {
 		`ALTER TABLE repos ADD COLUMN approve_on_zero_findings INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE repos ADD COLUMN llm_provider_id INTEGER REFERENCES llm_providers(id)`,
 		`ALTER TABLE repos ADD COLUMN llm_model_id INTEGER REFERENCES llm_provider_models(id)`,
+		`ALTER TABLE review_runs ADD COLUMN llm_provider_name TEXT`,
+		`ALTER TABLE review_runs ADD COLUMN llm_model_name TEXT`,
 		`ALTER TABLE review_runs DROP COLUMN summary_total_count`,
 		`ALTER TABLE pr_snapshots DROP COLUMN last_reviewed_head_sha`,
 		`ALTER TABLE pr_snapshots DROP COLUMN last_run_id`,
@@ -545,16 +549,17 @@ func (s *Store) CreateReviewRun(ctx context.Context, run ReviewRun) (int64, erro
 func (s *Store) UpdateReviewRun(ctx context.Context, run ReviewRun) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE review_runs SET status=?, error_message=?, comment_url=?, ocr_output_path=?,
-			started_at=?, finished_at=?
+			llm_provider_name=?, llm_model_name=?, started_at=?, finished_at=?
 		WHERE id=?`,
 		run.Status, nullStr(run.ErrorMessage), nullStr(run.CommentURL), nullStr(run.OCROutputPath),
+		nullStr(run.LLMProviderName), nullStr(run.LLMModelName),
 		formatTime(run.StartedAt), formatTime(run.FinishedAt), run.ID)
 	return err
 }
 
 func (s *Store) ListReviewRuns(ctx context.Context, repoID int64, limit int) ([]ReviewRun, error) {
 	q := `SELECT id, repo_id, pr_number, head_sha, base_ref, status, trigger_kind, error_message,
-		comment_url, ocr_output_path, started_at, finished_at, created_at
+		comment_url, ocr_output_path, llm_provider_name, llm_model_name, started_at, finished_at, created_at
 		FROM review_runs`
 	var rows *sql.Rows
 	var err error
@@ -575,7 +580,7 @@ func (s *Store) ListReviewRuns(ctx context.Context, repoID int64, limit int) ([]
 func (s *Store) GetReviewRun(ctx context.Context, id int64) (ReviewRun, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, repo_id, pr_number, head_sha, base_ref, status, trigger_kind, error_message,
-			comment_url, ocr_output_path, started_at, finished_at, created_at
+			comment_url, ocr_output_path, llm_provider_name, llm_model_name, started_at, finished_at, created_at
 		FROM review_runs WHERE id=?`, id)
 	return scanReviewRun(row)
 }
@@ -596,11 +601,11 @@ func scanReviewRun(scanner interface {
 	Scan(dest ...any) error
 }) (ReviewRun, error) {
 	var r ReviewRun
-	var errMsg, commentURL, ocrPath sql.NullString
+	var errMsg, commentURL, ocrPath, llmProvider, llmModel sql.NullString
 	var started, finished, created sql.NullString
 	err := scanner.Scan(
 		&r.ID, &r.RepoID, &r.PRNumber, &r.HeadSHA, &r.BaseRef, &r.Status, &r.TriggerKind,
-		&errMsg, &commentURL, &ocrPath,
+		&errMsg, &commentURL, &ocrPath, &llmProvider, &llmModel,
 		&started, &finished, &created,
 	)
 	if err != nil {
@@ -614,6 +619,12 @@ func scanReviewRun(scanner interface {
 	}
 	if ocrPath.Valid {
 		r.OCROutputPath = ocrPath.String
+	}
+	if llmProvider.Valid {
+		r.LLMProviderName = llmProvider.String
+	}
+	if llmModel.Valid {
+		r.LLMModelName = llmModel.String
 	}
 	r.StartedAt = parseTime(started)
 	r.FinishedAt = parseTime(finished)
@@ -670,7 +681,7 @@ func (s *Store) ClaimNextPendingReviewRun(ctx context.Context) (ReviewRun, bool,
 
 	row := tx.QueryRowContext(ctx, `
 		SELECT id, repo_id, pr_number, head_sha, base_ref, status, trigger_kind, error_message,
-			comment_url, ocr_output_path, started_at, finished_at, created_at
+			comment_url, ocr_output_path, llm_provider_name, llm_model_name, started_at, finished_at, created_at
 		FROM review_runs
 		WHERE status='pending'
 		  AND repo_id NOT IN (SELECT repo_id FROM review_runs WHERE status='running')

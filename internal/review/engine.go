@@ -115,8 +115,10 @@ func (e *Engine) Run(ctx context.Context) {
 	} else if n > 0 {
 		e.log.Info("marked interrupted reviews as failed", "count", n)
 	}
-	e.tryDispatch(ctx)
+	// Prune before dispatch so in-flight run-* homes are not deleted under running reviews.
 	gitwork.PruneMirrors(ctx, filepath.Join(e.cfg.DataDir, "mirrors"))
+	PruneOrphanOCRHomes(filepath.Join(e.cfg.DataDir, "ocr-home"), e.log)
+	e.tryDispatch(ctx)
 
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
@@ -378,16 +380,26 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 
 	fromRef := gitwork.FromRef(baseRef)
 	reviewLang := EffectiveReviewLanguage(gs, repo.ReviewLanguage)
-	configJSON, err := ocr.ConfigWithLanguage(gs.OCRConfigJSON, reviewLang)
+	sel, err := ResolveLLMSelection(ctx, e.store, gs, repo, reviewLang)
 	if err != nil {
-		return fmt.Errorf("ocr config: %w", err)
+		return fmt.Errorf("llm: %w", err)
 	}
+	run.LLMProviderName = sel.ProviderName
+	run.LLMModelName = sel.ModelName
+
+	homeDir := OCRHomeDir(e.cfg.DataDir, run.ID)
+	defer func() {
+		if err := os.RemoveAll(homeDir); err != nil {
+			e.log.Error("ocr home cleanup", "run_id", run.ID, "dir", homeDir, "err", err)
+		}
+	}()
+
 	ocrRunner := ocr.Runner{
 		Binary:     e.cfg.OCRBinary,
-		HomeDir:    filepath.Join(e.cfg.DataDir, "ocr-home"),
-		ConfigJSON: configJSON,
+		HomeDir:    homeDir,
+		ConfigJSON: sel.ConfigJSON,
 	}
-	result, raw, err := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, repo.OCRModel, repo.OCRRule, BuildReviewBackground(reviewLang, pr.Title, pr.Body, repo.OCRRequirement))
+	result, raw, err := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, sel.ModelFlag, repo.OCRRule, BuildReviewBackground(reviewLang, pr.Title, pr.Body, repo.OCRRequirement))
 	if err != nil {
 		return fmt.Errorf("ocr review: %w", err)
 	}

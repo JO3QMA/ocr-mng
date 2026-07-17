@@ -217,6 +217,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <div class="card">
 <h1>Review Run #{{.Run.ID}}</h1>
 <p>{{.L.T "run_detail.repo_id"}}: {{.Run.RepoID}} · PR #{{.Run.PRNumber}} · {{.L.T "table.status"}}: <span class="badge {{.Run.Status}}">{{.Run.Status}}</span></p>
+{{if or .Run.LLMProviderName .Run.LLMModelName}}<p>{{.L.T "run_detail.llm"}}: {{.Run.LLMProviderName}} / {{.Run.LLMModelName}}</p>{{end}}
 {{if .Run.ErrorMessage}}<div class="flash error">{{.Run.ErrorMessage}}</div>{{end}}
 {{if .Run.CommentURL}}<p><a href="{{.Run.CommentURL}}">{{.L.T "run_detail.view_post"}}</a></p>{{end}}
 {{if .OCRJSON}}<h2>{{.L.T "run_detail.ocr_output"}}</h2><pre style="overflow:auto;background:#111827;color:#e5e7eb;padding:1rem;border-radius:6px">{{.OCRJSON}}</pre>{{end}}
