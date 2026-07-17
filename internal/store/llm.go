@@ -266,8 +266,29 @@ func (s *Store) assertLLMProviderNotReferenced(ctx context.Context, id int64) er
 	if gs.DefaultLLMProviderID == id {
 		return fmt.Errorf("llm provider %d is referenced by global settings", id)
 	}
+	if gs.DefaultLLMModelID != 0 {
+		var n int
+		if err := s.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM llm_provider_models WHERE id=? AND provider_id=?`,
+			gs.DefaultLLMModelID, id,
+		).Scan(&n); err != nil {
+			return err
+		}
+		if n > 0 {
+			return fmt.Errorf("llm provider %d is referenced by global settings", id)
+		}
+	}
 	var n int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM repos WHERE llm_provider_id=?`, id).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("llm provider %d is referenced by a registered repo", id)
+	}
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM repos WHERE llm_model_id IN (SELECT id FROM llm_provider_models WHERE provider_id=?)`,
+		id,
+	).Scan(&n); err != nil {
 		return err
 	}
 	if n > 0 {
