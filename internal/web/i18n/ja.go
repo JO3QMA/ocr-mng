@@ -114,7 +114,7 @@ var ja = map[string]string{
 	"form.ocr_model_legacy_hint": "台帳モード前の互換用。台帳の組がある場合は使われません。",
 	"form.ocr_rule":           "OCR ルール上書き",
 	"form.ocr_requirement":              "OCR Requirement",
-	"form.ocr_requirement_placeholder":  "例: 各コメントの path に変更対象ファイルのパスを必ず記載すること",
+	"form.ocr_requirement_placeholder":  "例: テスト追加漏れとエラーハンドリングを重点的に見ること",
 	"form.repo_pat":           "Repo PAT（任意の上書き）",
 	"form.clear_repo_pat":     "保存済み Repo PAT を削除",
 	"form.review_language":    "レビュー言語",

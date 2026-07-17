@@ -114,7 +114,7 @@ var en = map[string]string{
 	"form.ocr_model_legacy_hint":      "Legacy path only. Ignored when a ledger pair is active.",
 	"form.ocr_rule":                   "OCR Rule Override",
 	"form.ocr_requirement":            "OCR Requirement",
-	"form.ocr_requirement_placeholder": "e.g. Always set path to the changed file path in every comment",
+	"form.ocr_requirement_placeholder": "e.g. Focus on missing tests and error handling",
 	"form.repo_pat":                   "Repo PAT (optional override)",
 	"form.clear_repo_pat":             "Clear stored Repo PAT",
 	"form.review_language":            "Review Language",

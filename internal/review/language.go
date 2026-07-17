@@ -7,19 +7,18 @@ import (
 )
 
 type wrapperMsgs struct {
-	title                string
-	noComments           string
-	foundComments        string
-	suggestion           string
-	warnings             string
-	general              string
-	unknownFile          string
-	defaultRequirement   string
-	prSection            string
-	requirementsSection  string
-	titleLabel           string
-	bodyLabel            string
-	truncationMarker     string
+	title               string
+	noComments          string
+	foundComments       string
+	suggestion          string
+	warnings            string
+	general             string
+	unknownFile         string
+	prSection           string
+	requirementsSection string
+	titleLabel          string
+	bodyLabel           string
+	truncationMarker    string
 }
 
 var wrappers = map[string]wrapperMsgs{
@@ -31,7 +30,6 @@ var wrappers = map[string]wrapperMsgs{
 		warnings:            "### 警告\n",
 		general:             "(全体)",
 		unknownFile:         "(ファイル不明)",
-		defaultRequirement:  "各コメントの path には変更対象ファイルのパスを必ず入れ、空文字にしないこと。",
 		prSection:           "### PR 説明コンテキスト\n\n",
 		requirementsSection: "### 要件\n\n",
 		titleLabel:          "**タイトル:** ",
@@ -46,7 +44,6 @@ var wrappers = map[string]wrapperMsgs{
 		warnings:            "### Warnings\n",
 		general:             "(general)",
 		unknownFile:         "(file unknown)",
-		defaultRequirement:  "Every comment must set path to the changed file path; never leave path empty.",
 		prSection:           "### PR Description Context\n\n",
 		requirementsSection: "### Requirements\n\n",
 		titleLabel:          "**Title:** ",
@@ -61,7 +58,6 @@ var wrappers = map[string]wrapperMsgs{
 		warnings:            "### 警告\n",
 		general:             "(通用)",
 		unknownFile:         "(文件未知)",
-		defaultRequirement:  "每条评论的 path 必须填写变更文件的完整路径，不得留空。",
 		prSection:           "### PR 描述上下文\n\n",
 		requirementsSection: "### 要求\n\n",
 		titleLabel:          "**标题:** ",
@@ -103,8 +99,7 @@ func BuildReviewBackground(lang, title, body, repoRequirement string) string {
 		parts = append(parts, pr.String())
 	}
 
-	req := MergeOCRRequirement(lang, repoRequirement)
-	if req != "" {
+	if req := strings.TrimSpace(repoRequirement); req != "" {
 		parts = append(parts, w.requirementsSection+req)
 	}
 	return strings.Join(parts, "\n\n")
@@ -119,19 +114,6 @@ func truncateRunes(s string, max int, marker string) string {
 		count++
 	}
 	return s
-}
-
-// MergeOCRRequirement prepends the language-specific path requirement.
-func MergeOCRRequirement(lang, repoRequirement string) string {
-	base := strings.TrimSpace(wrapperFor(lang).defaultRequirement)
-	repo := strings.TrimSpace(repoRequirement)
-	if repo == "" {
-		return base
-	}
-	if base == "" {
-		return repo
-	}
-	return base + "\n\n" + repo
 }
 
 // ApprovalBody is the short body for a separate APPROVE review (comment mode / inline fallback).

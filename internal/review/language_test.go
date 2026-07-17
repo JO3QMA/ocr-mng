@@ -19,16 +19,6 @@ func TestForInlineJapanese(t *testing.T) {
 	}
 }
 
-func TestMergeOCRRequirement(t *testing.T) {
-	got := review.MergeOCRRequirement("English", "focus on tests")
-	if !strings.Contains(got, "path") || !strings.HasSuffix(got, "focus on tests") {
-		t.Fatalf("merge: %q", got)
-	}
-	if !strings.HasPrefix(got, "Every comment must set path") {
-		t.Fatalf("default should be first: %q", got)
-	}
-}
-
 func TestZeroFindingApprovalEnabled(t *testing.T) {
 	repo := store.RepoView{
 		Repo: store.Repo{ApproveOnZeroFindings: true},
@@ -52,13 +42,6 @@ func TestApprovalBody(t *testing.T) {
 	}
 }
 
-func TestMergeOCRRequirementRepoEmpty(t *testing.T) {
-	got := review.MergeOCRRequirement("Japanese", "")
-	if !strings.Contains(got, "path") {
-		t.Fatalf("default only: %q", got)
-	}
-}
-
 func TestBuildReviewBackgroundMergeOrder(t *testing.T) {
 	got := review.BuildReviewBackground("English", "My PR", "Intent", "focus on tests")
 	if !strings.HasPrefix(got, "### PR Description Context") {
@@ -75,8 +58,18 @@ func TestBuildReviewBackgroundMergeOrder(t *testing.T) {
 	if idxPR < 0 || idxReq < 0 || idxPR >= idxReq {
 		t.Fatalf("order: %q", got)
 	}
-	if !strings.Contains(got, "focus on tests") || !strings.Contains(got, "Every comment must set path") {
+	if !strings.Contains(got, "focus on tests") {
 		t.Fatalf("requirements: %q", got)
+	}
+	if strings.Contains(got, "must set path") {
+		t.Fatalf("default path requirement must not be injected: %q", got)
+	}
+}
+
+func TestBuildReviewBackgroundNoDefaultRequirement(t *testing.T) {
+	got := review.BuildReviewBackground("Japanese", "タイトル", "本文", "")
+	if strings.Contains(got, "### 要件") || strings.Contains(got, "path") {
+		t.Fatalf("empty repo requirement must omit requirements section: %q", got)
 	}
 }
 
