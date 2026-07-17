@@ -179,3 +179,140 @@ func TestCommentBodyTrimsTrailingNewline(t *testing.T) {
 		t.Fatalf("trailing newlines should be trimmed: %q", inline[0].Body)
 	}
 }
+
+func TestCommentMetaBoth(t *testing.T) {
+	inline, summary := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{{
+			FilePath: "a.go", StartLine: 1, Content: "fix",
+			Severity: "medium", Category: "maintainability",
+		}},
+	}, englishFmt())
+	wantMeta := "**Severity:** medium · **Category:** maintainability\n\nfix"
+	if !strings.HasPrefix(inline[0].Body, wantMeta) {
+		t.Fatalf("body: %q", inline[0].Body)
+	}
+	if !strings.Contains(summary, "**Severity:** medium 1\n") {
+		t.Fatalf("summary severity: %q", summary)
+	}
+	if !strings.Contains(summary, "**Category:** maintainability 1\n") {
+		t.Fatalf("summary category: %q", summary)
+	}
+}
+
+func TestCommentMetaPartial(t *testing.T) {
+	inline, summary := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{
+			{FilePath: "a.go", StartLine: 1, Content: "sev only", Severity: "low"},
+			{FilePath: "b.go", StartLine: 2, Content: "cat only", Category: "style"},
+		},
+	}, englishFmt())
+	if !strings.HasPrefix(inline[0].Body, "**Severity:** low\n\nsev only") {
+		t.Fatalf("sev body: %q", inline[0].Body)
+	}
+	if !strings.HasPrefix(inline[1].Body, "**Category:** style\n\ncat only") {
+		t.Fatalf("cat body: %q", inline[1].Body)
+	}
+	if !strings.Contains(summary, "**Severity:** low 1\n") || !strings.Contains(summary, "**Category:** style 1\n") {
+		t.Fatalf("summary: %q", summary)
+	}
+}
+
+func TestCommentMetaAbsent(t *testing.T) {
+	inline, summary := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{{FilePath: "a.go", StartLine: 1, Content: "legacy"}},
+	}, englishFmt())
+	if strings.Contains(inline[0].Body, "**Severity:**") || strings.Contains(inline[0].Body, "**Category:**") {
+		t.Fatalf("body should omit meta: %q", inline[0].Body)
+	}
+	if strings.Contains(summary, "**Severity:**") || strings.Contains(summary, "**Category:**") {
+		t.Fatalf("summary should omit breakdown: %q", summary)
+	}
+	if !strings.HasPrefix(inline[0].Body, "legacy") {
+		t.Fatalf("body: %q", inline[0].Body)
+	}
+}
+
+func TestCommentMetaTrim(t *testing.T) {
+	inline, summary := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{{
+			FilePath: "a.go", StartLine: 1, Content: "fix",
+			Severity: " medium ", Category: "  ",
+		}},
+	}, englishFmt())
+	if !strings.HasPrefix(inline[0].Body, "**Severity:** medium\n\nfix") {
+		t.Fatalf("body: %q", inline[0].Body)
+	}
+	if strings.Contains(inline[0].Body, "**Category:**") {
+		t.Fatalf("blank category omitted: %q", inline[0].Body)
+	}
+	if !strings.Contains(summary, "**Severity:** medium 1\n") || strings.Contains(summary, "**Category:**") {
+		t.Fatalf("summary: %q", summary)
+	}
+}
+
+func TestCommentBreakdownSort(t *testing.T) {
+	_, summary := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{
+			{FilePath: "a.go", StartLine: 1, Content: "1", Severity: "low", Category: "style"},
+			{FilePath: "b.go", StartLine: 1, Content: "2", Severity: "medium", Category: "maintainability"},
+			{FilePath: "c.go", StartLine: 1, Content: "3", Severity: "medium", Category: "maintainability"},
+		},
+	}, englishFmt())
+	if !strings.Contains(summary, "**Severity:** medium 2, low 1\n") {
+		t.Fatalf("severity order: %q", summary)
+	}
+	if !strings.Contains(summary, "**Category:** maintainability 2, style 1\n") {
+		t.Fatalf("category order: %q", summary)
+	}
+}
+
+func TestAsSingleCommentSummary(t *testing.T) {
+	body := review.AsSingleComment(ocr.Result{
+		Comments: []ocr.Comment{{
+			FilePath: "a.go", StartLine: 3, Content: "note",
+			Severity: "high", Category: "security",
+		}},
+	}, englishFmt())
+	if !strings.Contains(body, "Found **1** comment(s).\n") {
+		t.Fatalf("count line: %q", body)
+	}
+	if !strings.Contains(body, "**Severity:** high 1\n") || !strings.Contains(body, "**Category:** security 1\n") {
+		t.Fatalf("breakdown: %q", body)
+	}
+	if !strings.Contains(body, "**Severity:** high · **Category:** security\n\nnote") {
+		t.Fatalf("meta: %q", body)
+	}
+}
+
+func TestCommentMetaJapaneseLabels(t *testing.T) {
+	inline, summary := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{{
+			FilePath: "a.go", StartLine: 1, Content: "指摘",
+			Severity: "low", Category: "style",
+		}},
+	}, review.CommentFormat{Lang: "Japanese", HostKind: "github"})
+	if !strings.HasPrefix(inline[0].Body, "**深刻度:** low · **分類:** style\n\n指摘") {
+		t.Fatalf("body: %q", inline[0].Body)
+	}
+	if !strings.Contains(summary, "**深刻度:** low 1\n") || !strings.Contains(summary, "**分類:** style 1\n") {
+		t.Fatalf("summary: %q", summary)
+	}
+}
+
+func TestCommentMetaEscapesMarkdown(t *testing.T) {
+	inline, summary := review.ForInline(ocr.Result{
+		Comments: []ocr.Comment{{
+			FilePath: "a.go", StartLine: 1, Content: "fix",
+			Severity: "*high*", Category: "style_x",
+		}},
+	}, englishFmt())
+	if !strings.HasPrefix(inline[0].Body, "**Severity:** \\*high\\* · **Category:** style\\_x\n\nfix") {
+		t.Fatalf("body: %q", inline[0].Body)
+	}
+	if !strings.Contains(summary, "**Severity:** \\*high\\* 1\n") {
+		t.Fatalf("summary: %q", summary)
+	}
+	if !strings.Contains(summary, "**Category:** style\\_x 1\n") {
+		t.Fatalf("summary category: %q", summary)
+	}
+}

@@ -18,11 +18,13 @@ type Result struct {
 }
 
 type Comment struct {
-	FilePath     string `json:"path"`
-	StartLine    int    `json:"start_line"`
-	EndLine      int    `json:"end_line"`
-	Content      string `json:"content"`
+	FilePath   string `json:"path"`
+	StartLine  int    `json:"start_line"`
+	EndLine    int    `json:"end_line"`
+	Content    string `json:"content"`
 	Suggestion string `json:"suggestion_code"`
+	Category   string `json:"category"`
+	Severity   string `json:"severity"`
 }
 
 type Runner struct {

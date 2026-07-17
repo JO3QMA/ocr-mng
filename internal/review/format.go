@@ -3,6 +3,7 @@ package review
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/jo3qma/ocr-mng/internal/githost"
@@ -93,8 +94,88 @@ func formatSuggestion(c ocr.Comment, cf CommentFormat, w wrapperMsgs, asInlineCo
 	return "\n\n" + w.suggestion + "\n```\n" + code + "\n```"
 }
 
+func commentMetaValue(s string) string {
+	return strings.TrimSpace(s)
+}
+
+// escapeMarkdown softens OCR passthrough tokens so they do not break wrapper markup.
+func escapeMarkdown(s string) string {
+	return strings.NewReplacer(
+		`\`, `\\`,
+		"`", "\\`",
+		`*`, `\*`,
+		`_`, `\_`,
+		`[`, `\[`,
+		`]`, `\]`,
+	).Replace(s)
+}
+
+func formatMetaLine(c ocr.Comment, w wrapperMsgs) string {
+	sev := commentMetaValue(c.Severity)
+	cat := commentMetaValue(c.Category)
+	var parts []string
+	if sev != "" {
+		parts = append(parts, "**"+w.severityLabel+":** "+escapeMarkdown(sev))
+	}
+	if cat != "" {
+		parts = append(parts, "**"+w.categoryLabel+":** "+escapeMarkdown(cat))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " · ") + "\n\n"
+}
+
 func commentBody(c ocr.Comment, cf CommentFormat, w wrapperMsgs, asInlineComment bool) string {
-	return c.Content + formatSuggestion(c, cf, w, asInlineComment)
+	return formatMetaLine(c, w) + c.Content + formatSuggestion(c, cf, w, asInlineComment)
+}
+
+func tallyMeta(comments []ocr.Comment) (severities, categories map[string]int) {
+	severities = make(map[string]int)
+	categories = make(map[string]int)
+	for _, c := range comments {
+		if sev := commentMetaValue(c.Severity); sev != "" {
+			severities[sev]++
+		}
+		if cat := commentMetaValue(c.Category); cat != "" {
+			categories[cat]++
+		}
+	}
+	return severities, categories
+}
+
+func formatCountPairs(counts map[string]int) string {
+	type pair struct {
+		key   string
+		count int
+	}
+	pairs := make([]pair, 0, len(counts))
+	for k, n := range counts {
+		pairs = append(pairs, pair{k, n})
+	}
+	sort.Slice(pairs, func(i, j int) bool {
+		if pairs[i].count != pairs[j].count {
+			return pairs[i].count > pairs[j].count
+		}
+		return pairs[i].key < pairs[j].key
+	})
+	parts := make([]string, len(pairs))
+	for i, p := range pairs {
+		parts[i] = fmt.Sprintf("%s %d", escapeMarkdown(p.key), p.count)
+	}
+	return strings.Join(parts, ", ")
+}
+
+func writeCommentsHeader(b *strings.Builder, comments []ocr.Comment, w wrapperMsgs) {
+	fmt.Fprintf(b, w.foundComments+"\n", len(comments))
+	severities, categories := tallyMeta(comments)
+	if len(severities) > 0 {
+		fmt.Fprintf(b, "**%s:** %s\n", w.severityLabel, formatCountPairs(severities))
+	}
+	if len(categories) > 0 {
+		fmt.Fprintf(b, "**%s:** %s\n", w.categoryLabel, formatCountPairs(categories))
+	}
+	b.WriteString("\n")
 }
 
 func writeSummaryHeading(b *strings.Builder, c ocr.Comment, cf CommentFormat, w wrapperMsgs) {
@@ -124,7 +205,7 @@ func ForInline(result ocr.Result, cf CommentFormat) ([]githost.ReviewComment, st
 		writeZeroCommentBody(&b, result, w)
 		return inline, b.String()
 	}
-	fmt.Fprintf(&b, w.foundComments, len(result.Comments))
+	writeCommentsHeader(&b, result.Comments, w)
 	for _, c := range result.Comments {
 		line := commentLine(c)
 		if line >= 1 && c.FilePath != "" {
@@ -154,6 +235,7 @@ func AsSingleComment(result ocr.Result, cf CommentFormat) string {
 		writeZeroCommentBody(&b, result, w)
 		return b.String()
 	}
+	writeCommentsHeader(&b, result.Comments, w)
 	for _, c := range result.Comments {
 		title := commentTitle(c, w)
 		if line := commentLine(c); line > 0 {

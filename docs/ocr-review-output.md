@@ -24,8 +24,12 @@ Open Code Review CLI が `--format json` で返すレビュー結果の形式。
 | `suggestion_code` | `Suggestion` | 提案コード。GitHub Suggestion Block にそのまま入る |
 | `start_line` | `StartLine` | 対象行の開始（1-based） |
 | `end_line` | `EndLine` | 対象行の終了（1-based）。未指定時は `start_line` を使う |
+| `category` | `Category` | 指摘の分類ラベル（任意。例: `maintainability`, `style`）。Review Comment Wrapper にパススルー表示 |
+| `severity` | `Severity` | 指摘の深刻度ラベル（任意。例: `low`, `medium`, `high`）。Review Comment Wrapper にパススルー表示 |
 
 `path` と `start_line` / `end_line` が揃っているコメントは GitHub インラインレビューに投稿する。欠落時はサマリーコメントへフォールバックする。
+
+`category` / `severity` は前後空白を除いたうえで、空でなければ各指摘本文先頭のメタ行と件数サマリーの内訳に出す。値は翻訳・フィルタしない。表示時のみ Markdown メタ文字（`\` `*` `_` `` ` `` `[` `]`）をエスケープする。欠落時はその次元を省略する（Zero-Finding 判定には使わない）。
 
 ## Review Manager の加工ポリシー
 
@@ -34,6 +38,8 @@ Open Code Review CLI が `--format json` で返すレビュー結果の形式。
 1. **改行の前後除去** — 先頭・末尾の `\n` / `\r` のみ削除。Markdown フェンス直後の空行を防ぐため。
 2. **インデント保持** — スペース・タブは一切削除しない。Apply 時にそのまま適用される。
 3. **フェンス破壊のエスケープ** — 内容中の ` ``` ` は `\`\`\`` に置換する。
+
+`category` / `severity` は前後空白の除去と、表示用の Markdown メタ文字エスケープのみ行い、意味上の値は変更しない。
 ## 運用上の注意
 
 - GitHub の Apply は `suggestion_code` の文字列を**そのまま**置換する。インデント（タブ・スペース）が欠けると Linter エラーになる。
@@ -120,7 +126,9 @@ Open Code Review CLI が `--format json` で返すレビュー結果の形式。
       "suggestion_code": "\tif err != nil {\n\t\treturn err\n\t}",
       "existing_code": "\tif err != nil {\n\t\tlog.Println(err)\n\t}",
       "start_line": 10,
-      "end_line": 12
+      "end_line": 12,
+      "category": "maintainability",
+      "severity": "medium"
     }
   ]
 }
