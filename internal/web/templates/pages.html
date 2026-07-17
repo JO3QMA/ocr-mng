@@ -16,7 +16,7 @@ main { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: .5rem; border-bottom: 1px solid #e5e7eb; }
 label { display: block; margin-top: .75rem; font-weight: 600; }
-input, select, textarea { width: 100%; padding: .5rem; margin-top: .25rem; box-sizing: border-box; }
+input:not([type="checkbox"]):not([type="radio"]), select, textarea { width: 100%; padding: .5rem; margin-top: .25rem; box-sizing: border-box; }
 button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 0; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; text-decoration: none; font: inherit; line-height: inherit; box-sizing: border-box; vertical-align: middle; }
 .btn.secondary { background: #6b7280; }
 .btn.accent { background: #16a34a; }
@@ -24,7 +24,26 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 .btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 .btn-row { display: flex; gap: .5rem; margin-top: 1rem; flex-wrap: wrap; align-items: center; }
 .inline-action { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-.inline-action input { width: auto; max-width: 8rem; margin-top: 0; }
+.inline-action input:not([type="checkbox"]) { width: auto; max-width: 8rem; margin-top: 0; }
+.settings-toggle { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .75rem; font-weight: 600; cursor: pointer; }
+.settings-toggle-inline { justify-content: flex-start; gap: .5rem; margin-top: 0; }
+.settings-toggle-input {
+  appearance: none; -webkit-appearance: none; flex-shrink: 0; width: 2.75rem; height: 1.5rem; margin: 0; padding: 0;
+  border-radius: 999px; background: #9ca3af; position: relative; cursor: pointer; transition: background .15s ease;
+}
+.settings-toggle-input::before {
+  content: ""; position: absolute; top: 2px; left: 2px; width: calc(1.5rem - 4px); height: calc(1.5rem - 4px);
+  border-radius: 50%; background: #fff; transition: transform .15s ease;
+}
+.settings-toggle-input:checked { background: #2563eb; }
+.settings-toggle-input:checked::before { transform: translateX(1.25rem); }
+.settings-toggle-input:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.confirm-checkbox { display: flex; align-items: center; gap: .5rem; margin-top: .75rem; font-weight: 600; cursor: pointer; }
+.confirm-checkbox input { width: auto; margin: 0; padding: 0; flex-shrink: 0; }
+.confirm-checkbox input:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .settings-toggle-input, .settings-toggle-input::before { transition: none; }
+}
 .flash { background: #ecfdf5; border: 1px solid #6ee7b7; padding: .75rem; border-radius: 6px; margin-bottom: 1rem; }
 .error { background: #fef2f2; border-color: #fca5a5; }
 .badge { display: inline-block; padding: .15rem .5rem; border-radius: 999px; font-size: .85rem; }
@@ -111,7 +130,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <label>{{.L.T "form.api_base_url"}}</label><input name="api_base_url" value="{{.Host.APIBaseURL}}" required>
 <label>{{.L.T "form.web_base_url"}}</label><input name="web_base_url" value="{{.Host.WebBaseURL}}" required>
 <label>{{.L.T "form.host_pat"}} {{.PATHint}}</label><input name="host_pat" type="password" autocomplete="new-password">
-{{if .ShowClearPAT}}<label><input type="checkbox" name="clear_pat"> {{.L.T "form.clear_pat"}}</label>{{end}}
+{{if .ShowClearPAT}}<label class="confirm-checkbox"><input type="checkbox" name="clear_pat"> <span>{{.L.T "form.clear_pat"}}</span></label>{{end}}
 <p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/hosts">{{.L.T "btn.cancel"}}</a></p>
 </form>
 </div>
@@ -154,8 +173,8 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <label>{{.L.T "form.api_base_url"}}</label><input name="api_base_url" value="{{.Provider.APIBaseURL}}" placeholder="https://...">
 <label>{{.L.T "form.protocol"}}</label><input name="protocol" value="{{.Provider.Protocol}}" placeholder="openai / anthropic">
 <label>{{.L.T "form.api_key"}} {{.KeyHint}}</label><input name="api_key" type="password" autocomplete="new-password">
-{{if .ShowClearKey}}<label><input type="checkbox" name="clear_api_key"> {{.L.T "form.clear_api_key"}}</label>{{end}}
-<label><input type="checkbox" name="enabled" {{checked .Provider.Enabled}}> {{.L.T "form.enabled"}}</label>
+{{if .ShowClearKey}}<label class="confirm-checkbox"><input type="checkbox" name="clear_api_key"> <span>{{.L.T "form.clear_api_key"}}</span></label>{{end}}
+<label class="settings-toggle"><span>{{.L.T "form.enabled"}}</span><input class="settings-toggle-input" type="checkbox" name="enabled" {{checked .Provider.Enabled}}></label>
 <p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/llm-providers">{{.L.T "btn.cancel"}}</a></p>
 </form>
 {{if .Provider.ID}}
@@ -167,7 +186,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <td colspan="3">
 <form method="post" action="/llm-providers/{{$.Provider.ID}}/models/{{.ID}}" class="inline-action" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
 <input name="model_name" value="{{.ModelName}}" required>
-<label><input type="checkbox" name="enabled" {{checked .Enabled}}> {{$.L.T "form.enabled"}}</label>
+<label class="settings-toggle settings-toggle-inline"><span>{{$.L.T "form.enabled"}}</span><input class="settings-toggle-input" type="checkbox" name="enabled" {{checked .Enabled}}></label>
 <button type="submit" class="btn">{{$.L.T "btn.save"}}</button>
 </form>
 <form method="post" action="/llm-providers/{{$.Provider.ID}}/models/{{.ID}}/delete" style="display:inline">
@@ -227,10 +246,10 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <option value="inline" {{selected .Repo.CommentMode "inline"}}>{{.L.T "form.comment_inline"}}</option>
 <option value="comment" {{selected .Repo.CommentMode "comment"}}>{{.L.T "form.comment_single"}}</option>
 </select>
-<label><input type="checkbox" name="remove_label_after_review" {{checked .Repo.RemoveLabelAfterReview}}> {{.L.T "form.remove_label"}}</label>
-<label><input type="checkbox" name="approve_on_zero_findings" {{checked .Repo.ApproveOnZeroFindings}}> {{.L.T "form.approve_zero_findings"}}</label>
+<label class="settings-toggle"><span>{{.L.T "form.remove_label"}}</span><input class="settings-toggle-input" type="checkbox" name="remove_label_after_review" {{checked .Repo.RemoveLabelAfterReview}}></label>
+<label class="settings-toggle"><span>{{.L.T "form.approve_zero_findings"}}</span><input class="settings-toggle-input" type="checkbox" name="approve_on_zero_findings" {{checked .Repo.ApproveOnZeroFindings}}></label>
 <p class="hint">{{.L.T "form.approve_zero_findings_hint"}}</p>
-<label><input type="checkbox" name="enabled" {{checked .Repo.Enabled}}> {{.L.T "form.enabled"}}</label>
+<label class="settings-toggle"><span>{{.L.T "form.enabled"}}</span><input class="settings-toggle-input" type="checkbox" name="enabled" {{checked .Repo.Enabled}}></label>
 <label>{{.L.T "form.review_language"}}</label>
 <select name="review_language">
 <option value="" {{selected .Repo.ReviewLanguage ""}}>{{.L.T "form.review_lang_global"}}</option>
@@ -249,7 +268,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <label>{{.L.T "form.ocr_rule"}}</label><textarea name="ocr_rule" rows="4">{{.Repo.OCRRule}}</textarea>
 <label>{{.L.T "form.ocr_requirement"}}</label><textarea name="ocr_requirement" rows="3" placeholder="{{.L.T "form.ocr_requirement_placeholder"}}">{{.Repo.OCRRequirement}}</textarea>
 <label>{{.L.T "form.repo_pat"}}</label><input name="repo_pat" type="password" autocomplete="new-password">
-{{if .ShowClearPAT}}<label><input type="checkbox" name="clear_pat"> {{.L.T "form.clear_repo_pat"}}</label>{{end}}
+{{if .ShowClearPAT}}<label class="confirm-checkbox"><input type="checkbox" name="clear_pat"> <span>{{.L.T "form.clear_repo_pat"}}</span></label>{{end}}
 <p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/repos">{{.L.T "btn.cancel"}}</a></p>
 </form>
 </div>

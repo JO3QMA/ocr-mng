@@ -187,3 +187,11 @@ _Avoid_: 実行ボタン, アクションボタン（曖昧）
 **Secondary Action Button**:
 Review Manager WebUI で変更を破棄し、一覧や前画面へ戻るボタン。キャンセルに使う。色は灰（`#6b7280`）。
 _Avoid_: 戻るボタン, リンクボタン（曖昧）
+
+**Settings Toggle**:
+Review Manager WebUI で永続的な有効/無効やオプションの on/off を表す二択コントロール。カード内の縦フォーム行ではラベル左・コントロール右。LLM Model のインライン編集行ではコンパクト配置（横並び）を例外として許す。状態の意味はフィールドラベルが担い、ノブ横に on/off 文言は置かない。ON 色は Primary Action Button と同じ青（`#2563eb`）。Registered Repo・Registered LLM Provider・Registered LLM Model の有効状態、Post-Review Label Removal、Zero-Finding Approval が該当する。
+_Avoid_: スイッチ（曖昧）, トグルボタン, チェックボックス（一回限り操作との混同）
+
+**Confirmation Checkbox**:
+Review Manager WebUI で保存時に一度だけ行う破壊的操作の確認用チェック。行はコントロール左・ラベル右。Host PAT / Repo PAT / API キーのクリアが該当する。永続状態の on/off には使わない。
+_Avoid_: クリアチェック, 削除チェック（曖昧）
