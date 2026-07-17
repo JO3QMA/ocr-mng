@@ -65,7 +65,7 @@ Registered Repo の Pull Request を Git Host API で確認する周期。グロ
 _Avoid_: フェッチ間隔, スキャン間隔
 
 **Review Run**:
-1 回の OCR レビュー実行の記録。対象 Pull Request、開始・終了時刻、成否、投稿先、OCR 出力を含む。`pending` は Review Concurrency の空き待ち、`running` は実行中、`success` / `failed` は終了状態。
+1 回の OCR レビュー実行の記録。対象 Pull Request、開始・終了時刻、成否、投稿先、OCR 出力を含む。`pending` は Review Concurrency の空き待ち、`running` は実行中、`success` / `failed` は終了状態。実行時に使う LLM は Registered LLM Provider と Registered LLM Model の組ちょうど 1 つに解決される（モデルローテーションは別概念）。解決できた場合はその時点のプロバイダー名・モデル名をスナップショットとして保持する。解決できない（未設定・無効・API キー欠落等）場合は実行開始時に `failed` とする。
 _Avoid_: ジョブ, タスク（曖昧）
 
 **Pending Review Run**:
@@ -80,12 +80,20 @@ _Avoid_: PR 状態, キャッシュ（曖昧）
 同時実行できる Review Run の上限。Registered Repo ごとには 1 件までとし、システム全体では UI 設定可能な最大並行数を超えない。`pending` の消化は `created_at` 昇順の FIFO とし、対象 Registered Repo に既に `running` がある場合はその Run を飛ばして次を選ぶ。
 _Avoid_: ワーカー数, 並列度（曖昧）
 
+**Registered LLM Provider**:
+Review Manager に明示的に登録された LLM 接続先。表示名、OCR 上のプロバイダー識別子、種別（builtin / custom）、接続情報、暗号化された API キー、Registered LLM Model の台帳を持つ。builtin は OCR 組み込みプロバイダー、custom は自前エンドポイント。Global デフォルトまたは Repo OCR Overrides から参照されているあいだは削除できない（無効化は可）。Git Host（Git プラットフォーム）とは別概念。
+_Avoid_: プロバイダー（単独・Git Host と混同）, LLM Backend, Model Endpoint
+
+**Registered LLM Model**:
+Registered LLM Provider に属する利用可能モデル 1 件。OCR に渡すモデル識別子と、選択肢としての有効/無効を持つ。Global デフォルトまたは Repo OCR Overrides の組に選ぶには、有効かつその Provider 配下であることが必要。参照されているあいだは削除できない（無効化は可）。実行開始時に無効なら Review Run は `failed`。自由文字列のモデル名上書き（旧 `ocr_model`）は移行期間の互換用であり、台帳運用開始後は廃止する。
+_Avoid_: モデル（単独・曖昧）, Provider Model, モデルプール（#46 のローテーション用集合）
+
 **Global OCR Settings**:
-Review Manager が保持する Open Code Review CLI の LLM Provider 設定。コンテナ内の OCR グローバル config に反映される。
-_Avoid_: グローバル設定（曖昧）
+Review Manager が保持する Open Code Review CLI 向けのグローバル LLM 設定。正はデフォルトの Registered LLM Provider / Registered LLM Model の組であり、レビュー実行時に OCR の config へ反映される。Global デフォルトは Provider と Model の両方が揃って初めて有効（片方だけの設定は不可）。組が一度も設定されていないあいだだけ、移行期間として従来の OCR Config JSON・Repo のモデル名文字列・（残存する `OCR_LLM_*`）で実行する。組を一度設定した以降は台帳モードで一方通行とし、デフォルト組のクリアは不可（別の組への入替のみ）。生 JSON・旧モデル文字列・`OCR_LLM_*` は廃止対象とする。
+_Avoid_: グローバル設定（曖昧）, Global OCR Config JSON（移行後の正式名にしない）
 
 **Repo OCR Overrides**:
-Registered Repo ごとに Global OCR Settings を上書きするレビュー実行パラメータ。モデル名、カスタムルール、追加コンテキスト（requirement）、Review Language を含む。
+Registered Repo ごとに Global OCR Settings を上書きするレビュー実行パラメータ。Registered LLM Provider、Registered LLM Model、カスタムルール、追加コンテキスト（requirement）、Review Language を含む。Provider / Model の上書きは組単位（両方空＝Global に従う、両方指定＝その組。片方だけは不可）。組のクリア（両方空へ戻す）は可。旧モデル名文字列（`ocr_model`）は移行期間の互換用とする。
 _Avoid_: Repo 設定（曖昧）
 
 **Review Background**:
@@ -120,7 +128,7 @@ _Avoid_: 全体コメント, 総評（曖昧）
 行番号はあるが `path` が欠落した OCR 指摘。Review Comment Wrapper では `(general)` ではなく、Review Language ごとの「ファイル不明」ラベルで見出す。
 _Avoid_: general コメント, パスなしコメント（曖昧）
 **Review Language Scope**:
-Review Language は Global Settings にデフォルトを持ち、Registered Repo の Repo OCR Overrides で上書きできる。UI Language は Global Settings のみで設定し、Repo ごとの上書きはしない。専用 UI で設定した Review Language は、Global OCR Config JSON 内の `language` より常に優先し、レビュー実行時に config へ注入する。
+Review Language は Global Settings にデフォルトを持ち、Registered Repo の Repo OCR Overrides で上書きできる。UI Language は Global Settings のみで設定し、Repo ごとの上書きはしない。専用 UI で設定した Review Language は、レビュー実行時に組み立てる OCR config の language として注入する（移行期間中は旧 OCR Config JSON 内の language より常に優先）。
 _Avoid_: 言語設定（曖昧）
 _Avoid_: 言語設定（曖昧）
 
@@ -149,7 +157,7 @@ Zero-Finding Review でコメント投稿が成功したあと、Post-Review Lab
 _Avoid_: 自動承認, オートマージ（曖昧）
 
 **Global Settings**:
-Review Manager 全体に適用される運用設定。Poll Interval デフォルト、Review Concurrency 上限、Review Run Retention、Global OCR Settings 等を含む。Registered Repo 設定で個別に上書きできる項目がある。
+Review Manager 全体に適用される運用設定。Poll Interval デフォルト、Review Concurrency 上限、Review Run Retention、デフォルトの Registered LLM Provider / Registered LLM Model、Global OCR Settings 等を含む。Registered Repo 設定で個別に上書きできる項目がある。
 _Avoid_: システム設定（曖昧）
 
 **Review Language**:
