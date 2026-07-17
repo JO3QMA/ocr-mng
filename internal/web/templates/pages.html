@@ -66,12 +66,12 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <div class="card">
 <h2>{{.L.T "dashboard.recent_runs"}}</h2>
 {{if not .Runs}}<p>{{.L.T "dashboard.no_runs"}}</p>{{else}}
-<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.created"}}</th></tr></thead>
+<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.started"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
 <td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
 <td>{{.RepoDisplay}}</td><td>#{{.PRNumber}}</td>
 <td><span class="badge {{.Status}}">{{.Status}}</span></td>
-<td>{{.TriggerKind}}</td><td>{{formatTime .CreatedAt}}</td>
+<td>{{.TriggerKind}}</td><td>{{formatTime .StartedAt}}</td>
 </tr>{{end}}</tbody></table>
 {{end}}
 </div>
@@ -268,11 +268,11 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <button type="submit" class="btn accent">{{.L.T "btn.run"}}</button>
 </div>
 </form>
-<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.head"}}</th><th>{{.L.T "table.created"}}</th></tr></thead>
+<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.head"}}</th><th>{{.L.T "table.started"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
 <td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
 <td>#{{.PRNumber}}</td><td><span class="badge {{.Status}}">{{.Status}}</span></td>
-<td>{{.TriggerKind}}</td><td><code>{{shortSHA .HeadSHA}}</code></td><td>{{formatTime .CreatedAt}}</td>
+<td>{{.TriggerKind}}</td><td><code>{{shortSHA .HeadSHA}}</code></td><td>{{formatTime .StartedAt}}</td>
 </tr>{{end}}</tbody></table>
 </div>
 {{template "foot" .}}
@@ -282,12 +282,12 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 {{template "head" .}}
 <div class="card">
 <h1>{{.L.T "page.runs"}}</h1>
-<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.created"}}</th></tr></thead>
+<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.started"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
 <td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
 <td>{{.RepoDisplay}}</td><td>#{{.PRNumber}}</td>
 <td><span class="badge {{.Status}}">{{.Status}}</span></td>
-<td>{{.TriggerKind}}</td><td>{{formatTime .CreatedAt}}</td>
+<td>{{.TriggerKind}}</td><td>{{formatTime .StartedAt}}</td>
 </tr>{{end}}</tbody></table>
 </div>
 {{template "foot" .}}
@@ -298,6 +298,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <div class="card">
 <h1>Review Run #{{.Run.ID}}</h1>
 <p>{{.L.T "run_detail.repo"}}: {{.Run.RepoDisplay}} · PR #{{.Run.PRNumber}} · {{.L.T "table.status"}}: <span class="badge {{.Run.Status}}">{{.Run.Status}}</span></p>
+<p>{{.L.T "table.accepted"}}: {{formatTime .Run.CreatedAt}} · {{.L.T "table.started"}}: {{formatTime .Run.StartedAt}} · {{.L.T "table.finished"}}: {{formatTime .Run.FinishedAt}}</p>
 {{if or .Run.LLMProviderName .Run.LLMModelName}}<p>{{.L.T "run_detail.llm"}}: {{.Run.LLMProviderName}} / {{.Run.LLMModelName}}</p>{{end}}
 {{if .Run.ErrorMessage}}<div class="flash error">{{.Run.ErrorMessage}}</div>{{end}}
 {{if .Run.CommentURL}}<p><a href="{{.Run.CommentURL}}">{{.L.T "run_detail.view_post"}}</a></p>{{end}}
