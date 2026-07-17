@@ -19,13 +19,15 @@ type wrapperMsgs struct {
 	titleLabel          string
 	bodyLabel           string
 	truncationMarker    string
+	severityLabel       string
+	categoryLabel       string
 }
 
 var wrappers = map[string]wrapperMsgs{
 	"Japanese": {
 		title:               "## Open Code Review\n\n",
 		noComments:          "コメントは生成されませんでした。",
-		foundComments:       "**%d** 件のコメントが見つかりました。\n\n",
+		foundComments:       "**%d** 件のコメントが見つかりました。",
 		suggestion:          "**提案:** ",
 		warnings:            "### 警告\n",
 		general:             "(全体)",
@@ -35,11 +37,13 @@ var wrappers = map[string]wrapperMsgs{
 		titleLabel:          "**タイトル:** ",
 		bodyLabel:           "**本文:**\n",
 		truncationMarker:    "\n\n...(本文は先頭 8,000 ルーンで切り詰められました)",
+		severityLabel:       "深刻度",
+		categoryLabel:       "分類",
 	},
 	"English": {
 		title:               "## Open Code Review\n\n",
 		noComments:          "No comments generated.",
-		foundComments:       "Found **%d** comment(s).\n\n",
+		foundComments:       "Found **%d** comment(s).",
 		suggestion:          "**Suggestion:** ",
 		warnings:            "### Warnings\n",
 		general:             "(general)",
@@ -49,11 +53,13 @@ var wrappers = map[string]wrapperMsgs{
 		titleLabel:          "**Title:** ",
 		bodyLabel:           "**Body:**\n",
 		truncationMarker:    "\n\n...(body truncated at 8,000 runes from start)",
+		severityLabel:       "Severity",
+		categoryLabel:       "Category",
 	},
 	"Chinese": {
 		title:               "## Open Code Review\n\n",
 		noComments:          "未生成评论。",
-		foundComments:       "发现 **%d** 条评论。\n\n",
+		foundComments:       "发现 **%d** 条评论。",
 		suggestion:          "**建议:** ",
 		warnings:            "### 警告\n",
 		general:             "(通用)",
@@ -63,6 +69,8 @@ var wrappers = map[string]wrapperMsgs{
 		titleLabel:          "**标题:** ",
 		bodyLabel:           "**正文:**\n",
 		truncationMarker:    "\n\n...(正文已从开头截断至 8,000 字符)",
+		severityLabel:       "严重程度",
+		categoryLabel:       "分类",
 	},
 }
 

@@ -105,11 +105,19 @@ Review Background に含める Pull Request のタイトルと本文。コード
 _Avoid_: PR プロンプト, PR メタデータ（曖昧）
 
 **OCR Review Output**:
-Open Code Review CLI が `--format json` で返す構造化レビュー結果。`comments` 配列の各要素に `path`, `content`, `suggestion_code`, `existing_code`, `start_line`, `end_line` を含む。スキーマと抽象化サンプルは [`docs/ocr-review-output.md`](docs/ocr-review-output.md) を参照。
+Open Code Review CLI が `--format json` で返す構造化レビュー結果。`comments` 配列の各要素に `path`, `content`, `suggestion_code`, `existing_code`, `start_line`, `end_line`, `category`, `severity` を含む。スキーマと抽象化サンプルは [`docs/ocr-review-output.md`](docs/ocr-review-output.md) を参照。
 _Avoid_: OCR JSON, レビュー結果（曖昧）
 
+**Comment Category**:
+OCR Review Output の各指摘が属する分類ラベル（例: `maintainability`, `style`）。Review Manager は値を解釈・フィルタ・翻訳せず、OCR の生文字列を Review Comment Wrapper にパススルー表示する。
+_Avoid_: カテゴリ（単独・曖昧）, 指摘種別（曖昧）
+
+**Comment Severity**:
+OCR Review Output の各指摘の深刻度ラベル（例: `low`, `medium`, `high`）。Review Manager は値を解釈・フィルタ・翻訳せず、OCR の生文字列を Review Comment Wrapper にパススルー表示する。Zero-Finding Review や Zero-Finding Approval の判定には使わない。
+_Avoid_: 重要度（曖昧）, priority（OCR 用語との混同）
+
 **Review Comment Wrapper**:
-Review Manager が OCR 出力を Git Host に投稿する際に付与する Markdown の定型部分（見出し、指摘説明、Suggestion のコード表示、Warnings、件数サマリー等）。GitHub インラインでは GitHub Suggestion Block を使い、それ以外では Fallback Code Fence と提案ラベルを使う。OCR 本文と同様に Review Language に合わせる。
+Review Manager が OCR 出力を Git Host に投稿する際に付与する Markdown の定型部分（見出し、指摘説明、Suggestion のコード表示、Warnings、件数サマリー、各指摘本文先頭の Comment Category / Comment Severity メタ行、および件数サマリー直後の Severity 内訳・Category 内訳の別リスト等）。件数サマリーと内訳は Review Comment Mode が inline / comment のどちらの場合も先頭に出す。GitHub インラインでは GitHub Suggestion Block を使い、それ以外では Fallback Code Fence と提案ラベルを使う。OCR 本文と同様に Review Language に合わせる。欠落した Category / Severity は表示せず、ある方だけ出す（表示前に前後空白を除き、空なら欠落）。各指摘本文先頭のメタ行は太字ラベル＋値＋中黒形式（severity を先）。ラベル語は Review Language に合わせ、Japanese / English / Chinese でそれぞれ「深刻度 / Severity / 严重程度」「分類 / Category / 分类」。値はパススルー。片方だけならその側のみ。内訳は件数サマリー直後に Severity・Category を別行で出し（例: `**深刻度:** medium 2, low 1`）、その次元に値が一つも無ければ行ごと省略する。内訳は OCR 生文字列ごとの件数で、欠落分は内訳に含めない（総件数と内訳合計の不一致は許容）。内訳の並びは件数降順、同数なら文字列昇順とする。
 _Avoid_: 投稿テンプレート, コメントヘッダー（曖昧）
 
 **GitHub Suggestion Block**:
