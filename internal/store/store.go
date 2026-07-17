@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -72,6 +73,8 @@ type PRSnapshot struct {
 type ReviewRun struct {
 	ID               int64
 	RepoID           int64
+	RepoOwner        string // live join from repos; empty if missing
+	RepoName         string // live join from repos; empty if missing
 	PRNumber         int
 	HeadSHA          string
 	BaseRef          string
@@ -85,6 +88,14 @@ type ReviewRun struct {
 	StartedAt        *time.Time
 	FinishedAt       *time.Time
 	CreatedAt        time.Time
+}
+
+// RepoDisplay is Owner/Name for UI, or RepoID when the Registered Repo row is missing.
+func (r ReviewRun) RepoDisplay() string {
+	if r.RepoOwner != "" && r.RepoName != "" {
+		return r.RepoOwner + "/" + r.RepoName
+	}
+	return strconv.FormatInt(r.RepoID, 10)
 }
 
 type GlobalSettings struct {
@@ -558,16 +569,18 @@ func (s *Store) UpdateReviewRun(ctx context.Context, run ReviewRun) error {
 }
 
 func (s *Store) ListReviewRuns(ctx context.Context, repoID int64, limit int) ([]ReviewRun, error) {
-	q := `SELECT id, repo_id, pr_number, head_sha, base_ref, status, trigger_kind, error_message,
-		comment_url, ocr_output_path, llm_provider_name, llm_model_name, started_at, finished_at, created_at
-		FROM review_runs`
+	q := `SELECT rr.id, rr.repo_id, rr.pr_number, rr.head_sha, rr.base_ref, rr.status, rr.trigger_kind, rr.error_message,
+		rr.comment_url, rr.ocr_output_path, rr.llm_provider_name, rr.llm_model_name, rr.started_at, rr.finished_at, rr.created_at,
+		r.owner, r.name
+		FROM review_runs rr
+		LEFT JOIN repos r ON r.id = rr.repo_id`
 	var rows *sql.Rows
 	var err error
 	if repoID > 0 {
-		q += ` WHERE repo_id=? ORDER BY id DESC LIMIT ?`
+		q += ` WHERE rr.repo_id=? ORDER BY rr.id DESC LIMIT ?`
 		rows, err = s.db.QueryContext(ctx, q, repoID, limit)
 	} else {
-		q += ` ORDER BY id DESC LIMIT ?`
+		q += ` ORDER BY rr.id DESC LIMIT ?`
 		rows, err = s.db.QueryContext(ctx, q, limit)
 	}
 	if err != nil {
@@ -579,9 +592,12 @@ func (s *Store) ListReviewRuns(ctx context.Context, repoID int64, limit int) ([]
 
 func (s *Store) GetReviewRun(ctx context.Context, id int64) (ReviewRun, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, repo_id, pr_number, head_sha, base_ref, status, trigger_kind, error_message,
-			comment_url, ocr_output_path, llm_provider_name, llm_model_name, started_at, finished_at, created_at
-		FROM review_runs WHERE id=?`, id)
+		SELECT rr.id, rr.repo_id, rr.pr_number, rr.head_sha, rr.base_ref, rr.status, rr.trigger_kind, rr.error_message,
+			rr.comment_url, rr.ocr_output_path, rr.llm_provider_name, rr.llm_model_name, rr.started_at, rr.finished_at, rr.created_at,
+			r.owner, r.name
+		FROM review_runs rr
+		LEFT JOIN repos r ON r.id = rr.repo_id
+		WHERE rr.id=?`, id)
 	return scanReviewRun(row)
 }
 
@@ -602,11 +618,13 @@ func scanReviewRun(scanner interface {
 }) (ReviewRun, error) {
 	var r ReviewRun
 	var errMsg, commentURL, ocrPath, llmProvider, llmModel sql.NullString
+	var repoOwner, repoName sql.NullString
 	var started, finished, created sql.NullString
 	err := scanner.Scan(
 		&r.ID, &r.RepoID, &r.PRNumber, &r.HeadSHA, &r.BaseRef, &r.Status, &r.TriggerKind,
 		&errMsg, &commentURL, &ocrPath, &llmProvider, &llmModel,
 		&started, &finished, &created,
+		&repoOwner, &repoName,
 	)
 	if err != nil {
 		return ReviewRun{}, err
@@ -625,6 +643,12 @@ func scanReviewRun(scanner interface {
 	}
 	if llmModel.Valid {
 		r.LLMModelName = llmModel.String
+	}
+	if repoOwner.Valid {
+		r.RepoOwner = repoOwner.String
+	}
+	if repoName.Valid {
+		r.RepoName = repoName.String
 	}
 	r.StartedAt = parseTime(started)
 	r.FinishedAt = parseTime(finished)
@@ -680,12 +704,14 @@ func (s *Store) ClaimNextPendingReviewRun(ctx context.Context) (ReviewRun, bool,
 	defer func() { _ = tx.Rollback() }()
 
 	row := tx.QueryRowContext(ctx, `
-		SELECT id, repo_id, pr_number, head_sha, base_ref, status, trigger_kind, error_message,
-			comment_url, ocr_output_path, llm_provider_name, llm_model_name, started_at, finished_at, created_at
-		FROM review_runs
-		WHERE status='pending'
-		  AND repo_id NOT IN (SELECT repo_id FROM review_runs WHERE status='running')
-		ORDER BY created_at ASC, id ASC
+		SELECT rr.id, rr.repo_id, rr.pr_number, rr.head_sha, rr.base_ref, rr.status, rr.trigger_kind, rr.error_message,
+			rr.comment_url, rr.ocr_output_path, rr.llm_provider_name, rr.llm_model_name, rr.started_at, rr.finished_at, rr.created_at,
+			r.owner, r.name
+		FROM review_runs rr
+		LEFT JOIN repos r ON r.id = rr.repo_id
+		WHERE rr.status='pending'
+		  AND rr.repo_id NOT IN (SELECT repo_id FROM review_runs WHERE status='running')
+		ORDER BY rr.created_at ASC, rr.id ASC
 		LIMIT 1`)
 	run, err := scanReviewRun(row)
 	if err == sql.ErrNoRows {

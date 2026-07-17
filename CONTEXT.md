@@ -49,8 +49,8 @@ Review Manager WebUI にログインできる単一の運用者。Basic Auth ま
 _Avoid_: ユーザー, オペレーター（曖昧）
 
 **Registered Repo**:
-Review Manager に登録され、ポーリング・OCR レビューの対象となる Git リポジトリ。Trigger Label や Repo 固有設定を持つ。
-_Avoid_: 監視対象, ターゲットリポジトリ
+Review Manager に登録され、ポーリング・OCR レビューの対象となる Git リポジトリ。Trigger Label や Repo 固有設定を持つ。Administrator 向けの識別表示は `Owner/Name`（例: `acme/app`）とし、内部通番（Repo ID）は表示の主ラベルにしない。
+_Avoid_: 監視対象, ターゲットリポジトリ, リポジトリ名（Owner なしの Name 単独を指す用法）
 
 **Repo Mirror**:
 Registered Repo ごとに保持する bare Git リポジトリ。レビュー前に fetch して最新状態を反映する。
@@ -65,7 +65,7 @@ Registered Repo の Pull Request を Git Host API で確認する周期。グロ
 _Avoid_: フェッチ間隔, スキャン間隔
 
 **Review Run**:
-1 回の OCR レビュー実行の記録。対象 Pull Request、開始・終了時刻、成否、投稿先、OCR 出力を含む。`pending` は Review Concurrency の空き待ち、`running` は実行中、`success` / `failed` は終了状態。実行時に使う LLM は Registered LLM Provider と Registered LLM Model の組ちょうど 1 つに解決される（モデルローテーションは別概念）。解決できた場合はその時点のプロバイダー名・モデル名をスナップショットとして保持する。解決できない（未設定・無効・API キー欠落等）場合は実行開始時に `failed` とする。
+1 回の OCR レビュー実行の記録。対象 Pull Request、開始・終了時刻、成否、投稿先、OCR 出力を含む。`pending` は Review Concurrency の空き待ち、`running` は実行中、`success` / `failed` は終了状態。実行時に使う LLM は Registered LLM Provider と Registered LLM Model の組ちょうど 1 つに解決される（モデルローテーションは別概念）。解決できた場合はその時点のプロバイダー名・モデル名をスナップショットとして保持する。解決できない（未設定・無効・API キー欠落等）場合は実行開始時に `failed` とする。Administrator 向けに示す Registered Repo の識別（`Owner/Name`）はスナップショットせず、紐づく Registered Repo の現在値を使う（LLM 名のスナップショットとは別）。
 _Avoid_: ジョブ, タスク（曖昧）
 
 **Pending Review Run**:

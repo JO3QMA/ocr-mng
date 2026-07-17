@@ -143,7 +143,7 @@ var ja = map[string]string{
 	"settings.ocr_config_deprecated_hint": "台帳モード中は接続情報の正ではありません（上級・移行用）。",
 
 	"repo_runs.manual":      "手動再レビュー PR #",
-	"run_detail.repo_id":    "リポジトリ ID",
+	"run_detail.repo":       "リポジトリ",
 	"run_detail.llm":        "LLM",
 	"run_detail.view_post":  "投稿コメントを表示",
 	"run_detail.ocr_output": "OCR 出力",
