@@ -117,7 +117,7 @@ func (e *Engine) Run(ctx context.Context) {
 	}
 	// Prune before dispatch so in-flight run-* homes are not deleted under running reviews.
 	gitwork.PruneMirrors(ctx, filepath.Join(e.cfg.DataDir, "mirrors"))
-	PruneOrphanOCRHomes(filepath.Join(e.cfg.DataDir, "ocr-home"))
+	PruneOrphanOCRHomes(filepath.Join(e.cfg.DataDir, "ocr-home"), e.log)
 	e.tryDispatch(ctx)
 
 	ticker := time.NewTicker(time.Minute)

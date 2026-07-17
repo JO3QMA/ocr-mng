@@ -199,7 +199,7 @@ func TestOCRHome_perRunIsolation(t *testing.T) {
 	if err := os.MkdirAll(keep, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	review.PruneOrphanOCRHomes(root)
+	review.PruneOrphanOCRHomes(root, nil)
 	if _, err := os.Stat(orphan); !os.IsNotExist(err) {
 		t.Fatalf("orphan should be removed: %v", err)
 	}
