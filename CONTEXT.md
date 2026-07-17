@@ -65,8 +65,8 @@ Registered Repo の Pull Request を Git Host API で確認する周期。グロ
 _Avoid_: フェッチ間隔, スキャン間隔
 
 **Review Run**:
-1 回の OCR レビュー実行の記録。対象 Pull Request、開始・終了時刻、成否、投稿先、OCR 出力を含む。`pending` は Review Concurrency の空き待ち、`running` は実行中、`success` / `failed` は終了状態。実行時に使う LLM は Registered LLM Provider と Registered LLM Model の組ちょうど 1 つに解決される（モデルローテーションは別概念）。解決できた場合はその時点のプロバイダー名・モデル名をスナップショットとして保持する。解決できない（未設定・無効・API キー欠落等）場合は実行開始時に `failed` とする。Administrator 向けに示す Registered Repo の識別（`Owner/Name`）はスナップショットせず、紐づく Registered Repo の現在値を使う（LLM 名のスナップショットとは別）。
-_Avoid_: ジョブ, タスク（曖昧）
+1 回の OCR レビュー実行の記録。対象 Pull Request、受付日時、開始日時、終了日時、成否、投稿先、OCR 出力を含む。受付日時は Review Run が記録され Review Concurrency の空き待ちに入った時刻であり、開始日時（実際に実行が始まった時刻）とは別である。終了日時は実行が `success` / `failed` で終わった時刻である。`pending` は空き待ち、`running` は実行中、`success` / `failed` は終了状態。実行時に使う LLM は Registered LLM Provider と Registered LLM Model の組ちょうど 1 つに解決される（モデルローテーションは別概念）。解決できた場合はその時点のプロバイダー名・モデル名をスナップショットとして保持する。解決できない（未設定・無効・API キー欠落等）場合は実行開始時に `failed` とする。Administrator 向けに示す Registered Repo の識別（`Owner/Name`）はスナップショットせず、紐づく Registered Repo の現在値を使う（LLM 名のスナップショットとは別）。Administrator 向け一覧では開始日時を主時刻として示し、未開始（`pending`）は空とする（プレースホルダ文言は出さない）。一覧の並びは受付順（新しいもの優先）のままとする。Review Run 詳細では受付日時・開始日時・終了日時を示す（未開始・未終了は空）。UI Language が English のときは Accepted / Started / Finished と対応させる。
+_Avoid_: ジョブ, タスク（曖昧）, 作成日時（開始日時または受付日時の意で使う用法）, 実行日時（開始日時との混同）, 開始時刻・終了時刻（開始日時・終了日時と同義の別表記）
 
 **Pending Review Run**:
 Review Concurrency の空きを待っている Review Run。SQLite に永続化され、Review Manager Process 再起動後も再スケジュールされる（`running` で中断された Run は再起動時に `failed` 化する）。同一 Registered Repo × 同一 Pull Request に `pending` または `running` が既にあるときは、新たな Review Run を作らない。実行開始時に Git Host から Pull Request を再取得し、その時点の HEAD・base・本文でレビューする（キュー投入時の HEAD に固定しない）。Trigger Label の有無は実行ゲートにはしない。
@@ -77,7 +77,7 @@ Review Trigger 判定と重複防止のため Pull Request ごとに保持する
 _Avoid_: PR 状態, キャッシュ（曖昧）
 
 **Review Concurrency**:
-同時実行できる Review Run の上限。Registered Repo ごとには 1 件までとし、システム全体では UI 設定可能な最大並行数を超えない。`pending` の消化は `created_at` 昇順の FIFO とし、対象 Registered Repo に既に `running` がある場合はその Run を飛ばして次を選ぶ。
+同時実行できる Review Run の上限。Registered Repo ごとには 1 件までとし、システム全体では UI 設定可能な最大並行数を超えない。`pending` の消化は受付日時昇順の FIFO とし、対象 Registered Repo に既に `running` がある場合はその Run を飛ばして次を選ぶ。
 _Avoid_: ワーカー数, 並列度（曖昧）
 
 **Registered LLM Provider**:
