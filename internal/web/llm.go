@@ -138,6 +138,7 @@ func (s *Server) llmProviderCreate(w http.ResponseWriter, r *http.Request) {
 		s.renderLLMProviderForm(w, r, p, nil, err.Error(), "/llm-providers", "page.new_llm_provider", "form.pat_optional", false)
 		return
 	}
+	p.Enabled = true // create form has no enabled toggle
 	id, err := s.store.CreateLLMProvider(r.Context(), p, apiKey)
 	if err != nil {
 		s.renderLLMProviderForm(w, r, p, nil, err.Error(), "/llm-providers", "page.new_llm_provider", "form.pat_optional", false)

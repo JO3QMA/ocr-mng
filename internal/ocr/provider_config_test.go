@@ -53,3 +53,24 @@ func TestBuildProviderConfig_custom(t *testing.T) {
 		t.Fatal("unexpected providers")
 	}
 }
+
+func TestBuildProviderConfig_customRequiresURLAndProtocol(t *testing.T) {
+	if _, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "", "openai", "gpt-x", ""); err == nil {
+		t.Fatal("expected url required")
+	}
+	out, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "https://example/v1", "", "gpt-x", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
+		t.Fatal(err)
+	}
+	entry := m["custom_providers"].(map[string]any)["my-gw"].(map[string]any)
+	if entry["protocol"] != "openai" {
+		t.Fatalf("expected inferred openai: %+v", entry)
+	}
+	if _, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "https://example/v1", "bogus", "gpt-x", ""); err == nil {
+		t.Fatal("expected invalid protocol")
+	}
+}

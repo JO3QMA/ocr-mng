@@ -163,6 +163,9 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <h1>{{.FormTitle}}</h1>
 {{if .ErrMsg}}<div class="flash error">{{.ErrMsg}}</div>{{end}}
 <form method="post" action="{{.Action}}">
+{{if .Provider.ID}}
+<label class="settings-toggle"><span>{{.L.T "form.enabled"}}</span><input class="settings-toggle-input" type="checkbox" name="enabled" {{checked .Provider.Enabled}}></label>
+{{end}}
 <label>{{.L.T "form.name"}}</label><input name="name" value="{{.Provider.Name}}" required>
 <label>{{.L.T "form.provider_key"}}</label><input name="provider_key" value="{{.Provider.ProviderKey}}" required>
 <label>{{.L.T "form.kind"}}</label>
@@ -171,10 +174,16 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <option value="custom" {{selected .Provider.Kind "custom"}}>{{.L.T "llm.kind_custom"}}</option>
 </select>
 <label>{{.L.T "form.api_base_url"}}</label><input name="api_base_url" value="{{.Provider.APIBaseURL}}" placeholder="https://...">
-<label>{{.L.T "form.protocol"}}</label><input name="protocol" value="{{.Provider.Protocol}}" placeholder="openai / anthropic">
+<label>{{.L.T "form.protocol"}}</label>
+<select name="protocol">
+<option value="" {{selected .Provider.Protocol ""}}>{{.L.T "form.protocol_unset"}}</option>
+<option value="openai" {{selected .Provider.Protocol "openai"}}>openai</option>
+<option value="anthropic" {{selected .Provider.Protocol "anthropic"}}>anthropic</option>
+<option value="openai-responses" {{selected .Provider.Protocol "openai-responses"}}>openai-responses</option>
+</select>
+<p class="hint">{{.L.T "form.protocol_hint"}}</p>
 <label>{{.L.T "form.api_key"}} {{.KeyHint}}</label><input name="api_key" type="password" autocomplete="new-password">
 {{if .ShowClearKey}}<label class="confirm-checkbox"><input type="checkbox" name="clear_api_key"> <span>{{.L.T "form.clear_api_key"}}</span></label>{{end}}
-<label class="settings-toggle"><span>{{.L.T "form.enabled"}}</span><input class="settings-toggle-input" type="checkbox" name="enabled" {{checked .Provider.Enabled}}></label>
 <p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/llm-providers">{{.L.T "btn.cancel"}}</a></p>
 </form>
 {{if .Provider.ID}}
