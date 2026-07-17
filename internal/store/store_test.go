@@ -234,6 +234,34 @@ func TestClaimNextPendingReviewRun_skipsBusyRepo(t *testing.T) {
 	}
 }
 
+func TestListReviewRunsIncludesRepoOwnerName(t *testing.T) {
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+	repoID := mustTestRepo(t, st, ctx)
+
+	if _, err := st.CreateReviewRun(ctx, store.ReviewRun{
+		RepoID: repoID, PRNumber: 3, HeadSHA: "abc", BaseRef: "main",
+		Status: "pending", TriggerKind: "manual",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := st.ListReviewRuns(ctx, 0, 10)
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("runs: %+v err=%v", runs, err)
+	}
+	got := runs[0]
+	if got.RepoOwner != "acme" || got.RepoName != "app" {
+		t.Fatalf("owner/name: %+v", got)
+	}
+	if got.RepoDisplay() != "acme/app" {
+		t.Fatalf("display: %q", got.RepoDisplay())
+	}
+}
+
 func mustTestRepo(t *testing.T, st *store.Store, ctx context.Context) int64 {
 	t.Helper()
 	return mustTestRepoName(t, st, ctx, "app")

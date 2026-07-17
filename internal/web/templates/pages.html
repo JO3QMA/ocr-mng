@@ -69,7 +69,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.created"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
 <td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
-<td>{{.RepoID}}</td><td>#{{.PRNumber}}</td>
+<td>{{.RepoDisplay}}</td><td>#{{.PRNumber}}</td>
 <td><span class="badge {{.Status}}">{{.Status}}</span></td>
 <td>{{.TriggerKind}}</td><td>{{formatTime .CreatedAt}}</td>
 </tr>{{end}}</tbody></table>
@@ -285,7 +285,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.created"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
 <td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
-<td>{{.RepoID}}</td><td>#{{.PRNumber}}</td>
+<td>{{.RepoDisplay}}</td><td>#{{.PRNumber}}</td>
 <td><span class="badge {{.Status}}">{{.Status}}</span></td>
 <td>{{.TriggerKind}}</td><td>{{formatTime .CreatedAt}}</td>
 </tr>{{end}}</tbody></table>
@@ -297,7 +297,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 {{template "head" .}}
 <div class="card">
 <h1>Review Run #{{.Run.ID}}</h1>
-<p>{{.L.T "run_detail.repo_id"}}: {{.Run.RepoID}} · PR #{{.Run.PRNumber}} · {{.L.T "table.status"}}: <span class="badge {{.Run.Status}}">{{.Run.Status}}</span></p>
+<p>{{.L.T "run_detail.repo"}}: {{.Run.RepoDisplay}} · PR #{{.Run.PRNumber}} · {{.L.T "table.status"}}: <span class="badge {{.Run.Status}}">{{.Run.Status}}</span></p>
 {{if or .Run.LLMProviderName .Run.LLMModelName}}<p>{{.L.T "run_detail.llm"}}: {{.Run.LLMProviderName}} / {{.Run.LLMModelName}}</p>{{end}}
 {{if .Run.ErrorMessage}}<div class="flash error">{{.Run.ErrorMessage}}</div>{{end}}
 {{if .Run.CommentURL}}<p><a href="{{.Run.CommentURL}}">{{.L.T "run_detail.view_post"}}</a></p>{{end}}

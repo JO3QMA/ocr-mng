@@ -143,7 +143,7 @@ var en = map[string]string{
 	"settings.ocr_config_deprecated_hint": "Not the source of truth for connections in ledger mode (advanced / migration).",
 
 	"repo_runs.manual":     "Manual re-review PR #",
-	"run_detail.repo_id":   "Repo ID",
+	"run_detail.repo":      "Repo",
 	"run_detail.llm":       "LLM",
 	"run_detail.view_post": "View posted comment/review",
 	"run_detail.ocr_output": "OCR Output",
