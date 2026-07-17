@@ -232,15 +232,9 @@ func (s *Server) repoUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repo.ID = id
-	// PR1: repo form does not yet edit LLM pair; preserve so saves do not clear it.
-	if prev, err := s.store.GetRepo(r.Context(), id); err == nil {
-		repo.LLMProviderID = prev.LLMProviderID
-		repo.LLMModelID = prev.LLMModelID
-	}
 	if err := s.store.UpdateRepo(r.Context(), repo, pat, r.FormValue("clear_pat") == "on"); err != nil {
 		hosts, _ := s.store.ListGitHosts(r.Context())
-		opts, _ := s.llmPairOptionsWithCurrent(r.Context(), repo.LLMProviderID, repo.LLMModelID)
-		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, opts, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 		return
 	}
 	http.Redirect(w, r, "/repos?flash=updated", http.StatusSeeOther)
@@ -371,11 +365,6 @@ func (s *Server) settingsSave(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), 400)
 		return
-	}
-	// PR1: settings form does not yet edit LLM pair; preserve so saves do not clear it.
-	if prev, err := s.store.GetGlobalSettings(r.Context()); err == nil {
-		gs.DefaultLLMProviderID = prev.DefaultLLMProviderID
-		gs.DefaultLLMModelID = prev.DefaultLLMModelID
 	}
 	if err := s.store.SaveGlobalSettings(r.Context(), gs); err != nil {
 		http.Error(w, err.Error(), 500)

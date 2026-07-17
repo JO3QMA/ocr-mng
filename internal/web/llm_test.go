@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/jo3qma/ocr-mng/internal/store"
@@ -21,6 +22,22 @@ func TestParseLLMPairField(t *testing.T) {
 	}
 	if _, _, err := parseLLMPairField("1:0"); err == nil {
 		t.Fatal("expected partial reject")
+	}
+}
+
+func TestPathID(t *testing.T) {
+	r, err := http.NewRequest(http.MethodGet, "/llm-providers/12/edit", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.SetPathValue("id", "12")
+	id, ok := pathID(r, "id")
+	if !ok || id != 12 {
+		t.Fatalf("got %d %v", id, ok)
+	}
+	r.SetPathValue("id", "abc")
+	if _, ok := pathID(r, "id"); ok {
+		t.Fatal("expected reject")
 	}
 }
 

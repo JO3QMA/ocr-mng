@@ -147,7 +147,11 @@ func (s *Server) llmProviderCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) llmProviderEdit(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, ok := pathID(r, "id")
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
 	p, err := s.store.GetLLMProvider(r.Context(), id)
 	if err != nil {
 		http.NotFound(w, r)
@@ -166,7 +170,11 @@ func (s *Server) llmProviderEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) llmProviderUpdate(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, ok := pathID(r, "id")
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
 	p, apiKey, err := parseLLMProviderForm(r)
 	if err != nil {
 		models, _ := s.store.ListLLMProviderModels(r.Context(), id)
@@ -183,7 +191,11 @@ func (s *Server) llmProviderUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) llmProviderDelete(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, ok := pathID(r, "id")
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
 	if err := s.store.DeleteLLMProvider(r.Context(), id); err != nil {
 		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=delete_failed", id), http.StatusSeeOther)
 		return
@@ -192,7 +204,11 @@ func (s *Server) llmProviderDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) llmModelCreate(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, ok := pathID(r, "id")
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
 	name := strings.TrimSpace(r.FormValue("model_name"))
 	if name == "" {
 		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=invalid_model", id), http.StatusSeeOther)
@@ -209,8 +225,12 @@ func (s *Server) llmModelCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) llmModelUpdate(w http.ResponseWriter, r *http.Request) {
-	pid, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	mid, _ := strconv.ParseInt(r.PathValue("mid"), 10, 64)
+	pid, ok := pathID(r, "id")
+	mid, ok2 := pathID(r, "mid")
+	if !ok || !ok2 {
+		http.NotFound(w, r)
+		return
+	}
 	m, err := s.store.GetLLMProviderModel(r.Context(), mid)
 	if err != nil || m.ProviderID != pid {
 		http.NotFound(w, r)
@@ -228,8 +248,12 @@ func (s *Server) llmModelUpdate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) llmModelDelete(w http.ResponseWriter, r *http.Request) {
-	pid, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	mid, _ := strconv.ParseInt(r.PathValue("mid"), 10, 64)
+	pid, ok := pathID(r, "id")
+	mid, ok2 := pathID(r, "mid")
+	if !ok || !ok2 {
+		http.NotFound(w, r)
+		return
+	}
 	m, err := s.store.GetLLMProviderModel(r.Context(), mid)
 	if err != nil || m.ProviderID != pid {
 		http.NotFound(w, r)
@@ -281,6 +305,11 @@ func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
 		return p, "", fmt.Errorf("kind must be builtin or custom")
 	}
 	return p, strings.TrimSpace(r.FormValue("api_key")), nil
+}
+
+func pathID(r *http.Request, name string) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue(name), 10, 64)
+	return id, err == nil
 }
 
 // ledgerModeActive mirrors review.LedgerMode for templates/handlers.

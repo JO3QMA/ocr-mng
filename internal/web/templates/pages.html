@@ -183,7 +183,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <button type="submit" class="btn">{{.L.T "btn.add"}}</button>
 </div>
 </form>
-<form method="post" action="/llm-providers/{{.Provider.ID}}/delete" style="margin-top:2rem" onsubmit="return confirm('{{.L.T "llm.delete_confirm"}}')">
+<form method="post" action="/llm-providers/{{.Provider.ID}}/delete" style="margin-top:2rem" onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{.L.T "llm.delete_confirm"}}">
 <button type="submit" class="btn secondary">{{.L.T "btn.delete_provider"}}</button>
 </form>
 {{end}}
