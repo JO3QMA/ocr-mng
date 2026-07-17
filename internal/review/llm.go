@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,10 +105,14 @@ func OCRHomeDir(dataDir string, runID int64) string {
 }
 
 // PruneOrphanOCRHomes removes leftover run-* dirs under ocr-home.
-// ponytail: best-effort startup cleanup; ignores errors and non-run entries.
-func PruneOrphanOCRHomes(ocrHomeRoot string) {
+// ponytail: best-effort startup cleanup; RemoveAll errors ignored, ReadDir failure is logged.
+func PruneOrphanOCRHomes(ocrHomeRoot string, log *slog.Logger) {
+	if log == nil {
+		log = slog.Default()
+	}
 	entries, err := os.ReadDir(ocrHomeRoot)
 	if err != nil {
+		log.Warn("ocr home prune: read dir failed", "dir", ocrHomeRoot, "err", err)
 		return
 	}
 	for _, e := range entries {
