@@ -35,6 +35,37 @@ func mustCreateLLMPair(t *testing.T, st *store.Store, ctx context.Context, name,
 	return providerID, modelID
 }
 
+func TestLLMProviderCustomRequiresURLAndProtocol(t *testing.T) {
+	st := openLLMStore(t)
+	ctx := context.Background()
+
+	_, err := st.CreateLLMProvider(ctx, store.LLMProvider{
+		Name: "gw", ProviderKey: "my-gw", Kind: "custom", Enabled: true,
+	}, "sk")
+	if err == nil || !strings.Contains(err.Error(), "api_base_url") {
+		t.Fatalf("expected custom require url: %v", err)
+	}
+
+	id, err := st.CreateLLMProvider(ctx, store.LLMProvider{
+		Name: "gw", ProviderKey: "my-gw", Kind: "custom",
+		APIBaseURL: "https://example/v1", Enabled: true,
+	}, "sk")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := st.GetLLMProvider(ctx, id)
+	if err != nil || p.Protocol != "openai" {
+		t.Fatalf("expected inferred openai: %+v err=%v", p, err)
+	}
+
+	_, err = st.CreateLLMProvider(ctx, store.LLMProvider{
+		Name: "bad", ProviderKey: "b", Kind: "builtin", Protocol: "nope", Enabled: true,
+	}, "sk")
+	if err == nil || !strings.Contains(err.Error(), "invalid protocol") {
+		t.Fatalf("expected protocol enum: %v", err)
+	}
+}
+
 func TestLLMProviderAPIKeySetClearKeep(t *testing.T) {
 	st := openLLMStore(t)
 	ctx := context.Background()

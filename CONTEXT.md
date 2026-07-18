@@ -81,8 +81,20 @@ _Avoid_: PR 状態, キャッシュ（曖昧）
 _Avoid_: ワーカー数, 並列度（曖昧）
 
 **Registered LLM Provider**:
-Review Manager に明示的に登録された LLM 接続先。表示名、OCR 上のプロバイダー識別子、種別（builtin / custom）、接続情報、暗号化された API キー、Registered LLM Model の台帳を持つ。builtin は OCR 組み込みプロバイダー、custom は自前エンドポイント。Global デフォルトまたは Repo OCR Overrides から参照されているあいだは削除できない（無効化は可）。Git Host（Git プラットフォーム）とは別概念。
+Review Manager に明示的に登録された LLM 接続先。表示名、Provider Key、種別（builtin / custom）、API Base URL、LLM Protocol、暗号化された API キー、Registered LLM Model の台帳を持つ。builtin は OCR 組み込みプロバイダー、custom は自前エンドポイント（API Base URL 必須）。Global デフォルトまたは Repo OCR Overrides から参照されているあいだは削除できない（無効化は可）。Git Host（Git プラットフォーム）とは別概念。
 _Avoid_: プロバイダー（単独・Git Host と混同）, LLM Backend, Model Endpoint
+
+**Provider Key**:
+Registered LLM Provider を Open Code Review の config 上で指す識別子。表示名（Administrator 向けラベル）とも LLM Protocol（API 方言）とも別。builtin では OCR 組み込み名（例: `anthropic`）、custom では `custom_providers` マップのキーになる。
+_Avoid_: provider id（DB の数値 ID と混同）, API Key, LLM Protocol
+
+**LLM Protocol**:
+Open Code Review が LLM エンドポイントと話す API 方言。取りうる値は OCR が認めるものに限る（`anthropic` / `openai` / `openai-responses`）。Registered LLM Provider の属性であり、未設定なら API Base URL から決めて台帳に残す。一度入った明示値は、API Base URL だけ変えても自動では付け替えない。
+_Avoid_: Protocol（単独・曖昧）, API 種別, wire format
+
+**LLM Connection Test**:
+Administrator が Registered LLM Provider の登録／編集画面から任意で行う疎通確認。保存の成否とは独立（失敗しても台帳更新は止めない）。画面上の未保存の接続値を使い（API キー欄が空なら保存済みキー）、Registered LLM Model または一時のモデル名で最小の LLM リクエストが通ることを確かめる。本番の Review Run とは別経路だが、同じ LLM Protocol／接続属性の解決を共有する。
+_Avoid_: ヘルスチェック, ping, 疎通テスト（UI 文言以外の正式名にしない）
 
 **Registered LLM Model**:
 Registered LLM Provider に属する利用可能モデル 1 件。OCR に渡すモデル識別子と、選択肢としての有効/無効を持つ。Global デフォルトまたは Repo OCR Overrides の組に選ぶには、有効かつその Provider 配下であることが必要。参照されているあいだは削除できない（無効化は可）。実行開始時に無効なら Review Run は `failed`。自由文字列のモデル名上書き（旧 `ocr_model`）は移行期間の互換用であり、台帳運用開始後は廃止する。

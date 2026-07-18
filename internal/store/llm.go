@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/jo3qma/ocr-mng/internal/ocr"
 )
 
 type LLMProvider struct {
@@ -69,6 +71,7 @@ func (s *Store) assertLLMPairSelectable(ctx context.Context, providerID, modelID
 }
 
 func (s *Store) CreateLLMProvider(ctx context.Context, p LLMProvider, apiKey string) (int64, error) {
+	normalizeLLMProvider(&p)
 	if err := validateLLMProvider(p); err != nil {
 		return 0, err
 	}
@@ -88,6 +91,7 @@ func (s *Store) CreateLLMProvider(ctx context.Context, p LLMProvider, apiKey str
 }
 
 func (s *Store) UpdateLLMProvider(ctx context.Context, p LLMProvider, apiKey string, clearAPIKey bool) error {
+	normalizeLLMProvider(&p)
 	if err := validateLLMProvider(p); err != nil {
 		return err
 	}
@@ -315,14 +319,36 @@ func (s *Store) assertLLMModelNotReferenced(ctx context.Context, id int64) error
 	return nil
 }
 
+func normalizeLLMProvider(p *LLMProvider) {
+	p.Name = strings.TrimSpace(p.Name)
+	p.ProviderKey = strings.TrimSpace(p.ProviderKey)
+	p.Kind = strings.TrimSpace(p.Kind)
+	p.APIBaseURL = ocr.AbsoluteAPIBaseURL(p.APIBaseURL)
+	p.Protocol = strings.ToLower(strings.TrimSpace(p.Protocol))
+	if p.Protocol == "" {
+		p.Protocol = ocr.InferProtocol(p.APIBaseURL)
+	}
+}
+
 func validateLLMProvider(p LLMProvider) error {
-	if strings.TrimSpace(p.Name) == "" || strings.TrimSpace(p.ProviderKey) == "" {
+	if p.Name == "" || p.ProviderKey == "" {
 		return fmt.Errorf("name and provider_key are required")
 	}
 	switch p.Kind {
 	case "builtin", "custom":
 	default:
 		return fmt.Errorf("kind must be builtin or custom")
+	}
+	if p.Protocol != "" && !ocr.ValidProtocol(p.Protocol) {
+		return fmt.Errorf("invalid protocol %q", p.Protocol)
+	}
+	if p.Kind == "custom" {
+		if p.APIBaseURL == "" {
+			return fmt.Errorf("api_base_url is required for custom providers")
+		}
+		if p.Protocol == "" {
+			return fmt.Errorf("protocol is required for custom providers")
+		}
 	}
 	return nil
 }
