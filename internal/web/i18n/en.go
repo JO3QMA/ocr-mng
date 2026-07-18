@@ -87,7 +87,7 @@ var en = map[string]string{
 	"form.provider_key":               "Provider Key (OCR id)",
 	"form.protocol":                   "Protocol (inferred from Base URL if empty)",
 	"form.protocol_unset":             "(infer from Base URL)",
-	"form.protocol_hint":              "When empty: path contains /responses → openai-responses; host contains anthropic → anthropic; otherwise → openai (Chat Completions). Explicit selection wins.",
+	"form.protocol_hint":              "When empty: path contains /v1/responses → openai-responses; host contains anthropic → anthropic; otherwise → openai (Chat Completions). Explicit selection wins.",
 	"form.api_key":                    "API Key",
 	"form.clear_api_key":              "Clear stored API key",
 	"form.model_name":                 "Model name",

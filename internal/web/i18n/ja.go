@@ -87,7 +87,7 @@ var ja = map[string]string{
 	"form.provider_key":       "Provider Key（OCR 上の識別子）",
 	"form.protocol":           "Protocol（空なら Base URL から推定）",
 	"form.protocol_unset":     "（Base URL から推定）",
-	"form.protocol_hint":      "空欄時: パスに /responses → openai-responses、ホストに anthropic → anthropic、それ以外 → openai（Chat Completions）。明示指定があればそちら優先。",
+	"form.protocol_hint":      "空欄時: パスに /v1/responses → openai-responses、ホストに anthropic → anthropic、それ以外 → openai（Chat Completions）。明示指定があればそちら優先。",
 	"form.api_key":            "API キー",
 	"form.clear_api_key":      "保存済み API キーを削除",
 	"form.model_name":         "モデル名",

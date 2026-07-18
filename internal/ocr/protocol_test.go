@@ -12,12 +12,17 @@ func TestInferProtocol(t *testing.T) {
 		want string
 	}{
 		{"", ""},
+		{"   ", ""},
 		{"https://api.openai.com/v1", ocr.ProtocolOpenAI},
 		{"https://api.openai.com/v1/responses", ocr.ProtocolOpenAIResponses},
 		{"https://gateway.example/v1/responses/", ocr.ProtocolOpenAIResponses},
 		{"https://api.anthropic.com", ocr.ProtocolAnthropic},
+		{"HTTPS://API.ANTHROPIC.COM:8443", ocr.ProtocolAnthropic},
 		{"https://my-anthropic-proxy.internal/v1", ocr.ProtocolAnthropic},
 		{"https://llm.internal/v1", ocr.ProtocolOpenAI},
+		{"https://example.com/api/blog/responses", ocr.ProtocolOpenAI},
+		{"https://example.com/%2Fresponses", ocr.ProtocolOpenAI},
+		{"://bad", ""},
 	}
 	for _, tc := range cases {
 		if got := ocr.InferProtocol(tc.url); got != tc.want {

@@ -23,32 +23,34 @@ func ValidProtocol(p string) bool {
 }
 
 // InferProtocol guesses an OCR protocol from an API base URL.
-// Empty URL → empty. Path with /responses → openai-responses.
+// Empty or unparseable URL → empty. Path with /v1/responses → openai-responses.
 // Host mentioning anthropic → anthropic. Otherwise openai (Chat Completions).
+// Explicit Protocol on the provider always wins over this guess at save time.
 func InferProtocol(apiBaseURL string) string {
 	raw := strings.TrimSpace(apiBaseURL)
 	if raw == "" {
 		return ""
 	}
 	u, err := url.Parse(raw)
-	if err != nil || u.Host == "" {
-		// bare path / typo: fall back to substring checks
-		lower := strings.ToLower(raw)
-		if strings.Contains(lower, "/responses") {
-			return ProtocolOpenAIResponses
-		}
-		if strings.Contains(lower, "anthropic") {
-			return ProtocolAnthropic
-		}
-		return ProtocolOpenAI
+	if err != nil {
+		return ""
+	}
+	if u.Host == "" {
+		return ""
 	}
 	path := strings.ToLower(u.EscapedPath())
-	if strings.Contains(path, "/responses") {
+	if looksLikeResponsesPath(path) {
 		return ProtocolOpenAIResponses
 	}
 	host := strings.ToLower(u.Hostname())
+	// ponytail: substring match covers custom proxies (my-anthropic-proxy); wrong guess → set Protocol explicitly.
 	if strings.Contains(host, "anthropic") {
 		return ProtocolAnthropic
 	}
 	return ProtocolOpenAI
+}
+
+func looksLikeResponsesPath(path string) bool {
+	path = strings.TrimSuffix(path, "/")
+	return path == "/responses" || strings.HasSuffix(path, "/v1/responses") || strings.Contains(path, "/v1/responses/")
 }

@@ -61,7 +61,7 @@ func TestLLMProviderCustomRequiresURLAndProtocol(t *testing.T) {
 	_, err = st.CreateLLMProvider(ctx, store.LLMProvider{
 		Name: "bad", ProviderKey: "b", Kind: "builtin", Protocol: "nope", Enabled: true,
 	}, "sk")
-	if err == nil || !strings.Contains(err.Error(), "protocol must be") {
+	if err == nil || !strings.Contains(err.Error(), "invalid protocol") {
 		t.Fatalf("expected protocol enum: %v", err)
 	}
 }

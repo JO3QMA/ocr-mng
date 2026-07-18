@@ -340,7 +340,7 @@ func validateLLMProvider(p LLMProvider) error {
 		return fmt.Errorf("kind must be builtin or custom")
 	}
 	if p.Protocol != "" && !ocr.ValidProtocol(p.Protocol) {
-		return fmt.Errorf("protocol must be anthropic, openai, or openai-responses")
+		return fmt.Errorf("invalid protocol %q", p.Protocol)
 	}
 	if p.Kind == "custom" {
 		if p.APIBaseURL == "" {
