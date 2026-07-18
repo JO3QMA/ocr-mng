@@ -323,7 +323,7 @@ func normalizeLLMProvider(p *LLMProvider) {
 	p.Name = strings.TrimSpace(p.Name)
 	p.ProviderKey = strings.TrimSpace(p.ProviderKey)
 	p.Kind = strings.TrimSpace(p.Kind)
-	p.APIBaseURL = strings.TrimSpace(p.APIBaseURL)
+	p.APIBaseURL = ocr.AbsoluteAPIBaseURL(p.APIBaseURL)
 	p.Protocol = strings.ToLower(strings.TrimSpace(p.Protocol))
 	if p.Protocol == "" {
 		p.Protocol = ocr.InferProtocol(p.APIBaseURL)

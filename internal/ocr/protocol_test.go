@@ -22,11 +22,29 @@ func TestInferProtocol(t *testing.T) {
 		{"https://llm.internal/v1", ocr.ProtocolOpenAI},
 		{"https://example.com/api/blog/responses", ocr.ProtocolOpenAI},
 		{"https://example.com/%2Fresponses", ocr.ProtocolOpenAI},
+		{"api.openai.com/v1", ocr.ProtocolOpenAI},
+		{"api.anthropic.com", ocr.ProtocolAnthropic},
+		{"api.openai.com/v1/responses", ocr.ProtocolOpenAIResponses},
 		{"://bad", ""},
 	}
 	for _, tc := range cases {
 		if got := ocr.InferProtocol(tc.url); got != tc.want {
 			t.Errorf("InferProtocol(%q)=%q want %q", tc.url, got, tc.want)
+		}
+	}
+}
+
+func TestAbsoluteAPIBaseURL(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"", ""},
+		{"https://api.openai.com/v1", "https://api.openai.com/v1"},
+		{"api.openai.com/v1", "https://api.openai.com/v1"},
+	}
+	for _, tc := range cases {
+		if got := ocr.AbsoluteAPIBaseURL(tc.in); got != tc.want {
+			t.Errorf("AbsoluteAPIBaseURL(%q)=%q want %q", tc.in, got, tc.want)
 		}
 	}
 }
