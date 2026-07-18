@@ -21,7 +21,7 @@ func BuildProviderConfig(kind, providerKey, apiKey, apiBaseURL, protocol, model,
 		return "", fmt.Errorf("provider key and model are required")
 	}
 	if protocol != "" && !ValidProtocol(protocol) {
-		return "", fmt.Errorf("protocol must be anthropic, openai, or openai-responses")
+		return "", fmt.Errorf("invalid protocol %q", protocol)
 	}
 	entry := map[string]any{
 		"api_key": apiKey,
