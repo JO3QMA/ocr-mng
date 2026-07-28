@@ -19,7 +19,7 @@ var ja = map[string]string{
 	"btn.add_repo": "リポジトリを追加",
 	"btn.add_llm_provider": "LLM プロバイダーを追加",
 	"btn.delete_provider":       "プロバイダーを削除",
-	"btn.save_models":           "現状を保存",
+	"btn.save_models":           "モデルを保存",
 	"btn.delete_selected_models": "選択したモデルを削除",
 
 	"page.dashboard": "ダッシュボード",
