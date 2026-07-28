@@ -20,6 +20,8 @@ input:not([type="checkbox"]):not([type="radio"]), select, textarea { width: 100%
 button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 0; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; text-decoration: none; font: inherit; line-height: inherit; box-sizing: border-box; vertical-align: middle; }
 .btn.secondary { background: #6b7280; }
 .btn.accent { background: #16a34a; }
+.btn.danger { background: #dc2626; color: white; }
+.btn.danger:hover { filter: brightness(0.92); }
 .btn:hover { filter: brightness(0.92); }
 .btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 .btn-row { display: flex; gap: .5rem; margin-top: 1rem; flex-wrap: wrap; align-items: center; }
@@ -190,19 +192,18 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <hr style="margin:1.5rem 0;border:none;border-top:1px solid #e5e7eb">
 <h2>{{.L.T "llm.models"}}</h2>
 {{if .Models}}
-<table><thead><tr><th>{{.L.T "form.model_name"}}</th><th>{{.L.T "table.enabled"}}</th><th></th></tr></thead>
+<form method="post" action="/llm-providers/{{.Provider.ID}}/models/bulk-update">
+<table><thead><tr><th>{{.L.T "table.enabled"}}</th><th>{{.L.T "form.model_name"}}</th><th>{{.L.T "btn.delete"}}</th></tr></thead>
 <tbody>{{range .Models}}<tr>
-<td colspan="3">
-<form method="post" action="/llm-providers/{{$.Provider.ID}}/models/{{.ID}}" class="inline-action" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-<input name="model_name" value="{{.ModelName}}" required>
-<label class="settings-toggle settings-toggle-inline"><span>{{$.L.T "form.enabled"}}</span><input class="settings-toggle-input" type="checkbox" name="enabled" {{checked .Enabled}}></label>
-<button type="submit" class="btn">{{$.L.T "btn.save"}}</button>
-</form>
-<form method="post" action="/llm-providers/{{$.Provider.ID}}/models/{{.ID}}/delete" style="display:inline">
-<button type="submit" class="btn secondary">{{$.L.T "btn.delete"}}</button>
-</form>
-</td>
+<td><label class="settings-toggle settings-toggle-inline"><input class="settings-toggle-input" type="checkbox" name="enabled_{{.ID}}" {{checked .Enabled}}></label></td>
+<td><input name="model_name_{{.ID}}" value="{{.ModelName}}" required><input type="hidden" name="model_id" value="{{.ID}}"></td>
+<td><input type="checkbox" name="delete_model_id" value="{{.ID}}"></td>
 </tr>{{end}}</tbody></table>
+<p class="btn-row">
+<button type="submit" class="btn">{{.L.T "btn.save_models"}}</button>
+<button type="submit" class="btn danger" formaction="/llm-providers/{{.Provider.ID}}/models/bulk-delete">{{.L.T "btn.delete_selected_models"}}</button>
+</p>
+</form>
 {{else}}<p>{{.L.T "llm.models_none"}}</p>{{end}}
 <form method="post" action="/llm-providers/{{.Provider.ID}}/models" style="margin-top:1rem">
 <label>{{.L.T "llm.add_model"}}</label>

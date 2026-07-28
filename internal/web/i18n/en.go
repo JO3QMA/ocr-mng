@@ -18,7 +18,9 @@ var en = map[string]string{
 	"btn.add_host":         "Add Git Host",
 	"btn.add_repo":         "Add Repo",
 	"btn.add_llm_provider": "Add LLM Provider",
-	"btn.delete_provider":  "Delete provider",
+	"btn.delete_provider":        "Delete provider",
+	"btn.save_models":            "Save changes",
+	"btn.delete_selected_models": "Delete selected models",
 
 	"page.dashboard":         "Dashboard",
 	"page.hosts":             "Git Hosts",

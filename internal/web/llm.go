@@ -225,44 +225,62 @@ func (s *Server) llmModelCreate(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=created", id), http.StatusSeeOther)
 }
 
-func (s *Server) llmModelUpdate(w http.ResponseWriter, r *http.Request) {
+func (s *Server) llmModelsBulkUpdate(w http.ResponseWriter, r *http.Request) {
 	pid, ok := pathID(r, "id")
-	mid, ok2 := pathID(r, "mid")
-	if !ok || !ok2 {
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	m, err := s.store.GetLLMProviderModel(r.Context(), mid)
-	if err != nil || m.ProviderID != pid {
-		http.NotFound(w, r)
-		return
-	}
-	if name := strings.TrimSpace(r.FormValue("model_name")); name != "" {
-		m.ModelName = name
-	}
-	m.Enabled = r.FormValue("enabled") == "on"
-	if err := s.store.UpdateLLMProviderModel(r.Context(), m); err != nil {
+	if err := r.ParseForm(); err != nil {
 		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=invalid_model", pid), http.StatusSeeOther)
 		return
+	}
+	for _, idStr := range r.Form["model_id"] {
+		mid, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			continue
+		}
+		m, err := s.store.GetLLMProviderModel(r.Context(), mid)
+		if err != nil || m.ProviderID != pid {
+			http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=invalid_model", pid), http.StatusSeeOther)
+			return
+		}
+		if name := strings.TrimSpace(r.FormValue("model_name_" + idStr)); name != "" {
+			m.ModelName = name
+		}
+		m.Enabled = r.FormValue("enabled_"+idStr) == "on"
+		if err := s.store.UpdateLLMProviderModel(r.Context(), m); err != nil {
+			http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=invalid_model", pid), http.StatusSeeOther)
+			return
+		}
 	}
 	http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=updated", pid), http.StatusSeeOther)
 }
 
-func (s *Server) llmModelDelete(w http.ResponseWriter, r *http.Request) {
+func (s *Server) llmModelsBulkDelete(w http.ResponseWriter, r *http.Request) {
 	pid, ok := pathID(r, "id")
-	mid, ok2 := pathID(r, "mid")
-	if !ok || !ok2 {
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	m, err := s.store.GetLLMProviderModel(r.Context(), mid)
-	if err != nil || m.ProviderID != pid {
-		http.NotFound(w, r)
-		return
-	}
-	if err := s.store.DeleteLLMProviderModel(r.Context(), mid); err != nil {
+	if err := r.ParseForm(); err != nil {
 		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=delete_failed", pid), http.StatusSeeOther)
 		return
+	}
+	for _, idStr := range r.Form["delete_model_id"] {
+		mid, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			continue
+		}
+		m, err := s.store.GetLLMProviderModel(r.Context(), mid)
+		if err != nil || m.ProviderID != pid {
+			http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=delete_failed", pid), http.StatusSeeOther)
+			return
+		}
+		if err := s.store.DeleteLLMProviderModel(r.Context(), mid); err != nil {
+			http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=delete_failed", pid), http.StatusSeeOther)
+			return
+		}
 	}
 	http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=deleted", pid), http.StatusSeeOther)
 }
