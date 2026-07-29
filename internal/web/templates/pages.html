@@ -201,7 +201,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 </tr>{{end}}</tbody></table>
 <p class="btn-row">
 <button type="submit" class="btn">{{.L.T "btn.save_models"}}</button>
-<button type="submit" class="btn danger" formaction="/llm-providers/{{.Provider.ID}}/models/bulk-delete">{{.L.T "btn.delete_selected_models"}}</button>
+<button type="submit" class="btn danger" formaction="/llm-providers/{{.Provider.ID}}/models/bulk-delete" formnovalidate>{{.L.T "btn.delete_selected_models"}}</button>
 </p>
 </form>
 {{else}}<p>{{.L.T "llm.models_none"}}</p>{{end}}
