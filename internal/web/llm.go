@@ -256,6 +256,10 @@ func (s *Server) llmModelsBulkUpdate(w http.ResponseWriter, r *http.Request) {
 		m.Enabled = r.FormValue("enabled_"+idStr) == "on"
 		pending = append(pending, m)
 	}
+	if len(pending) == 0 {
+		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit", pid), http.StatusSeeOther)
+		return
+	}
 	for _, m := range pending {
 		if err := s.store.UpdateLLMProviderModel(r.Context(), m); err != nil {
 			redirectInvalid()
@@ -291,6 +295,10 @@ func (s *Server) llmModelsBulkDelete(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		pending = append(pending, mid)
+	}
+	if len(pending) == 0 {
+		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit", pid), http.StatusSeeOther)
+		return
 	}
 	for _, mid := range pending {
 		if err := s.store.DeleteLLMProviderModel(r.Context(), mid); err != nil {
