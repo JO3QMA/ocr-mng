@@ -18,7 +18,9 @@ var ja = map[string]string{
 	"btn.add_host": "Git Host を追加",
 	"btn.add_repo": "リポジトリを追加",
 	"btn.add_llm_provider": "LLM プロバイダーを追加",
-	"btn.delete_provider":  "プロバイダーを削除",
+	"btn.delete_provider":       "プロバイダーを削除",
+	"btn.save_models":           "モデルを保存",
+	"btn.delete_selected_models": "選択したモデルを削除",
 
 	"page.dashboard": "ダッシュボード",
 	"page.hosts":     "Git Host",
