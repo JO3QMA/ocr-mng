@@ -34,10 +34,10 @@ func shortCommit(s string) string {
 	return s
 }
 
-func embeddedOr(unavailable, v string) string {
+func embeddedOr(v, fallback string) string {
 	v = strings.TrimSpace(v)
 	if v == "" {
-		return unavailable
+		return fallback
 	}
 	return v
 }

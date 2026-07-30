@@ -159,7 +159,7 @@ var ja = map[string]string{
 	"about.unavailable":         "取得できません",
 	"about.review_manager":      "Review Manager",
 	"about.docker_image_tag":    "Docker イメージタグ",
-	"about.container_base_image": "Container Base Image",
+	"about.container_base_image": "コンテナベースイメージ",
 	"about.git_cli":             "Git CLI",
 	"about.ocr_cli":             "OCR CLI",
 }

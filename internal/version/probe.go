@@ -67,8 +67,8 @@ func Collect(opts CollectOpts) AboutInfo {
 
 	info := AboutInfo{
 		ReviewManager:  ReviewManager(),
-		DockerImageTag: embeddedOr(unavail, ImageTag),
-		BaseImageFrom:  embeddedOr(unavail, BaseImage),
+		DockerImageTag: embeddedOr(ImageTag, unavail),
+		BaseImageFrom:  embeddedOr(BaseImage, unavail),
 	}
 	info.BaseImageOS = readOSRelease(opts.OSRelease, unavail)
 	info.GitCLI = probeGitCLI(ctx, runner, gitBin, unavail)
