@@ -9,7 +9,7 @@ Open Code Review CLI が `--format json` で返すレビュー結果の形式。
 | フィールド | 型 | 説明 |
 |-----------|-----|------|
 | `status` | string | 実行結果（例: `"success"`） |
-| `summary` | object | レビュー統計（`files_reviewed`, `comments`, `total_tokens` 等） |
+| `summary` | object | レビュー統計（下記）。Review Run 詳細の **OCR Review Summary** として表示 |
 | `tool_calls` | object | OCR が使用したツール呼び出し数 |
 | `comments` | array | 指摘コメントの配列（下記） |
 | `warnings` | array | 警告メッセージ（任意） |
@@ -26,6 +26,21 @@ Open Code Review CLI が `--format json` で返すレビュー結果の形式。
 | `end_line` | `EndLine` | 対象行の終了（1-based）。未指定時は `start_line` を使う |
 | `category` | `Category` | 指摘の分類ラベル（任意。例: `maintainability`, `style`）。Review Comment Wrapper にパススルー表示 |
 | `severity` | `Severity` | 指摘の深刻度ラベル（任意。例: `low`, `medium`, `high`）。Review Comment Wrapper にパススルー表示 |
+
+## Summary 要素（OCR Review Summary）
+
+| JSON キー | 説明 |
+|-----------|------|
+| `files_reviewed` | レビューしたファイル数 |
+| `comments` | 指摘件数 |
+| `total_tokens` | トークン合計 |
+| `input_tokens` | 入力トークン |
+| `output_tokens` | 出力トークン |
+| `cache_read_tokens` | キャッシュ読み取りトークン |
+| `elapsed` | 所要時間（OCR の生文字列、例: `3m55s`） |
+| `budget_exceeded` | トークン予算超過（`true` のとき Review Run 詳細で警告表示） |
+
+未知のキーはパース時に無視する。`summary` が無い、または既知フィールドが一つも無い旧 OCR 出力では OCR Review Summary セクションは非表示。
 
 `path` と `start_line` / `end_line` が揃っているコメントは GitHub インラインレビューに投稿する。欠落時はサマリーコメントへフォールバックする。
 

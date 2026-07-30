@@ -4,6 +4,8 @@ import (
 	"embed"
 	"html/template"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -26,6 +28,27 @@ func formatTime(v any) string {
 	default:
 		return ""
 	}
+}
+
+func formatCommaInt64(n int64) string {
+	sign := ""
+	if n < 0 {
+		sign = "-"
+		n = -n
+	}
+	s := strconv.FormatInt(n, 10)
+	if len(s) <= 3 {
+		return sign + s
+	}
+	var parts []string
+	for len(s) > 3 {
+		parts = append([]string{s[len(s)-3:]}, parts...)
+		s = s[:len(s)-3]
+	}
+	if s != "" {
+		parts = append([]string{s}, parts...)
+	}
+	return sign + strings.Join(parts, ",")
 }
 
 var pageTemplates = template.Must(

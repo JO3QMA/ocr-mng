@@ -120,6 +120,10 @@ _Avoid_: PR プロンプト, PR メタデータ（曖昧）
 Open Code Review CLI が `--format json` で返す構造化レビュー結果。`comments` 配列の各要素に `path`, `content`, `suggestion_code`, `existing_code`, `start_line`, `end_line`, `category`, `severity` を含む。スキーマと抽象化サンプルは [`docs/ocr-review-output.md`](docs/ocr-review-output.md) を参照。
 _Avoid_: OCR JSON, レビュー結果（曖昧）
 
+**OCR Review Summary**:
+OCR Review Output の `summary` オブジェクト。1 回の OCR 実行について、レビューしたファイル数・指摘件数・トークン使用量・所要時間等の統計を含む。Review Run 詳細では次の既知フィールドを、値があるときだけ Administrator に示す: `files_reviewed`, `comments`, `total_tokens`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `elapsed`, `budget_exceeded`。数値フィールドは 3 桁カンマ区切りで表示する（UI Language とは独立）。`elapsed` は OCR の生文字列をそのまま表示する。`budget_exceeded` が true のときは、OCR Review Summary セクション内の統計テーブル直前に警告バナー（`.flash.error` 相当）で予算超過を示す。`false` またはキー欠落時はバナーも行も出さない。`tool_calls` は v1 では表示しない（生の OCR Review Output で確認可能）。表示位置は Review Run 詳細の OCR Review Output（生 JSON）の直前。UI 見出しは ja「OCR レビュー統計」/ en「OCR Review Summary」。`summary` が無い、または既知フィールドが一つも無い旧 OCR 出力ではセクションごと非表示とする。Review Manager は値を解釈・課金計算は行わず、パース時に未知フィールドは無視する。`summary` が無い・空・既知フィールドが一つも無い旧 OCR 出力ではセクション非表示とし、エラーにしない。OCR 出力 JSON のパースに失敗した場合も詳細ページは落とさず、OCR Review Summary は非表示のまま生の OCR Review Output を表示する。
+_Avoid_: OCR JSON summary, レビューサマリー（曖昧）
+
 **Comment Category**:
 OCR Review Output の各指摘が属する分類ラベル（例: `maintainability`, `style`）。Review Manager は値を解釈・フィルタ・翻訳せず、OCR の生文字列を Review Comment Wrapper にパススルー表示する。
 _Avoid_: カテゴリ（単独・曖昧）, 指摘種別（曖昧）
