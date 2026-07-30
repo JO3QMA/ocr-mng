@@ -66,11 +66,12 @@ jobs:
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
-          load: true
+          load: ${{ github.event_name == 'pull_request' }}
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
       - name: Verify Git >= 2.41 in image
+        if: github.event_name == 'pull_request'
         run: |
           tag=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
           ver=$(docker run --rm --entrypoint git "$tag" --version | awk '{print $3}')
