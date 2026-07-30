@@ -9,6 +9,7 @@ var en = map[string]string{
 	"nav.repos":         "Repos",
 	"nav.runs":          "Review Runs",
 	"nav.settings":      "Settings",
+	"nav.about":         "About",
 
 	"btn.save":             "Save",
 	"btn.cancel":           "Cancel",
@@ -30,6 +31,7 @@ var en = map[string]string{
 	"page.repos":             "Registered Repos",
 	"page.runs":              "Review Runs",
 	"page.settings":          "Global Settings",
+	"page.about":             "About",
 	"page.new_host":          "New Git Host",
 	"page.edit_host":         "Edit Git Host",
 	"page.new_repo":          "New Repo",
@@ -153,4 +155,11 @@ var en = map[string]string{
 	"run_detail.llm":       "LLM",
 	"run_detail.view_post": "View posted comment/review",
 	"run_detail.ocr_output": "OCR Output",
+
+	"about.unavailable":          "Unavailable",
+	"about.review_manager":       "Review Manager",
+	"about.docker_image_tag":     "Docker Image Tag",
+	"about.container_base_image": "Container Base Image",
+	"about.git_cli":              "Git CLI",
+	"about.ocr_cli":              "OCR CLI",
 }

@@ -211,3 +211,31 @@ _Avoid_: スイッチ（曖昧）, トグルボタン, チェックボックス�
 **Confirmation Checkbox**:
 Review Manager WebUI で保存時に一度だけ行う破壊的操作の確認用チェック。行はコントロール左・ラベル右。Host PAT / Repo PAT / API キーのクリアが該当する。永続状態の on/off には使わない。
 _Avoid_: クリアチェック, 削除チェック（曖昧）
+
+**Git CLI Version**:
+Review Manager Process の実行環境にインストールされた `git` コマンドのバージョン文字列（例: `git version 2.39.5`）。Repo Mirror の fetch や Review Worktree 作成に使うランタイム依存。Git Host（GitHub / Gitea）の API バージョンとは別。
+_Avoid_: Git バージョン（Git Host と混同）, Git Host Version
+
+**OCR CLI Version**:
+Review Manager Process が subprocess で起動する Open Code Review CLI のバージョン。`ocr version` のセマンティックバージョンと短い Git commit（例: `1.0.9 (abc1234)`）を Administrator 向けに示す。platform や build date は含めない。
+_Avoid_: OCR バージョン（曖昧）, Open Code Review バージョン（長い）
+
+**Docker Image Tag**:
+Review Manager の配布用コンテナイメージにビルド時に付与したタグ（例: `v1.2.3`, `sha-abc1234`, `local`）。CI では `ghcr.io/jo3qma/ocr-mng` に付くタグと対応する。レジストリ URL や digest は含めない。
+_Avoid_: Docker バージョン, イメージバージョン（曖昧）
+
+**Container Base Image**:
+Review Manager のランタイム Docker イメージの `FROM` に使ったベース（現状 `debian:trixie-slim`）。About Page では 1 行のラベルに (1) Dockerfile の `FROM` タグと (2) コンテナ内 `/etc/os-release` から読んだ実 OS リリース（例: `Debian GNU/Linux 13 (trixie)`）を縦に 2 行で示す。golang ビルドステージは含めない。
+_Avoid_: ベース OS（曖昧）, golang ビルドステージ
+
+**About Page**:
+Review Manager WebUI の読み取り専用ページ（`/about`）。Review Manager Version、Git CLI Version、OCR CLI Version、Docker Image Tag、Container Base Image を Administrator に示す。Global Settings の編集は行わない。ヘッダーナビ末尾（設定の後）から遷移する。UI Language が日本語のときナビ・ページタイトルは「バージョン情報」、英語のときは「About」。表示順は Review Manager Version → Docker Image Tag → Container Base Image → Git CLI Version → OCR CLI Version。各項目はラベルと値の 2 列テーブルで示す。
+_Avoid_: システム情報（曖昧）, バージョンページ（Docker Image Tag 以外も含む正式名にしない）
+
+**Review Manager Version**:
+Review Manager Process（`rm` バイナリ）のビルド識別子。セマンティックバージョンと短い Git commit（例: `v1.2.3 (abc1234)`）。git タグが無いビルドは `dev (abc1234)` とする。ビルド時に ldflags で埋め込む。
+_Avoid_: アプリバージョン（曖昧）, ocr-mng バージョン（実装名）
+
+**Version Unavailable**:
+About Page で実行時プローブ（Git CLI、OCR CLI、OS リリース等）が失敗したとき、またはビルド時埋め込み値が無いとき（Docker 外の `go run` 等での Docker Image Tag・Container Base Image の FROM 行）の表示。値の代わりに UI Language に合わせた固定文言（例: 日本語「取得できません」、英語「Unavailable」）を示す。エラー詳細は出さない。Container Base Image の OS リリース行はホスト／コンテナの `/etc/os-release` が読めれば表示する。
+_Avoid_: N/A, エラーメッセージ表示

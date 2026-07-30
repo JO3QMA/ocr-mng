@@ -2,8 +2,13 @@
 
 COVERAGE_MIN ?= 20
 
+RM_VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || echo dev)
+RM_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+LDFLAGS := -X github.com/jo3qma/ocr-mng/internal/version.Version=$(RM_VERSION) \
+	-X github.com/jo3qma/ocr-mng/internal/version.Commit=$(RM_COMMIT)
+
 build:
-	go build -o bin/rm ./cmd/rm
+	go build -ldflags "$(LDFLAGS)" -o bin/rm ./cmd/rm
 
 lint:
 	golangci-lint run ./...
@@ -22,6 +27,11 @@ test: check-tests
 	awk -v t="$$total" -v min="$(COVERAGE_MIN)" 'BEGIN { if (t+0 < min+0) { printf "coverage %s%% < %s%%\n", t, min; exit 1 } }'
 
 docker:
-	docker build --platform linux/amd64 -t ocr-mng:local .
+	docker build --platform linux/amd64 \
+		--build-arg RM_VERSION=$(RM_VERSION) \
+		--build-arg RM_COMMIT=$(RM_COMMIT) \
+		--build-arg RM_IMAGE_TAG=local \
+		--build-arg RM_BASE_IMAGE=debian:trixie-slim \
+		-t ocr-mng:local .
 
 ci: lint test docker

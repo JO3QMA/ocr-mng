@@ -9,6 +9,7 @@ var ja = map[string]string{
 	"nav.repos":     "リポジトリ",
 	"nav.runs":      "レビュー実行",
 	"nav.settings":  "設定",
+	"nav.about":     "バージョン情報",
 
 	"btn.save":     "保存",
 	"btn.cancel":   "キャンセル",
@@ -30,6 +31,7 @@ var ja = map[string]string{
 	"page.repos":     "登録リポジトリ",
 	"page.runs":      "レビュー実行",
 	"page.settings":  "グローバル設定",
+	"page.about":     "バージョン情報",
 	"page.new_host":  "Git Host 新規登録",
 	"page.edit_host": "Git Host 編集",
 	"page.new_repo":  "リポジトリ新規登録",
@@ -153,4 +155,11 @@ var ja = map[string]string{
 	"run_detail.llm":        "LLM",
 	"run_detail.view_post":  "投稿コメントを表示",
 	"run_detail.ocr_output": "OCR 出力",
+
+	"about.unavailable":         "取得できません",
+	"about.review_manager":      "Review Manager",
+	"about.docker_image_tag":    "Docker イメージタグ",
+	"about.container_base_image": "コンテナベースイメージ",
+	"about.git_cli":             "Git CLI",
+	"about.ocr_cli":             "OCR CLI",
 }
