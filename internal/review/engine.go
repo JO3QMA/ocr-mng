@@ -73,6 +73,11 @@ func (e *Engine) releaseGlobal() {
 	e.running.Add(-1)
 }
 
+// RunningReviews returns in-flight review goroutines (tests).
+func (e *Engine) RunningReviews() int32 {
+	return e.running.Load()
+}
+
 // ScheduleReview persists a pending Review Run, or no-ops when one is already active.
 // Note: no max pending depth; monitor SQLite size in ops if the queue backs up.
 func (e *Engine) ScheduleReview(ctx context.Context, req ScheduleRequest) error {

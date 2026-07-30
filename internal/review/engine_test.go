@@ -31,6 +31,7 @@ func TestNewEngine(t *testing.T) {
 }
 
 func TestScheduleReview_createsPending(t *testing.T) {
+	dataDir := t.TempDir()
 	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +40,8 @@ func TestScheduleReview_createsPending(t *testing.T) {
 	ctx := context.Background()
 	repoID := mustRepo(t, st, ctx)
 
-	e := review.NewEngine(config.Config{DataDir: t.TempDir()}, st, slog.Default())
+	e := review.NewEngine(config.Config{DataDir: dataDir}, st, slog.Default())
+	t.Cleanup(func() { waitReviewEngineIdle(t, e, st, ctx, repoID) })
 	if err := e.ScheduleReview(ctx, review.ScheduleRequest{
 		RepoID: repoID, PRNumber: 3, HeadSHA: "sha", BaseRef: "main", TriggerKind: "manual",
 	}); err != nil {
@@ -49,16 +51,42 @@ func TestScheduleReview_createsPending(t *testing.T) {
 	if err != nil || len(runs) != 1 {
 		t.Fatalf("runs: %+v err=%v", runs, err)
 	}
-	if runs[0].Status != "pending" && runs[0].Status != "running" && runs[0].Status != "failed" {
+	switch runs[0].Status {
+	case "pending", "running", "failed":
+	default:
 		t.Fatalf("status: %s", runs[0].Status)
-	}
-	// Without git host reachable, dispatch may fail the run; pending must exist first or move to failed.
-	if runs[0].Status == "pending" {
-		return
 	}
 }
 
+func waitReviewEngineIdle(t *testing.T, e *review.Engine, st *store.Store, ctx context.Context, repoID int64) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		if e.RunningReviews() > 0 {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		runs, err := st.ListReviewRuns(ctx, repoID, 50)
+		if err != nil {
+			return
+		}
+		active := false
+		for _, r := range runs {
+			if r.Status == "pending" || r.Status == "running" {
+				active = true
+				break
+			}
+		}
+		if !active {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Error("timed out waiting for review engine idle")
+}
+
 func TestScheduleReview_duplicate_returnsNil(t *testing.T) {
+	dataDir := t.TempDir()
 	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +95,8 @@ func TestScheduleReview_duplicate_returnsNil(t *testing.T) {
 	ctx := context.Background()
 	repoID := mustRepo(t, st, ctx)
 
-	e := review.NewEngine(config.Config{DataDir: t.TempDir()}, st, slog.Default())
+	e := review.NewEngine(config.Config{DataDir: dataDir}, st, slog.Default())
+	t.Cleanup(func() { waitReviewEngineIdle(t, e, st, ctx, repoID) })
 	req := review.ScheduleRequest{
 		RepoID: repoID, PRNumber: 9, HeadSHA: "sha", BaseRef: "main", TriggerKind: "manual",
 	}
@@ -178,6 +207,7 @@ func TestTryDispatch_drainsPendingWhenSlotFrees(t *testing.T) {
 	}
 
 	e := review.NewEngine(config.Config{DataDir: t.TempDir()}, st, slog.Default())
+	t.Cleanup(func() { waitReviewEngineIdle(t, e, st, ctx, repoID) })
 	req := func(pr int, sha string) review.ScheduleRequest {
 		return review.ScheduleRequest{
 			RepoID: repoID, PRNumber: pr, HeadSHA: sha, BaseRef: "main", TriggerKind: "label",
