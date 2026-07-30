@@ -29,8 +29,33 @@ func TestForInline(t *testing.T) {
 
 func TestForInlineNoComments(t *testing.T) {
 	_, summary := review.ForInline(ocr.Result{Message: "clean"}, englishFmt())
-	if !strings.Contains(summary, "clean") {
+	if !strings.Contains(summary, "⚠ clean") {
 		t.Fatalf("summary: %q", summary)
+	}
+}
+
+func TestForInlineCleanZeroFinding(t *testing.T) {
+	_, summary := review.ForInline(ocr.Result{}, englishFmt())
+	if !strings.Contains(summary, "✅ No comments generated.") {
+		t.Fatalf("summary: %q", summary)
+	}
+}
+
+func TestForInlineDegradedZeroFindingMessage(t *testing.T) {
+	msg := "Some files could not be reviewed due to errors."
+	_, summary := review.ForInline(ocr.Result{Message: msg}, englishFmt())
+	if !strings.Contains(summary, "⚠ "+msg) {
+		t.Fatalf("summary: %q", summary)
+	}
+}
+
+func TestForInlineDegradedZeroFindingWarnings(t *testing.T) {
+	_, summary := review.ForInline(ocr.Result{Warnings: []string{"parse failed"}}, englishFmt())
+	if !strings.Contains(summary, "⚠ No comments generated.") {
+		t.Fatalf("summary: %q", summary)
+	}
+	if !strings.Contains(summary, "### Warnings\n- parse failed") {
+		t.Fatalf("warnings: %q", summary)
 	}
 }
 
