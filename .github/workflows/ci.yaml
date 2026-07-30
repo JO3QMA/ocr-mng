@@ -72,8 +72,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
       - name: Verify Git >= 2.41 in image
         if: github.event_name == 'pull_request'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          tag=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+          tag=$(echo "$TAGS" | head -1)
           ver=$(docker run --rm --entrypoint git "$tag" --version | awk '{print $3}')
           echo "Image $tag: git $ver"
           dpkg --compare-versions "$ver" ge 2.41
