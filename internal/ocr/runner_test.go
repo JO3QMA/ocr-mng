@@ -56,3 +56,46 @@ func TestCommentJSONUsesOCRPathKey(t *testing.T) {
 		t.Fatalf("meta: %+v", c)
 	}
 }
+
+func TestSummaryJSONParsing(t *testing.T) {
+	var result ocr.Result
+	raw := `{"status":"success","summary":{"files_reviewed":16,"comments":6,"total_tokens":1344922,"input_tokens":1269674,"output_tokens":75248,"cache_read_tokens":1077120,"elapsed":"3m55s","budget_exceeded":true,"unknown_field":1},"comments":[]}`
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		t.Fatal(err)
+	}
+	s := result.Summary
+	if s.FilesReviewed == nil || *s.FilesReviewed != 16 {
+		t.Fatalf("files_reviewed: %+v", s.FilesReviewed)
+	}
+	if s.TotalTokens == nil || *s.TotalTokens != 1344922 {
+		t.Fatalf("total_tokens: %+v", s.TotalTokens)
+	}
+	if s.Elapsed != "3m55s" {
+		t.Fatalf("elapsed: %q", s.Elapsed)
+	}
+	if s.BudgetExceeded == nil || !*s.BudgetExceeded {
+		t.Fatalf("budget_exceeded: %+v", s.BudgetExceeded)
+	}
+	if !s.Present() {
+		t.Fatal("expected summary present")
+	}
+}
+
+func TestSummaryPresentEmpty(t *testing.T) {
+	if (ocr.Summary{}).Present() {
+		t.Fatal("empty summary should not be present")
+	}
+	var result ocr.Result
+	if err := json.Unmarshal([]byte(`{"summary":{}}`), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Summary.Present() {
+		t.Fatal("empty summary object should not be present")
+	}
+	if err := json.Unmarshal([]byte(`{"summary":{"budget_exceeded":false}}`), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Summary.Present() {
+		t.Fatal("budget_exceeded false alone should not be present")
+	}
+}

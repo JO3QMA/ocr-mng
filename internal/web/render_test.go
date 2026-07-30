@@ -1,11 +1,14 @@
 package web
 
 import (
+	"fmt"
+	"math"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/jo3qma/ocr-mng/internal/ocr"
 	"github.com/jo3qma/ocr-mng/internal/store"
 	"github.com/jo3qma/ocr-mng/internal/version"
 	"github.com/jo3qma/ocr-mng/internal/web/i18n"
@@ -35,6 +38,27 @@ func TestFormatTime(t *testing.T) {
 	}
 }
 
+func TestFormatCommaInt64(t *testing.T) {
+	for _, tc := range []struct {
+		in, want string
+	}{
+		{"0", "0"},
+		{"999", "999"},
+		{"1000", "1,000"},
+		{"1344922", "1,344,922"},
+		{"-42", "-42"},
+		{fmt.Sprint(math.MinInt64), "-9,223,372,036,854,775,808"},
+	} {
+		var n int64
+		if _, err := fmt.Sscanf(tc.in, "%d", &n); err != nil {
+			t.Fatal(err)
+		}
+		if got := formatCommaInt64(n); got != tc.want {
+			t.Fatalf("formatCommaInt64(%d) = %q, want %q", n, got, tc.want)
+		}
+	}
+}
+
 func TestRenderRunDetailTimes(t *testing.T) {
 	started := time.Date(2026, 7, 17, 10, 0, 0, 0, time.UTC)
 	finished := time.Date(2026, 7, 17, 10, 5, 0, 0, time.UTC)
@@ -47,8 +71,9 @@ func TestRenderRunDetailTimes(t *testing.T) {
 	rec := httptest.NewRecorder()
 	render(rec, "run_detail", struct {
 		page
-		Run     store.ReviewRun
-		OCRJSON string
+		Run         store.ReviewRun
+		SummaryView summaryView
+		OCRJSON     string
 	}{page: testPage(), Run: run})
 	body := rec.Body.String()
 	if rec.Code != 200 {
@@ -58,6 +83,65 @@ func TestRenderRunDetailTimes(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Fatalf("missing %q in %q", want, body)
 		}
+	}
+}
+
+func TestRenderRunDetailSummary(t *testing.T) {
+	files := 16
+	tokens := int64(1344922)
+	budget := true
+	run := store.ReviewRun{ID: 1, PRNumber: 2, Status: "success", RepoOwner: "acme", RepoName: "app"}
+	summary := ocr.Summary{
+		FilesReviewed: &files,
+		TotalTokens:   &tokens,
+		Elapsed:       "3m55s",
+		BudgetExceeded: &budget,
+	}
+	rec := httptest.NewRecorder()
+	render(rec, "run_detail", struct {
+		page
+		Run         store.ReviewRun
+		SummaryView summaryView
+		OCRJSON     string
+	}{page: testPage(), Run: run, SummaryView: buildSummaryView(testPage().L, summary), OCRJSON: "{}"})
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("status %d body %q", rec.Code, body)
+	}
+	for _, want := range []string{
+		"OCR レビュー統計",
+		"レビューしたファイル数",
+		"16",
+		"1,344,922",
+		"3m55s",
+		"OCR のトークン予算を超過しました。",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q in %q", want, body)
+		}
+	}
+}
+
+func TestRenderRunDetailSummaryBudgetOnly(t *testing.T) {
+	budget := true
+	run := store.ReviewRun{ID: 1, PRNumber: 2, Status: "success", RepoOwner: "acme", RepoName: "app"}
+	summary := ocr.Summary{BudgetExceeded: &budget}
+	rec := httptest.NewRecorder()
+	render(rec, "run_detail", struct {
+		page
+		Run         store.ReviewRun
+		SummaryView summaryView
+		OCRJSON     string
+	}{page: testPage(), Run: run, SummaryView: buildSummaryView(testPage().L, summary), OCRJSON: "{}"})
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("status %d body %q", rec.Code, body)
+	}
+	if !strings.Contains(body, "OCR のトークン予算を超過しました。") {
+		t.Fatalf("missing budget warning in %q", body)
+	}
+	if strings.Contains(body, "<table><tbody>\n</tbody></table>") {
+		t.Fatalf("empty summary table rendered: %q", body)
 	}
 }
 

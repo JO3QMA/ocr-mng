@@ -11,10 +11,34 @@ import (
 	"strings"
 )
 
+type Summary struct {
+	FilesReviewed   *int   `json:"files_reviewed,omitempty"`
+	Comments        *int   `json:"comments,omitempty"`
+	TotalTokens     *int64 `json:"total_tokens,omitempty"`
+	InputTokens     *int64 `json:"input_tokens,omitempty"`
+	OutputTokens    *int64 `json:"output_tokens,omitempty"`
+	CacheReadTokens *int64 `json:"cache_read_tokens,omitempty"`
+	Elapsed         string `json:"elapsed,omitempty"`
+	BudgetExceeded  *bool  `json:"budget_exceeded,omitempty"`
+}
+
+// Present reports whether any known OCR Review Summary field is set for display.
+func (s Summary) Present() bool {
+	return s.FilesReviewed != nil ||
+		s.Comments != nil ||
+		s.TotalTokens != nil ||
+		s.InputTokens != nil ||
+		s.OutputTokens != nil ||
+		s.CacheReadTokens != nil ||
+		strings.TrimSpace(s.Elapsed) != "" ||
+		(s.BudgetExceeded != nil && *s.BudgetExceeded)
+}
+
 type Result struct {
 	Comments []Comment `json:"comments"`
 	Warnings []string  `json:"warnings"`
 	Message  string    `json:"message"`
+	Summary  Summary   `json:"summary"`
 }
 
 type Comment struct {

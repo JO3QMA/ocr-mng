@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jo3qma/ocr-mng/internal/ocr"
 	"github.com/jo3qma/ocr-mng/internal/review"
 	"github.com/jo3qma/ocr-mng/internal/store"
 	"github.com/jo3qma/ocr-mng/internal/web/i18n"
@@ -327,13 +328,30 @@ func (s *Server) runDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ocrJSON := ""
+	var summary ocr.Summary
 	if run.OCROutputPath != "" {
 		if b, err := os.ReadFile(run.OCROutputPath); err == nil {
-			var pretty bytes.Buffer
-			if json.Indent(&pretty, b, "", "  ") == nil {
-				ocrJSON = pretty.String()
+			var result ocr.Result
+			if err := json.Unmarshal(b, &result); err != nil {
+				slog.WarnContext(r.Context(), "failed to parse OCR output for summary", "run_id", run.ID, "err", err)
+				var pretty bytes.Buffer
+				if json.Indent(&pretty, b, "", "  ") == nil {
+					ocrJSON = pretty.String()
+				} else {
+					ocrJSON = string(b)
+				}
 			} else {
-				ocrJSON = string(b)
+				summary = result.Summary
+				if pretty, err := json.MarshalIndent(&result, "", "  "); err == nil {
+					ocrJSON = string(pretty)
+				} else {
+					var pretty bytes.Buffer
+					if json.Indent(&pretty, b, "", "  ") == nil {
+						ocrJSON = pretty.String()
+					} else {
+						ocrJSON = string(b)
+					}
+				}
 			}
 		}
 	}
@@ -341,9 +359,10 @@ func (s *Server) runDetail(w http.ResponseWriter, r *http.Request) {
 	p.Title = fmt.Sprintf("Run #%d", run.ID)
 	render(w, "run_detail", struct {
 		page
-		Run     store.ReviewRun
-		OCRJSON string
-	}{page: p, Run: run, OCRJSON: ocrJSON})
+		Run         store.ReviewRun
+		SummaryView summaryView
+		OCRJSON     string
+	}{page: p, Run: run, SummaryView: buildSummaryView(p.L, summary), OCRJSON: ocrJSON})
 }
 
 func (s *Server) settingsForm(w http.ResponseWriter, r *http.Request) {

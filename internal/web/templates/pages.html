@@ -332,6 +332,13 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 {{if or .Run.LLMProviderName .Run.LLMModelName}}<p>{{.L.T "run_detail.llm"}}: {{.Run.LLMProviderName}} / {{.Run.LLMModelName}}</p>{{end}}
 {{if .Run.ErrorMessage}}<div class="flash error">{{.Run.ErrorMessage}}</div>{{end}}
 {{if .Run.CommentURL}}<p><a href="{{.Run.CommentURL}}">{{.L.T "run_detail.view_post"}}</a></p>{{end}}
+{{if .SummaryView.Visible}}
+<h2>{{.L.T "run_detail.ocr_summary"}}</h2>
+{{if .SummaryView.BudgetWarning}}<div class="flash error">{{.L.T "run_detail.summary.budget_exceeded"}}</div>{{end}}
+{{if .SummaryView.Rows}}<table><tbody>
+{{range .SummaryView.Rows}}<tr><th scope="row">{{.Label}}</th><td>{{.Value}}</td></tr>{{end}}
+</tbody></table>{{end}}
+{{end}}
 {{if .OCRJSON}}<h2>{{.L.T "run_detail.ocr_output"}}</h2><pre style="overflow:auto;background:#111827;color:#e5e7eb;padding:1rem;border-radius:6px">{{.OCRJSON}}</pre>{{end}}
 </div>
 {{template "foot" .}}
