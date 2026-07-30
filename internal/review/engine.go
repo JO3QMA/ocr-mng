@@ -73,6 +73,11 @@ func (e *Engine) releaseGlobal() {
 	e.running.Add(-1)
 }
 
+// RunningReviews returns in-flight review goroutines (tests).
+func (e *Engine) RunningReviews() int32 {
+	return e.running.Load()
+}
+
 // ScheduleReview persists a pending Review Run, or no-ops when one is already active.
 // Note: no max pending depth; monitor SQLite size in ops if the queue backs up.
 func (e *Engine) ScheduleReview(ctx context.Context, req ScheduleRequest) error {
@@ -415,7 +420,7 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 	}
 	run.CommentURL = commentURL
 
-	if repo.RemoveLabelAfterReview {
+	if repo.RemoveLabelAfterReview && (len(result.Comments) > 0 || IsCleanZeroFinding(result)) {
 		if err := client.RemoveLabel(ctx, pat, repo.Owner, repo.Name, pr.Number, repo.TriggerLabel); err != nil {
 			return fmt.Errorf("remove label: %w", err)
 		}
@@ -425,7 +430,7 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 
 func (e *Engine) postResult(ctx context.Context, client *githost.Client, pat string, repo store.RepoView, pr githost.PullRequest, result ocr.Result, lang string) (string, error) {
 	cf := CommentFormat{Lang: lang, HostKind: repo.HostKind}
-	wantApprove := ZeroFindingApprovalEnabled(repo, len(result.Comments))
+	wantApprove := ZeroFindingApprovalEnabled(repo, result)
 	mode := repo.CommentMode
 	if mode == "" {
 		mode = "inline"

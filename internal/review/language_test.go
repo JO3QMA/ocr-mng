@@ -24,14 +24,17 @@ func TestZeroFindingApprovalEnabled(t *testing.T) {
 		Repo: store.Repo{ApproveOnZeroFindings: true},
 		HostKind: "github",
 	}
-	if !review.ZeroFindingApprovalEnabled(repo, 0) {
-		t.Fatal("expected enabled for zero findings on github")
+	if !review.ZeroFindingApprovalEnabled(repo, ocr.Result{}) {
+		t.Fatal("expected enabled for clean zero findings on github")
 	}
-	if review.ZeroFindingApprovalEnabled(repo, 1) {
+	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Message: "errors"}) {
+		t.Fatal("expected disabled for degraded zero findings")
+	}
+	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Comments: []ocr.Comment{{Content: "x"}}}) {
 		t.Fatal("expected disabled when comments exist")
 	}
 	repo.HostKind = "gitea"
-	if review.ZeroFindingApprovalEnabled(repo, 0) {
+	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{}) {
 		t.Fatal("expected disabled on gitea")
 	}
 }

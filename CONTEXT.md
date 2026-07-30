@@ -21,7 +21,7 @@ Repo ごとに設定する Label 名。Pull Request にこの Label が付いて
 _Avoid_: レビューラベル, ターゲットラベル
 
 **Post-Review Label Removal**:
-レビュー完了後、Repo 設定で有効な場合に Trigger Label を Pull Request から外すオプション動作。PAT に Label 変更権限がある Repo のみ実行する。
+レビュー完了後、Repo 設定で有効な場合に Trigger Label を Pull Request から外すオプション動作。PAT に Label 変更権限がある Repo のみ実行する。指摘が 1 件以上ある Review Run では従来どおり除去する。Zero-Finding Review では **Zero-Finding Summary Indicator が ✅ のときだけ** 除去する（⚠ の不完全レビューではラベルを残し、再トリガーしやすくする）。
 _Avoid_: ラベル自動削除, ラベルクリーンアップ
 
 **Review Comment Mode**:
@@ -165,15 +165,19 @@ Review Manager を構成する単一の Go プロセス。WebUI、PR ポーリ�
 _Avoid_: サーバー, バックエンド（曖昧）
 
 **Review Run Success**:
-OCR 実行、レビュー結果の投稿、Zero-Finding Approval（有効時）、Post-Review Label Removal（有効時）がすべて完了した Review Run の状態。このときのみ Pull Request Snapshot を更新し、Label 除去を行う。いずれかが失敗した場合は Review Run Success にならず、Post-Review Label Removal も実行しない。
+OCR 実行、レビュー結果の投稿、Zero-Finding Approval（有効時）、Post-Review Label Removal（有効時・除去条件を満たす場合）がすべて完了した Review Run の状態。このときのみ Pull Request Snapshot を更新し、Label 除去を行う（Post-Review Label Removal の除去条件は同項目を参照）。いずれかが失敗した場合は Review Run Success にならず、Post-Review Label Removal も実行しない。
 _Avoid_: 完了, 成功（曖昧）
 
 **Zero-Finding Review**:
 OCR Review Output の `comments` 配列が空の Review Run。`warnings` や `message` の有無は指摘件数の判定に含めない。
 _Avoid_: 指摘なしレビュー, クリーンレビュー（曖昧）
 
+**Zero-Finding Summary Indicator**:
+Zero-Finding Review の Review Comment Wrapper 先頭サマリー行に付ける記号。OCR の `warnings` と `message` がともに空のときだけ ✅（1 行目は Review Language のデフォルト文言のみ）。どちらか一方でも非空なら ⚠（1 行目は `message` が非空ならその本文、空ならデフォルト文言。`warnings` が 1 件以上あればその下に `### Warnings` 見出しと箇条書きを続ける。`message` と `warnings` の両方があるときも同じ）。
+_Avoid_: 成功マーク, チェックマーク（✅ が警告文と並ぶ誤認を招くため）
+
 **Zero-Finding Approval**:
-Zero-Finding Review でコメント投稿が成功したあと、Post-Review Label Removal の前に Review Manager が Git Host の Pull Request レビュー API で Approve を投稿する動作。Registered Repo ごとにオプトインでき、デフォルトは無効。GitHub の Registered Repo のみ対象とし、Gitea ではスキップする（コメント投稿まで成功すれば Review Run Success）。Review Comment Mode が inline のときは、サマリー付き PR レビュー 1 回の `event` を `APPROVE` にする（`COMMENT` との二重投稿はしない）。Review Comment Mode が comment のときは、先に `APPROVE` レビュー（Review Language の短い定型文）を投稿し、続けて Issue コメントでサマリーを投稿する（Approve 失敗時のリトライで Issue コメントが重複しないよう順序を固定）。inline で `APPROVE` 投稿が失敗したときは Issue コメントへフォールバックするが、Zero-Finding Approval 有効時はフォールバックでも先に `APPROVE` を試してから Issue コメントを投稿する。同一 Pull Request で Review Run が複数回成功した場合も同じルールを適用し、Zero-Finding のたびに Approve を投稿する。指摘が 1 件以上ある Review Run では `COMMENT` のみとし、過去の Approve を取り消す処理は行わない。Approve が失敗した場合は Review Run Success にならない。
+Zero-Finding Review でコメント投稿が成功したあと、Post-Review Label Removal の前に Review Manager が Git Host の Pull Request レビュー API で Approve を投稿する動作。Registered Repo ごとにオプトインでき、デフォルトは無効。GitHub の Registered Repo のみ対象とし、Gitea ではスキップする（コメント投稿まで成功すれば Review Run Success）。**Zero-Finding Summary Indicator が ✅ のときだけ** Approve する（`warnings` または `message` が非空の不完全レビューでは Approve しない）。Review Comment Mode が inline のときは、サマリー付き PR レビュー 1 回の `event` を `APPROVE` にする（`COMMENT` との二重投稿はしない）。Review Comment Mode が comment のときは、先に `APPROVE` レビュー（Review Language の短い定型文）を投稿し、続けて Issue コメントでサマリーを投稿する（Approve 失敗時のリトライで Issue コメントが重複しないよう順序を固定）。inline で `APPROVE` 投稿が失敗したときは Issue コメントへフォールバックするが、Zero-Finding Approval 有効時はフォールバックでも先に `APPROVE` を試してから Issue コメントを投稿する。同一 Pull Request で Review Run が複数回成功した場合も同じルールを適用し、Zero-Finding のたびに Approve を投稿する。指摘が 1 件以上ある Review Run では `COMMENT` のみとし、過去の Approve を取り消す処理は行わない。Approve が失敗した場合は Review Run Success にならない。
 _Avoid_: 自動承認, オートマージ（曖昧）
 
 **Global Settings**:
@@ -221,7 +225,7 @@ Review Manager の配布用コンテナイメージにビルド時に付与し�
 _Avoid_: Docker バージョン, イメージバージョン（曖昧）
 
 **Container Base Image**:
-Review Manager のランタイム Docker イメージの `FROM` に使ったベース（現状 `debian:bookworm-slim`）。About Page では 1 行のラベルに (1) Dockerfile の `FROM` タグと (2) コンテナ内 `/etc/os-release` から読んだ実 OS リリース（例: `Debian 12.5`）を縦に 2 行で示す。golang ビルドステージは含めない。
+Review Manager のランタイム Docker イメージの `FROM` に使ったベース（現状 `debian:trixie-slim`）。About Page では 1 行のラベルに (1) Dockerfile の `FROM` タグと (2) コンテナ内 `/etc/os-release` から読んだ実 OS リリース（例: `Debian GNU/Linux 13 (trixie)`）を縦に 2 行で示す。golang ビルドステージは含めない。
 _Avoid_: ベース OS（曖昧）, golang ビルドステージ
 
 **About Page**:

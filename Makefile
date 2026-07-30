@@ -31,7 +31,7 @@ docker:
 		--build-arg RM_VERSION=$(RM_VERSION) \
 		--build-arg RM_COMMIT=$(RM_COMMIT) \
 		--build-arg RM_IMAGE_TAG=local \
-		--build-arg RM_BASE_IMAGE=debian:bookworm-slim \
+		--build-arg RM_BASE_IMAGE=debian:trixie-slim \
 		-t ocr-mng:local .
 
 ci: lint test docker

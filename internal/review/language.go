@@ -3,6 +3,7 @@ package review
 import (
 	"strings"
 
+	"github.com/jo3qma/ocr-mng/internal/ocr"
 	"github.com/jo3qma/ocr-mng/internal/store"
 )
 
@@ -137,8 +138,8 @@ func ApprovalBody(lang string) string {
 }
 
 // ZeroFindingApprovalEnabled reports whether this run should post APPROVE on GitHub.
-func ZeroFindingApprovalEnabled(repo store.RepoView, commentCount int) bool {
-	return commentCount == 0 && repo.ApproveOnZeroFindings && repo.HostKind == "github"
+func ZeroFindingApprovalEnabled(repo store.RepoView, result ocr.Result) bool {
+	return len(result.Comments) == 0 && IsCleanZeroFinding(result) && repo.ApproveOnZeroFindings && repo.HostKind == "github"
 }
 
 // EffectiveReviewLanguage returns repo override or global default.

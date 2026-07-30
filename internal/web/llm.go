@@ -225,44 +225,86 @@ func (s *Server) llmModelCreate(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=created", id), http.StatusSeeOther)
 }
 
-func (s *Server) llmModelUpdate(w http.ResponseWriter, r *http.Request) {
+func (s *Server) llmModelsBulkUpdate(w http.ResponseWriter, r *http.Request) {
 	pid, ok := pathID(r, "id")
-	mid, ok2 := pathID(r, "mid")
-	if !ok || !ok2 {
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	m, err := s.store.GetLLMProviderModel(r.Context(), mid)
-	if err != nil || m.ProviderID != pid {
-		http.NotFound(w, r)
-		return
-	}
-	if name := strings.TrimSpace(r.FormValue("model_name")); name != "" {
-		m.ModelName = name
-	}
-	m.Enabled = r.FormValue("enabled") == "on"
-	if err := s.store.UpdateLLMProviderModel(r.Context(), m); err != nil {
+	redirectInvalid := func() {
 		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=invalid_model", pid), http.StatusSeeOther)
+	}
+	if err := r.ParseForm(); err != nil {
+		redirectInvalid()
 		return
+	}
+	var pending []store.LLMProviderModel
+	for _, idStr := range r.Form["model_id"] {
+		mid, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			redirectInvalid()
+			return
+		}
+		m, err := s.store.GetLLMProviderModel(r.Context(), mid)
+		if err != nil || m.ProviderID != pid {
+			redirectInvalid()
+			return
+		}
+		if name := strings.TrimSpace(r.FormValue("model_name_" + idStr)); name != "" {
+			m.ModelName = name
+		}
+		m.Enabled = r.FormValue("enabled_"+idStr) == "on"
+		pending = append(pending, m)
+	}
+	if len(pending) == 0 {
+		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit", pid), http.StatusSeeOther)
+		return
+	}
+	for _, m := range pending {
+		if err := s.store.UpdateLLMProviderModel(r.Context(), m); err != nil {
+			redirectInvalid()
+			return
+		}
 	}
 	http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=updated", pid), http.StatusSeeOther)
 }
 
-func (s *Server) llmModelDelete(w http.ResponseWriter, r *http.Request) {
+func (s *Server) llmModelsBulkDelete(w http.ResponseWriter, r *http.Request) {
 	pid, ok := pathID(r, "id")
-	mid, ok2 := pathID(r, "mid")
-	if !ok || !ok2 {
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	m, err := s.store.GetLLMProviderModel(r.Context(), mid)
-	if err != nil || m.ProviderID != pid {
-		http.NotFound(w, r)
-		return
-	}
-	if err := s.store.DeleteLLMProviderModel(r.Context(), mid); err != nil {
+	redirectFailed := func() {
 		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=delete_failed", pid), http.StatusSeeOther)
+	}
+	if err := r.ParseForm(); err != nil {
+		redirectFailed()
 		return
+	}
+	var pending []int64
+	for _, idStr := range r.Form["delete_model_id"] {
+		mid, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			redirectFailed()
+			return
+		}
+		m, err := s.store.GetLLMProviderModel(r.Context(), mid)
+		if err != nil || m.ProviderID != pid {
+			redirectFailed()
+			return
+		}
+		pending = append(pending, mid)
+	}
+	if len(pending) == 0 {
+		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit", pid), http.StatusSeeOther)
+		return
+	}
+	for _, mid := range pending {
+		if err := s.store.DeleteLLMProviderModel(r.Context(), mid); err != nil {
+			redirectFailed()
+			return
+		}
 	}
 	http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=deleted", pid), http.StatusSeeOther)
 }

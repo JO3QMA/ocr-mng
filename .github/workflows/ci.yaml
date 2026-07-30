@@ -71,10 +71,12 @@ jobs:
             echo "rm_image_tag=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           fi
           echo "rm_commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v7
+      - id: build
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -82,4 +84,13 @@ jobs:
             RM_VERSION=${{ steps.buildver.outputs.rm_version }}
             RM_COMMIT=${{ steps.buildver.outputs.rm_commit }}
             RM_IMAGE_TAG=${{ steps.buildver.outputs.rm_image_tag }}
-            RM_BASE_IMAGE=debian:bookworm-slim
+            RM_BASE_IMAGE=debian:trixie-slim
+      - name: Verify Git >= 2.41 in image
+        if: github.event_name == 'pull_request'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          tag=$(echo "$TAGS" | head -1)
+          ver=$(docker run --rm --entrypoint git "$tag" --version | awk '{print $3}')
+          echo "Image $tag: git $ver"
+          dpkg --compare-versions "$ver" ge 2.41
