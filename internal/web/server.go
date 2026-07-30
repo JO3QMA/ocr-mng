@@ -334,14 +334,24 @@ func (s *Server) runDetail(w http.ResponseWriter, r *http.Request) {
 			var result ocr.Result
 			if err := json.Unmarshal(b, &result); err != nil {
 				slog.WarnContext(r.Context(), "failed to parse OCR output for summary", "run_id", run.ID, "err", err)
+				var pretty bytes.Buffer
+				if json.Indent(&pretty, b, "", "  ") == nil {
+					ocrJSON = pretty.String()
+				} else {
+					ocrJSON = string(b)
+				}
 			} else {
 				summary = result.Summary
-			}
-			var pretty bytes.Buffer
-			if json.Indent(&pretty, b, "", "  ") == nil {
-				ocrJSON = pretty.String()
-			} else {
-				ocrJSON = string(b)
+				if pretty, err := json.MarshalIndent(&result, "", "  "); err == nil {
+					ocrJSON = string(pretty)
+				} else {
+					var pretty bytes.Buffer
+					if json.Indent(&pretty, b, "", "  ") == nil {
+						ocrJSON = pretty.String()
+					} else {
+						ocrJSON = string(b)
+					}
+				}
 			}
 		}
 	}
