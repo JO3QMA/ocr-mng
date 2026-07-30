@@ -35,8 +35,9 @@ func shortCommit(s string) string {
 }
 
 func embeddedOr(unavailable, v string) string {
-	if strings.TrimSpace(v) == "" {
+	v = strings.TrimSpace(v)
+	if v == "" {
 		return unavailable
 	}
-	return strings.TrimSpace(v)
+	return v
 }

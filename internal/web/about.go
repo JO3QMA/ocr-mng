@@ -10,8 +10,8 @@ func (s *Server) about(w http.ResponseWriter, r *http.Request) {
 	p := s.page(r, "page.about")
 	unavailable := p.L.T("about.unavailable")
 	info := version.Collect(version.CollectOpts{
+		Context:     r.Context(),
 		Unavailable: unavailable,
-		GitBinary:   s.gitBinary,
 		OCRBinary:   s.ocrBinary,
 	})
 	render(w, "about", struct {

@@ -1,19 +1,23 @@
 package version
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
+const probeTimeout = 5 * time.Second
+
 type commandRunner interface {
-	run(name string, args ...string) (string, error)
+	run(ctx context.Context, name string, args ...string) (string, error)
 }
 
 type execRunner struct{}
 
-func (execRunner) run(name string, args ...string) (string, error) {
-	cmd := exec.Command(name, args...)
+func (execRunner) run(ctx context.Context, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
 	out, err := cmd.Output()
 	return string(out), err
 }
@@ -30,6 +34,7 @@ type AboutInfo struct {
 
 // CollectOpts configures runtime version collection.
 type CollectOpts struct {
+	Context     context.Context
 	Unavailable string
 	GitBinary   string
 	OCRBinary   string
@@ -53,19 +58,26 @@ func Collect(opts CollectOpts) AboutInfo {
 	}
 	unavail := opts.Unavailable
 
+	ctx := opts.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+
 	info := AboutInfo{
 		ReviewManager:  ReviewManager(),
 		DockerImageTag: embeddedOr(unavail, ImageTag),
 		BaseImageFrom:  embeddedOr(unavail, BaseImage),
 	}
 	info.BaseImageOS = readOSRelease(opts.OSRelease, unavail)
-	info.GitCLI = probeGitCLI(runner, gitBin, unavail)
-	info.OCRCLI = probeOCRCLI(runner, ocrBin, unavail)
+	info.GitCLI = probeGitCLI(ctx, runner, gitBin, unavail)
+	info.OCRCLI = probeOCRCLI(ctx, runner, ocrBin, unavail)
 	return info
 }
 
-func probeGitCLI(runner commandRunner, gitBin, unavailable string) string {
-	out, err := runner.run(gitBin, "--version")
+func probeGitCLI(ctx context.Context, runner commandRunner, gitBin, unavailable string) string {
+	out, err := runner.run(ctx, gitBin, "--version")
 	if err != nil {
 		return unavailable
 	}
@@ -76,8 +88,8 @@ func probeGitCLI(runner commandRunner, gitBin, unavailable string) string {
 	return out
 }
 
-func probeOCRCLI(runner commandRunner, ocrBin, unavailable string) string {
-	out, err := runner.run(ocrBin, "version")
+func probeOCRCLI(ctx context.Context, runner commandRunner, ocrBin, unavailable string) string {
+	out, err := runner.run(ctx, ocrBin, "version")
 	if err != nil {
 		return unavailable
 	}
@@ -97,16 +109,19 @@ func parseOCRVersionOutput(out string) (version, commit string) {
 		if line == "" {
 			continue
 		}
+		if version != "" && commit != "" {
+			break
+		}
 		lower := strings.ToLower(line)
-		if strings.HasPrefix(lower, "version:") {
+		if version == "" && strings.HasPrefix(lower, "version:") {
 			version = strings.TrimSpace(line[strings.IndexByte(line, ':')+1:])
 			continue
 		}
-		if strings.HasPrefix(lower, "commit:") {
+		if commit == "" && strings.HasPrefix(lower, "commit:") {
 			commit = shortCommit(strings.TrimSpace(line[strings.IndexByte(line, ':')+1:]))
 			continue
 		}
-		if strings.HasPrefix(lower, "open-code-review version") {
+		if version == "" && strings.HasPrefix(lower, "open-code-review version") {
 			version = strings.TrimSpace(line[len("open-code-review version"):])
 		}
 	}

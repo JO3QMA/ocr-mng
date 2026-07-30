@@ -22,7 +22,6 @@ type Server struct {
 	store     *store.Store
 	engine    *review.Engine
 	ocrBinary string
-	gitBinary string
 }
 
 type page struct {
@@ -46,7 +45,7 @@ func New(adminUser, adminPass string, st *store.Store, engine *review.Engine, oc
 	return &Server{
 		adminUser: adminUser, adminPass: adminPass,
 		store: st, engine: engine,
-		ocrBinary: ocrBinary, gitBinary: "git",
+		ocrBinary: ocrBinary,
 	}
 }
 

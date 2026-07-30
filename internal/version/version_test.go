@@ -1,6 +1,7 @@
 package version
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -9,7 +10,7 @@ import (
 
 type fakeRunner map[string]string
 
-func (f fakeRunner) run(name string, args ...string) (string, error) {
+func (f fakeRunner) run(ctx context.Context, name string, args ...string) (string, error) {
 	key := name
 	if len(args) > 0 {
 		key += " " + args[0]
@@ -47,6 +48,10 @@ func TestParseOCRVersionOutput(t *testing.T) {
 	ver, commit = parseOCRVersionOutput("open-code-review version 2.0.0\n")
 	if ver != "2.0.0" || commit != "" {
 		t.Fatalf("got %q %q", ver, commit)
+	}
+	ver, commit = parseOCRVersionOutput("version: 1.0.0\ncommit: aaa1111\nversion: 9.9.9\ncommit: bbb2222\n")
+	if ver != "1.0.0" || commit != "aaa1111" {
+		t.Fatalf("first match: got %q %q", ver, commit)
 	}
 }
 

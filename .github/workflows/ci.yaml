@@ -62,8 +62,10 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
       - id: buildver
+        env:
+          REF: ${{ github.ref }}
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          if [[ "$REF" == refs/tags/v* ]]; then
             echo "rm_version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
             echo "rm_image_tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
