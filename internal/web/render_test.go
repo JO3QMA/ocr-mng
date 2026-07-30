@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"math"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -46,6 +47,7 @@ func TestFormatCommaInt64(t *testing.T) {
 		{"1000", "1,000"},
 		{"1344922", "1,344,922"},
 		{"-42", "-42"},
+		{fmt.Sprint(math.MinInt64), "-9,223,372,036,854,775,808"},
 	} {
 		var n int64
 		if _, err := fmt.Sscanf(tc.in, "%d", &n); err != nil {

@@ -31,12 +31,12 @@ func formatTime(v any) string {
 }
 
 func formatCommaInt64(n int64) string {
+	s := strconv.FormatInt(n, 10)
 	sign := ""
 	if n < 0 {
 		sign = "-"
-		n = -n
+		s = s[1:]
 	}
-	s := strconv.FormatInt(n, 10)
 	if len(s) <= 3 {
 		return sign + s
 	}
