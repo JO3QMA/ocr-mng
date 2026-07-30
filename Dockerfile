@@ -1,9 +1,18 @@
 FROM golang:1.26-bookworm AS build
 WORKDIR /src
+ARG RM_VERSION=dev
+ARG RM_COMMIT=unknown
+ARG RM_IMAGE_TAG=local
+ARG RM_BASE_IMAGE=debian:bookworm-slim
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /out/rm ./cmd/rm
+RUN CGO_ENABLED=0 go build -ldflags "-s -w \
+	-X github.com/jo3qma/ocr-mng/internal/version.Version=${RM_VERSION} \
+	-X github.com/jo3qma/ocr-mng/internal/version.Commit=${RM_COMMIT} \
+	-X github.com/jo3qma/ocr-mng/internal/version.ImageTag=${RM_IMAGE_TAG} \
+	-X github.com/jo3qma/ocr-mng/internal/version.BaseImage=${RM_BASE_IMAGE}" \
+	-o /out/rm ./cmd/rm
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates git curl && rm -rf /var/lib/apt/lists/*

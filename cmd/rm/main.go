@@ -38,7 +38,7 @@ func main() {
 	defer cancel()
 	go engine.Run(ctx)
 
-	srv := web.New(cfg.AdminUser, cfg.AdminPassword, st, engine)
+	srv := web.New(cfg.AdminUser, cfg.AdminPassword, st, engine, cfg.OCRBinary)
 	httpServer := &http.Server{
 		Addr:    cfg.ListenAddr,
 		Handler: srv.Handler(),

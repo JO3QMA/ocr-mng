@@ -21,6 +21,8 @@ type Server struct {
 	adminPass string
 	store     *store.Store
 	engine    *review.Engine
+	ocrBinary string
+	gitBinary string
 }
 
 type page struct {
@@ -40,8 +42,12 @@ func (s *Server) page(r *http.Request, titleKey string) page {
 	return p
 }
 
-func New(adminUser, adminPass string, st *store.Store, engine *review.Engine) *Server {
-	return &Server{adminUser: adminUser, adminPass: adminPass, store: st, engine: engine}
+func New(adminUser, adminPass string, st *store.Store, engine *review.Engine, ocrBinary string) *Server {
+	return &Server{
+		adminUser: adminUser, adminPass: adminPass,
+		store: st, engine: engine,
+		ocrBinary: ocrBinary, gitBinary: "git",
+	}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -72,6 +78,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /runs/{id}", s.auth(s.runDetail))
 	mux.HandleFunc("GET /settings", s.auth(s.settingsForm))
 	mux.HandleFunc("POST /settings", s.auth(s.settingsSave))
+	mux.HandleFunc("GET /about", s.auth(s.about))
 	return mux
 }
 

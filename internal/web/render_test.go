@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jo3qma/ocr-mng/internal/store"
+	"github.com/jo3qma/ocr-mng/internal/version"
 	"github.com/jo3qma/ocr-mng/internal/web/i18n"
 )
 
@@ -81,5 +82,32 @@ func TestRenderHosts(t *testing.T) {
 	}{page: testPage(), Hosts: nil})
 	if rec.Code != 200 {
 		t.Fatalf("status %d", rec.Code)
+	}
+}
+
+func TestRenderAbout(t *testing.T) {
+	rec := httptest.NewRecorder()
+	render(rec, "about", struct {
+		page
+		Info version.AboutInfo
+	}{
+		page: testPage(),
+		Info: version.AboutInfo{
+			ReviewManager:  "dev (abc1234)",
+			DockerImageTag: "local",
+			BaseImageFrom:  "debian:bookworm-slim",
+			BaseImageOS:    "Debian GNU/Linux 12 (bookworm)",
+			GitCLI:         "git version 2.43.0",
+			OCRCLI:         "1.0.9 (abc1234)",
+		},
+	})
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("status %d body %q", rec.Code, body)
+	}
+	for _, want := range []string{"バージョン情報", "Review Manager", "dev (abc1234)", "debian:bookworm-slim", "git version 2.43.0"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q in body", want)
+		}
 	}
 }
