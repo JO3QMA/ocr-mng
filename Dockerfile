@@ -5,8 +5,9 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /out/rm ./cmd/rm
 
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates git curl && rm -rf /var/lib/apt/lists/*
+FROM debian:trixie-slim
+RUN apt-get update && apt-get install -y ca-certificates git curl && rm -rf /var/lib/apt/lists/ \
+    && dpkg --compare-versions "$(git --version | awk '{print $3}')" ge 2.41
 RUN curl -fsSL -o /usr/local/bin/ocr https://github.com/alibaba/open-code-review/releases/latest/download/opencodereview-linux-amd64 \
     && chmod +x /usr/local/bin/ocr
 COPY --from=build /out/rm /usr/local/bin/rm
