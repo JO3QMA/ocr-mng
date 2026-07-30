@@ -335,9 +335,9 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 {{if .SummaryView.Visible}}
 <h2>{{.L.T "run_detail.ocr_summary"}}</h2>
 {{if .SummaryView.BudgetWarning}}<div class="flash error">{{.L.T "run_detail.summary.budget_exceeded"}}</div>{{end}}
-<table><tbody>
+{{if .SummaryView.Rows}}<table><tbody>
 {{range .SummaryView.Rows}}<tr><th scope="row">{{.Label}}</th><td>{{.Value}}</td></tr>{{end}}
-</tbody></table>
+</tbody></table>{{end}}
 {{end}}
 {{if .OCRJSON}}<h2>{{.L.T "run_detail.ocr_output"}}</h2><pre style="overflow:auto;background:#111827;color:#e5e7eb;padding:1rem;border-radius:6px">{{.OCRJSON}}</pre>{{end}}
 </div>

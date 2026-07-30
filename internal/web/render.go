@@ -40,15 +40,19 @@ func formatCommaInt64(n int64) string {
 	if len(s) <= 3 {
 		return sign + s
 	}
-	var parts []string
-	for len(s) > 3 {
-		parts = append([]string{s[len(s)-3:]}, parts...)
-		s = s[:len(s)-3]
+	var b strings.Builder
+	b.Grow(len(s) + (len(s)-1)/3 + len(sign))
+	b.WriteString(sign)
+	first := len(s) % 3
+	if first == 0 {
+		first = 3
 	}
-	if s != "" {
-		parts = append([]string{s}, parts...)
+	b.WriteString(s[:first])
+	for i := first; i < len(s); i += 3 {
+		b.WriteByte(',')
+		b.WriteString(s[i : i+3])
 	}
-	return sign + strings.Join(parts, ",")
+	return b.String()
 }
 
 var pageTemplates = template.Must(

@@ -122,6 +122,29 @@ func TestRenderRunDetailSummary(t *testing.T) {
 	}
 }
 
+func TestRenderRunDetailSummaryBudgetOnly(t *testing.T) {
+	budget := true
+	run := store.ReviewRun{ID: 1, PRNumber: 2, Status: "success", RepoOwner: "acme", RepoName: "app"}
+	summary := ocr.Summary{BudgetExceeded: &budget}
+	rec := httptest.NewRecorder()
+	render(rec, "run_detail", struct {
+		page
+		Run         store.ReviewRun
+		SummaryView summaryView
+		OCRJSON     string
+	}{page: testPage(), Run: run, SummaryView: buildSummaryView(testPage().L, summary), OCRJSON: "{}"})
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("status %d body %q", rec.Code, body)
+	}
+	if !strings.Contains(body, "OCR のトークン予算を超過しました。") {
+		t.Fatalf("missing budget warning in %q", body)
+	}
+	if strings.Contains(body, "<table><tbody>\n</tbody></table>") {
+		t.Fatalf("empty summary table rendered: %q", body)
+	}
+}
+
 func TestRenderDashboard(t *testing.T) {
 	rec := httptest.NewRecorder()
 	render(rec, "dashboard", struct {

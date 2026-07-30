@@ -332,8 +332,11 @@ func (s *Server) runDetail(w http.ResponseWriter, r *http.Request) {
 	if run.OCROutputPath != "" {
 		if b, err := os.ReadFile(run.OCROutputPath); err == nil {
 			var result ocr.Result
-			_ = json.Unmarshal(b, &result)
-			summary = result.Summary
+			if err := json.Unmarshal(b, &result); err != nil {
+				slog.WarnContext(r.Context(), "failed to parse OCR output for summary", "run_id", run.ID, "err", err)
+			} else {
+				summary = result.Summary
+			}
 			var pretty bytes.Buffer
 			if json.Indent(&pretty, b, "", "  ") == nil {
 				ocrJSON = pretty.String()
