@@ -139,7 +139,7 @@ func ApprovalBody(lang string) string {
 
 // ZeroFindingApprovalEnabled reports whether this run should post APPROVE on GitHub.
 func ZeroFindingApprovalEnabled(repo store.RepoView, result ocr.Result) bool {
-	return len(result.Comments) == 0 && CleanZeroFinding(result) && repo.ApproveOnZeroFindings && repo.HostKind == "github"
+	return len(result.Comments) == 0 && IsCleanZeroFinding(result) && repo.ApproveOnZeroFindings && repo.HostKind == "github"
 }
 
 // EffectiveReviewLanguage returns repo override or global default.

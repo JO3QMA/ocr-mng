@@ -187,8 +187,8 @@ func writeSummaryHeading(b *strings.Builder, c ocr.Comment, cf CommentFormat, w 
 	fmt.Fprintf(b, "#### %s\n%s\n\n", title, commentBody(c, cf, w, false))
 }
 
-// CleanZeroFinding reports a zero-finding OCR result with no warnings or message.
-func CleanZeroFinding(result ocr.Result) bool {
+// IsCleanZeroFinding reports a zero-finding OCR result with no warnings or message.
+func IsCleanZeroFinding(result ocr.Result) bool {
 	return len(result.Warnings) == 0 && result.Message == ""
 }
 
@@ -204,7 +204,7 @@ func writeWarningsSection(b *strings.Builder, warnings []string, w wrapperMsgs) 
 
 func writeZeroCommentBody(b *strings.Builder, result ocr.Result, w wrapperMsgs) {
 	mark := "✅"
-	if !CleanZeroFinding(result) {
+	if !IsCleanZeroFinding(result) {
 		mark = "⚠"
 	}
 	msg := result.Message
