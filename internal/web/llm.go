@@ -4,18 +4,43 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/jo3qma/ocr-mng/internal/ocr"
 	"github.com/jo3qma/ocr-mng/internal/review"
 	"github.com/jo3qma/ocr-mng/internal/store"
 )
+
+const llmConnectionTestTimeout = 30 * time.Second
 
 type llmPairOption struct {
 	ProviderID int64
 	ModelID    int64
 	Value      string
 	Label      string
+}
+
+type llmProviderFormView struct {
+	page
+	Provider        store.LLMProvider
+	Models          []store.LLMProviderModel
+	EnabledModels   []store.LLMProviderModel
+	UseTempModel    bool
+	SelectedModelID int64
+	TempModelName   string
+	FormTitle       string
+	FormTitleKey    string
+	KeyHintKey      string
+	Action          string
+	TestAction      string
+	ErrMsg          string
+	TestOK          bool
+	TestMsg         string
+	KeyHint         string
+	ShowClearKey    bool
 }
 
 func (s *Server) llmPairOptions(ctx context.Context) ([]llmPairOption, error) {
@@ -129,19 +154,31 @@ func (s *Server) llmProvidersList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) llmProviderNew(w http.ResponseWriter, r *http.Request) {
-	s.renderLLMProviderForm(w, r, store.LLMProvider{Kind: "builtin", Enabled: true}, nil, "", "/llm-providers", "page.new_llm_provider", "form.pat_optional", false)
+	s.renderLLMProviderForm(w, r, llmProviderFormView{
+		Provider: store.LLMProvider{Kind: "builtin", Enabled: true},
+		Action:   "/llm-providers", TestAction: "/llm-providers/test",
+		FormTitleKey: "page.new_llm_provider", KeyHintKey: "form.pat_optional",
+		UseTempModel: true,
+	})
 }
 
 func (s *Server) llmProviderCreate(w http.ResponseWriter, r *http.Request) {
 	p, apiKey, err := parseLLMProviderForm(r)
 	p.Enabled = true // create form has no enabled toggle
+	view := llmProviderFormView{
+		Provider: p, Action: "/llm-providers", TestAction: "/llm-providers/test",
+		FormTitleKey: "page.new_llm_provider", KeyHintKey: "form.pat_optional",
+		UseTempModel: true, TempModelName: strings.TrimSpace(r.FormValue("temp_model_name")),
+	}
 	if err != nil {
-		s.renderLLMProviderForm(w, r, p, nil, err.Error(), "/llm-providers", "page.new_llm_provider", "form.pat_optional", false)
+		view.ErrMsg = err.Error()
+		s.renderLLMProviderForm(w, r, view)
 		return
 	}
 	id, err := s.store.CreateLLMProvider(r.Context(), p, apiKey)
 	if err != nil {
-		s.renderLLMProviderForm(w, r, p, nil, err.Error(), "/llm-providers", "page.new_llm_provider", "form.pat_optional", false)
+		view.ErrMsg = err.Error()
+		s.renderLLMProviderForm(w, r, view)
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=created", id), http.StatusSeeOther)
@@ -167,7 +204,17 @@ func (s *Server) llmProviderEdit(w http.ResponseWriter, r *http.Request) {
 	if p.HasAPIKey {
 		keyHint = "form.pat_keep"
 	}
-	s.renderLLMProviderForm(w, r, p, models, "", fmt.Sprintf("/llm-providers/%d", id), "page.edit_llm_provider", keyHint, p.HasAPIKey)
+	enabled := enabledLLMModels(models)
+	view := llmProviderFormView{
+		Provider: p, Models: models, EnabledModels: enabled,
+		Action: fmt.Sprintf("/llm-providers/%d", id), TestAction: fmt.Sprintf("/llm-providers/%d/test", id),
+		FormTitleKey: "page.edit_llm_provider", KeyHintKey: keyHint, ShowClearKey: p.HasAPIKey,
+		UseTempModel: len(enabled) == 0,
+	}
+	if len(enabled) == 1 {
+		view.SelectedModelID = enabled[0].ID
+	}
+	s.renderLLMProviderForm(w, r, view)
 }
 
 func (s *Server) llmProviderUpdate(w http.ResponseWriter, r *http.Request) {
@@ -177,18 +224,158 @@ func (s *Server) llmProviderUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, apiKey, err := parseLLMProviderForm(r)
+	models, _ := s.store.ListLLMProviderModels(r.Context(), id)
+	enabled := enabledLLMModels(models)
+	failView := llmProviderFormView{
+		Provider: p, Models: models, EnabledModels: enabled,
+		Action: fmt.Sprintf("/llm-providers/%d", id), TestAction: fmt.Sprintf("/llm-providers/%d/test", id),
+		FormTitleKey: "page.edit_llm_provider", UseTempModel: len(enabled) == 0,
+		TempModelName:   strings.TrimSpace(r.FormValue("temp_model_name")),
+		SelectedModelID: formModelID(r),
+	}
+	if len(enabled) == 1 && failView.SelectedModelID == 0 {
+		failView.SelectedModelID = enabled[0].ID
+	}
 	if err != nil {
-		models, _ := s.store.ListLLMProviderModels(r.Context(), id)
-		s.renderLLMProviderForm(w, r, p, models, err.Error(), fmt.Sprintf("/llm-providers/%d", id), "page.edit_llm_provider", "", false)
+		failView.ErrMsg = err.Error()
+		s.renderLLMProviderForm(w, r, failView)
 		return
 	}
 	p.ID = id
 	if err := s.store.UpdateLLMProvider(r.Context(), p, apiKey, r.FormValue("clear_api_key") == "on"); err != nil {
-		models, _ := s.store.ListLLMProviderModels(r.Context(), id)
-		s.renderLLMProviderForm(w, r, p, models, err.Error(), fmt.Sprintf("/llm-providers/%d", id), "page.edit_llm_provider", "", false)
+		failView.ErrMsg = err.Error()
+		s.renderLLMProviderForm(w, r, failView)
 		return
 	}
 	http.Redirect(w, r, "/llm-providers?flash=updated", http.StatusSeeOther)
+}
+
+func (s *Server) llmProviderTest(w http.ResponseWriter, r *http.Request) {
+	p, formKey, err := parseLLMProviderForm(r)
+	providerID, hasID := pathID(r, "id")
+	var models []store.LLMProviderModel
+	var hasStoredKey bool
+	if hasID {
+		p.ID = providerID
+		stored, getErr := s.store.GetLLMProvider(r.Context(), providerID)
+		if getErr != nil {
+			http.NotFound(w, r)
+			return
+		}
+		hasStoredKey = stored.HasAPIKey
+		models, _ = s.store.ListLLMProviderModels(r.Context(), providerID)
+		p.HasAPIKey = hasStoredKey
+	}
+	enabled := enabledLLMModels(models)
+	useTemp := !hasID || len(enabled) == 0
+	loc := s.page(r, "page.new_llm_provider").L
+	view := llmProviderFormView{
+		Provider: p, Models: models, EnabledModels: enabled,
+		UseTempModel: useTemp, TempModelName: strings.TrimSpace(r.FormValue("temp_model_name")),
+		SelectedModelID: formModelID(r),
+		FormTitleKey:    "page.new_llm_provider", KeyHintKey: "form.pat_optional",
+		Action: "/llm-providers", TestAction: "/llm-providers/test",
+	}
+	if hasID {
+		view.FormTitleKey = "page.edit_llm_provider"
+		view.Action = fmt.Sprintf("/llm-providers/%d", providerID)
+		view.TestAction = fmt.Sprintf("/llm-providers/%d/test", providerID)
+		view.ShowClearKey = hasStoredKey
+		if hasStoredKey {
+			view.KeyHintKey = "form.pat_keep"
+		} else {
+			view.KeyHintKey = "form.pat_required"
+		}
+		if len(enabled) == 1 && view.SelectedModelID == 0 {
+			view.SelectedModelID = enabled[0].ID
+		}
+		loc = s.page(r, view.FormTitleKey).L
+	}
+	if err != nil {
+		view.TestMsg = err.Error()
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+
+	apiKey := formKey
+	if apiKey == "" && hasID {
+		apiKey, err = s.store.LLMProviderAPIKey(r.Context(), providerID)
+		if err != nil {
+			view.TestMsg = err.Error()
+			s.renderLLMProviderForm(w, r, view)
+			return
+		}
+	}
+	if apiKey == "" {
+		view.TestMsg = loc.T("llm.test_no_key")
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+
+	modelName, modelErr := s.resolveConnectionTestModel(r.Context(), providerID, hasID, useTemp, view)
+	if modelErr != nil {
+		key := modelErr.Error()
+		if key == "llm.test_no_model" || key == "llm.test_model_invalid" {
+			view.TestMsg = loc.T(key)
+		} else {
+			view.TestMsg = key
+		}
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+
+	configJSON, err := ocr.BuildProviderConfig(p.Kind, p.ProviderKey, apiKey, p.APIBaseURL, p.Protocol, modelName, "")
+	if err != nil {
+		view.TestMsg = err.Error()
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+
+	homeDir, err := os.MkdirTemp("", "ocr-mng-llm-test-*")
+	if err != nil {
+		view.TestMsg = err.Error()
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+	defer func() { _ = os.RemoveAll(homeDir) }()
+
+	ctx, cancel := context.WithTimeout(r.Context(), llmConnectionTestTimeout)
+	defer cancel()
+	runner := ocr.Runner{Binary: s.ocrBinary, HomeDir: homeDir, ConfigJSON: configJSON}
+	if err := runner.TestLLM(ctx); err != nil {
+		msg := ocr.MaskSecret(err.Error(), apiKey)
+		if ctx.Err() != nil {
+			msg = loc.T("llm.test_timeout")
+		}
+		view.TestMsg = msg
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+	view.TestOK = true
+	view.TestMsg = fmt.Sprintf(loc.T("llm.test_ok"), modelName)
+	s.renderLLMProviderForm(w, r, view)
+}
+
+func (s *Server) resolveConnectionTestModel(ctx context.Context, providerID int64, hasID, useTemp bool, view llmProviderFormView) (string, error) {
+	if useTemp {
+		name := strings.TrimSpace(view.TempModelName)
+		if name == "" {
+			return "", fmt.Errorf("llm.test_no_model")
+		}
+		return name, nil
+	}
+	mid := view.SelectedModelID
+	if mid == 0 && len(view.EnabledModels) == 1 {
+		mid = view.EnabledModels[0].ID
+	}
+	if mid == 0 {
+		return "", fmt.Errorf("llm.test_no_model")
+	}
+	m, err := s.store.GetLLMProviderModel(ctx, mid)
+	if err != nil || !hasID || m.ProviderID != providerID || !m.Enabled {
+		return "", fmt.Errorf("llm.test_model_invalid")
+	}
+	return m.ModelName, nil
 }
 
 func (s *Server) llmProviderDelete(w http.ResponseWriter, r *http.Request) {
@@ -309,21 +496,35 @@ func (s *Server) llmModelsBulkDelete(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=deleted", pid), http.StatusSeeOther)
 }
 
-func (s *Server) renderLLMProviderForm(w http.ResponseWriter, r *http.Request, p store.LLMProvider, models []store.LLMProviderModel, errMsg, action, titleKey, keyHintKey string, showClear bool) {
-	pge := s.page(r, titleKey)
-	render(w, "llm_provider_form", struct {
-		page
-		Provider     store.LLMProvider
-		Models       []store.LLMProviderModel
-		FormTitle    string
-		Action       string
-		ErrMsg       string
-		KeyHint      string
-		ShowClearKey bool
-	}{
-		page: pge, Provider: p, Models: models, FormTitle: pge.Title, Action: action,
-		ErrMsg: errMsg, KeyHint: pge.L.T(keyHintKey), ShowClearKey: showClear,
-	})
+func (s *Server) renderLLMProviderForm(w http.ResponseWriter, r *http.Request, v llmProviderFormView) {
+	pge := s.page(r, v.FormTitleKey)
+	v.page = pge
+	v.FormTitle = pge.Title
+	if v.KeyHintKey != "" {
+		v.KeyHint = pge.L.T(v.KeyHintKey)
+	}
+	if v.EnabledModels == nil {
+		v.EnabledModels = enabledLLMModels(v.Models)
+	}
+	render(w, "llm_provider_form", v)
+}
+
+func enabledLLMModels(models []store.LLMProviderModel) []store.LLMProviderModel {
+	var out []store.LLMProviderModel
+	for _, m := range models {
+		if m.Enabled {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func formModelID(r *http.Request) int64 {
+	id, err := strconv.ParseInt(strings.TrimSpace(r.FormValue("test_model_id")), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return id
 }
 
 func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
