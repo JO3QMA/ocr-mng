@@ -41,6 +41,18 @@ func TestForInlineCleanZeroFinding(t *testing.T) {
 	}
 }
 
+func TestForInlineCleanZeroFindingOCRLGTMMessage(t *testing.T) {
+	// OCR always sets this message when comments are empty (not a degradation).
+	msg := "No comments generated. Looks good to me."
+	_, summary := review.ForInline(ocr.Result{Message: msg}, englishFmt())
+	if !strings.Contains(summary, "✅ "+msg) {
+		t.Fatalf("summary: %q", summary)
+	}
+	if !review.IsCleanZeroFinding(ocr.Result{Message: msg}) {
+		t.Fatal("OCR LGTM message should be clean")
+	}
+}
+
 func TestForInlineDegradedZeroFindingMessage(t *testing.T) {
 	msg := "Some files could not be reviewed due to errors."
 	_, summary := review.ForInline(ocr.Result{Message: msg}, englishFmt())

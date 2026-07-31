@@ -27,6 +27,9 @@ func TestZeroFindingApprovalEnabled(t *testing.T) {
 	if !review.ZeroFindingApprovalEnabled(repo, ocr.Result{}) {
 		t.Fatal("expected enabled for clean zero findings on github")
 	}
+	if !review.ZeroFindingApprovalEnabled(repo, ocr.Result{Message: "No comments generated. Looks good to me."}) {
+		t.Fatal("expected enabled for OCR clean LGTM message")
+	}
 	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Message: "errors"}) {
 		t.Fatal("expected disabled for degraded zero findings")
 	}

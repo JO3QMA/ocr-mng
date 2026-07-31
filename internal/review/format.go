@@ -187,9 +187,18 @@ func writeSummaryHeading(b *strings.Builder, c ocr.Comment, cf CommentFormat, w 
 	fmt.Fprintf(b, "#### %s\n%s\n\n", title, commentBody(c, cf, w, false))
 }
 
-// IsCleanZeroFinding reports a zero-finding OCR result with no warnings or message.
+// ocrCleanLGTMMessage is OCR's fixed success text when comments are empty
+// (alibaba/open-code-review outputJSON / outputJSONWithWarnings).
+const ocrCleanLGTMMessage = "No comments generated. Looks good to me."
+
+// IsCleanZeroFinding reports a zero-finding OCR result that is not degraded.
+// OCR always fills message on empty comments; the clean LGTM sentence is not a degradation.
 func IsCleanZeroFinding(result ocr.Result) bool {
-	return len(result.Warnings) == 0 && result.Message == ""
+	if len(result.Warnings) > 0 {
+		return false
+	}
+	msg := strings.TrimSpace(result.Message)
+	return msg == "" || msg == ocrCleanLGTMMessage
 }
 
 func writeWarningsSection(b *strings.Builder, warnings []string, w wrapperMsgs) {

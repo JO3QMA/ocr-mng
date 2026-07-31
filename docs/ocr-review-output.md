@@ -13,7 +13,7 @@ Open Code Review CLI が `--format json` で返すレビュー結果の形式。
 | `tool_calls` | object | OCR が使用したツール呼び出し数 |
 | `comments` | array | 指摘コメントの配列（下記） |
 | `warnings` | array | 警告メッセージ（任意） |
-| `message` | string | コメント 0 件時のメッセージ（任意） |
+| `message` | string | コメント 0 件時のメッセージ（任意）。OCR は指摘 0 件時にクリーン LGTM 定型文 `No comments generated. Looks good to me.` を入れる（劣化ではない）。劣化例: `Some files could not be reviewed due to errors.` / `No supported files changed.` |
 
 ## コメント要素
 
