@@ -123,7 +123,7 @@ var ja = map[string]string{
 	"form.ocr_rule":           "OCR ルール上書き",
 	"form.ocr_requirement":              "OCR Requirement",
 	"form.ocr_requirement_placeholder":  "例: テスト追加漏れとエラーハンドリングを重点的に見ること",
-	"form.ocr_background_file":            "Review Background File",
+	"form.ocr_background_file":            "レビュー背景ファイル",
 	"form.ocr_background_file_placeholder": "例: docs/REVIEW_CONTEXT.md",
 	"form.ocr_background_file_hint":       "リポジトリルート相対。Worktree に通常ファイルがあれば --background-file に渡します（OCR Requirement と併存）。",
 	"form.repo_pat":           "Repo PAT（任意の上書き）",

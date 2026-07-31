@@ -72,4 +72,17 @@ func TestResolveReviewBackgroundFile(t *testing.T) {
 	if _, ok := review.ResolveReviewBackgroundFile(root, "link.md"); ok {
 		t.Fatal("symlink should skip")
 	}
+
+	// Intermediate directory symlink escaping the worktree must be rejected.
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.md"), []byte("nope"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	escapeDir := filepath.Join(root, "escape")
+	if err := os.Symlink(outside, escapeDir); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := review.ResolveReviewBackgroundFile(root, "escape/secret.md"); ok {
+		t.Fatal("path via intermediate symlink outside worktree should skip")
+	}
 }

@@ -113,7 +113,7 @@ Review Run 実行時に Open Code Review CLI の `--background` に渡す結合�
 _Avoid_: プロンプト, prompt（OCR テンプレート用語との混同）
 
 **Review Background File**:
-Registered Repo の Repo OCR Overrides に属する、リポジトリルート相対の背景コンテキストファイルのパス。Global Settings には持たない（空＝未設定）。絶対パス、リポジトリ外へ出る相対パス、改行を含む値は設定として受け付けない。受け付ける値は正規化した相対パスとして保持する。シンボリックリンクは通常ファイルとみなさず使わない。Review Worktree 上に通常ファイル（非 symlink）として存在するとき、Open Code Review の `--background-file` に渡す。OCR Requirement や Review Background を置き換えず、併存して渡す。パスは設定されているが欠落している、または通常ファイルでない（ディレクトリ・シンボリックリンク等）ときは `--background-file` を付けず Review Background のみで続行し、Review Manager プロセスログに警告を出す（Review Run の UI・PR コメント・ErrorMessage には載せない。それだけでは `failed` にしない）。通常ファイルを渡したあと OCR が内容を拒否した場合（空・サイズ上限・予約タグ等）は OCR 実行失敗として扱い、Review Run は `failed` になり得る。サーバー上の絶対パス指定や、ファイル内容の WebUI 編集は対象外。Open Code Review が `--background-file` 未対応の環境では、フラグ付与後の OCR 失敗として表面化し得る（実行前のバージョンゲートはしない）。
+Registered Repo の Repo OCR Overrides に属する、リポジトリルート相対の背景コンテキストファイルのパス。Global Settings には持たない（空＝未設定）。絶対パス、リポジトリ外へ出る相対パス、改行を含む値は設定として受け付けない。受け付ける値は正規化した相対パスとして保持する。シンボリックリンクは通常ファイルとみなさず使わない（最終成分および経路上の中間リンク経由でリポジトリ外へ出る場合を含む）。Review Worktree 上に通常ファイル（非 symlink）として存在し、解決後の実パスも Worktree 配下に収まるとき、Open Code Review の `--background-file` に渡す。OCR Requirement や Review Background を置き換えず、併存して渡す。パスは設定されているが欠落している、または通常ファイルでない（ディレクトリ・シンボリックリンク等）ときは `--background-file` を付けず Review Background のみで続行し、Review Manager プロセスログに警告を出す（Review Run の UI・PR コメント・ErrorMessage には載せない。それだけでは `failed` にしない）。通常ファイルを渡したあと OCR が内容を拒否した場合（空・サイズ上限・予約タグ等）は OCR 実行失敗として扱い、Review Run は `failed` になり得る。サーバー上の絶対パス指定や、ファイル内容の WebUI 編集は対象外。Open Code Review が `--background-file` 未対応の環境では、フラグ付与後の OCR 失敗として表面化し得る（実行前のバージョンゲートはしない）。
 _Avoid_: background file（単独・曖昧）, 背景ファイルパス（曖昧）, REQUIREMENT.md（特定ファイル名に固定しない）
 
 **OCR Requirement**:
