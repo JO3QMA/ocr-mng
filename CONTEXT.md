@@ -77,7 +77,7 @@ Review Trigger 判定と重複防止のため Pull Request ごとに保持する
 _Avoid_: PR 状態, キャッシュ（曖昧）
 
 **Review Concurrency**:
-同時実行できる Review Run の上限。Registered Repo ごとには 1 件までとし、システム全体では UI 設定可能な最大並行数を超えない。`pending` の消化は受付日時昇順の FIFO とし、対象 Registered Repo に既に `running` がある場合はその Run を飛ばして次を選ぶ。
+同時実行できる Review Run の上限。Registered Repo ごとには 1 件までとし、システム全体では UI 設定可能な最大並行数を超えない。`pending` の消化は受付日時昇順の FIFO とし、対象 Registered Repo に既に `running` がある場合はその Run を飛ばして次を選ぶ。LLM Connection Test は Review Run ではないため、この上限の対象外とする。
 _Avoid_: ワーカー数, 並列度（曖昧）
 
 **Registered LLM Provider**:
@@ -93,7 +93,7 @@ Open Code Review が LLM エンドポイントと話す API 方言。取りう�
 _Avoid_: Protocol（単独・曖昧）, API 種別, wire format
 
 **LLM Connection Test**:
-Administrator が Registered LLM Provider の登録／編集画面から任意で行う疎通確認。保存の成否とは独立（失敗しても台帳更新は止めない）。画面上の未保存の接続値を使い（API キー欄が空なら保存済みキー）、Registered LLM Model または一時のモデル名で最小の LLM リクエストが通ることを確かめる。本番の Review Run とは別経路だが、同じ LLM Protocol／接続属性の解決を共有する。
+Administrator が Registered LLM Provider の登録／編集フォーム（接続フィールドと同じフォーム）から任意で行う疎通確認。保存の成否とは独立（失敗しても台帳更新は止めない）。Provider の有効／無効も見ない（無効のままでもテスト可）。Review Concurrency の枠は消費しない（Review Run ではない）。同フォーム上の未保存の接続値を使い、API キーは欄に値があればそれ、空なら保存済みキー、新規で空ならエラーとする（Confirmation Checkbox のキー削除は保存専用であり、テストでは無視する）。モデルは次のいずれかで決める: 編集かつ有効な Registered LLM Model が 1 件以上あるときはその中から選ぶ（1 件なら自動選択。一時モデル名欄は出さない）。新規、または有効モデルが 0 件の編集では一時モデル名（台帳に書かない）を入力する。候補は描画時点の有効な台帳行とし、モデル台帳の未保存編集は使わない。実行時にも選んだモデルが当該 Provider 配下かつ有効であることを再確認し、欠落・別 Provider・無効なら OCR を呼ばず短い失敗メッセージにする。結果は同フォーム上の単一の成否表示のみとし、履歴や台帳には残さない（入力不足・OCR 起動不可・タイムアウト・接続失敗も同じ表示枠で、文言だけ変える）。成功時は短い固定文言と使ったモデル名程度に留め、モデルの生返答は出さない。失敗時は理由が分かる短いメッセージを出し、API キーそのものは結果に含めない（混入し得る出力はマスクする）。本番の Review Run とは別経路だが、同じ LLM Protocol／接続属性の解決を共有する。
 _Avoid_: ヘルスチェック, ping, 疎通テスト（UI 文言以外の正式名にしない）
 
 **Registered LLM Model**:
@@ -209,7 +209,7 @@ Review Manager WebUI で設定の確定や新規リソース作成へ進むボ�
 _Avoid_: メインボタン, 送信ボタン（曖昧）
 
 **Accent Action Button**:
-Review Manager WebUI で副作用を伴う即時実行に使うボタン。手動 Review Run が該当する。Primary Action Button（保存・追加）とは色を分け、緑（`#16a34a` 前後）を使う。
+Review Manager WebUI で副作用を伴う即時実行に使うボタン。手動 Review Run と LLM Connection Test が該当する。Primary Action Button（保存・追加）とは色を分け、緑（`#16a34a` 前後）を使う。
 _Avoid_: 実行ボタン, アクションボタン（曖昧）
 
 **Secondary Action Button**:
