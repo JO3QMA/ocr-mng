@@ -226,7 +226,14 @@ func (s *Server) llmProviderUpdate(w http.ResponseWriter, r *http.Request) {
 	p, apiKey, err := parseLLMProviderForm(r)
 	models, listErr := s.store.ListLLMProviderModels(r.Context(), id)
 	if listErr != nil {
-		http.Error(w, listErr.Error(), 500)
+		s.renderLLMProviderForm(w, r, llmProviderFormView{
+			Provider: p, Action: fmt.Sprintf("/llm-providers/%d", id),
+			TestAction:   fmt.Sprintf("/llm-providers/%d/test", id),
+			FormTitleKey: "page.edit_llm_provider", UseTempModel: true,
+			TempModelName:   strings.TrimSpace(r.FormValue("temp_model_name")),
+			SelectedModelID: formModelID(r),
+			ErrMsg:          listErr.Error(),
+		})
 		return
 	}
 	enabled := enabledLLMModels(models)
@@ -270,7 +277,23 @@ func (s *Server) llmProviderTest(w http.ResponseWriter, r *http.Request) {
 		var listErr error
 		models, listErr = s.store.ListLLMProviderModels(r.Context(), providerID)
 		if listErr != nil {
-			http.Error(w, listErr.Error(), 500)
+			p.HasAPIKey = hasStoredKey
+			view := llmProviderFormView{
+				Provider: p, UseTempModel: true,
+				TempModelName:   strings.TrimSpace(r.FormValue("temp_model_name")),
+				SelectedModelID: formModelID(r),
+				FormTitleKey:    "page.edit_llm_provider",
+				Action:          fmt.Sprintf("/llm-providers/%d", providerID),
+				TestAction:      fmt.Sprintf("/llm-providers/%d/test", providerID),
+				ShowClearKey:    hasStoredKey,
+				TestMsg:         listErr.Error(),
+			}
+			if hasStoredKey {
+				view.KeyHintKey = "form.pat_keep"
+			} else {
+				view.KeyHintKey = "form.pat_required"
+			}
+			s.renderLLMProviderForm(w, r, view)
 			return
 		}
 		p.HasAPIKey = hasStoredKey
