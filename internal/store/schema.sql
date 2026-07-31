@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS repos (
     ocr_model TEXT,
     ocr_rule TEXT,
     ocr_requirement TEXT,
+    ocr_background_file TEXT,
     review_language TEXT,
     llm_provider_id INTEGER REFERENCES llm_providers(id),
     llm_model_id INTEGER REFERENCES llm_provider_models(id),

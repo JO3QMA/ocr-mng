@@ -367,3 +367,44 @@ func TestUpdatePATSetClearKeep(t *testing.T) {
 		t.Fatalf("clear repo pat falls back to host: got=%q err=%v", got, err)
 	}
 }
+
+func TestCreateRepoPersistsBackgroundFile(t *testing.T) {
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+	hostID, err := st.CreateGitHost(ctx, store.GitHost{
+		Name: "gh", Kind: "github", APIBaseURL: "https://api.github.com", WebBaseURL: "https://github.com",
+	}, "pat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repoID, err := st.CreateRepo(ctx, store.Repo{
+		GitHostID: hostID, Owner: "acme", Name: "app",
+		DefaultBranch: "main", TriggerLabel: "review", CommentMode: "inline", Enabled: true,
+		OCRBackgroundFile: "docs/REVIEW_CONTEXT.md",
+	}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rv, err := st.GetRepo(ctx, repoID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rv.OCRBackgroundFile != "docs/REVIEW_CONTEXT.md" {
+		t.Fatalf("got %q", rv.OCRBackgroundFile)
+	}
+	rv.OCRBackgroundFile = ""
+	if err := st.UpdateRepo(ctx, rv.Repo, "", false); err != nil {
+		t.Fatal(err)
+	}
+	rv, err = st.GetRepo(ctx, repoID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rv.OCRBackgroundFile != "" {
+		t.Fatalf("cleared: got %q", rv.OCRBackgroundFile)
+	}
+}
