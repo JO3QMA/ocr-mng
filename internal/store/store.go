@@ -47,6 +47,7 @@ type Repo struct {
 	OCRModel               string
 	OCRRule                string
 	OCRRequirement         string
+	OCRBackgroundFile      string // repo-root-relative; empty = unset
 	ReviewLanguage         string
 	LLMProviderID          int64 // 0 = follow Global
 	LLMModelID             int64 // 0 = follow Global; must pair with LLMProviderID
@@ -194,6 +195,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		`ALTER TABLE repos ADD COLUMN approve_on_zero_findings INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE repos ADD COLUMN llm_provider_id INTEGER REFERENCES llm_providers(id)`,
 		`ALTER TABLE repos ADD COLUMN llm_model_id INTEGER REFERENCES llm_provider_models(id)`,
+		`ALTER TABLE repos ADD COLUMN ocr_background_file TEXT`,
 		`ALTER TABLE review_runs ADD COLUMN llm_provider_name TEXT`,
 		`ALTER TABLE review_runs ADD COLUMN llm_model_name TEXT`,
 		`ALTER TABLE review_runs DROP COLUMN summary_total_count`,
@@ -377,12 +379,12 @@ func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, erro
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO repos(git_host_id, owner, name, default_branch, trigger_label, poll_interval_seconds,
 			repo_pat_encrypted, comment_mode, remove_label_after_review, approve_on_zero_findings,
-			ocr_model, ocr_rule, ocr_requirement, review_language, llm_provider_id, llm_model_id,
+			ocr_model, ocr_rule, ocr_requirement, ocr_background_file, review_language, llm_provider_id, llm_model_id,
 			enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
 		nullStr(enc), r.CommentMode, b2i(r.RemoveLabelAfterReview), b2i(r.ApproveOnZeroFindings),
-		nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
+		nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement), nullStr(r.OCRBackgroundFile),
 		nullStr(r.ReviewLanguage), nullInt64(r.LLMProviderID), nullInt64(r.LLMModelID),
 		b2i(r.Enabled), now, now)
 	if err != nil {
@@ -413,13 +415,14 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 			poll_interval_seconds=?,
 			repo_pat_encrypted=CASE WHEN ?=1 THEN ? WHEN ?=1 THEN NULL ELSE repo_pat_encrypted END,
 			comment_mode=?, remove_label_after_review=?, approve_on_zero_findings=?,
-			ocr_model=?, ocr_rule=?, ocr_requirement=?, review_language=?,
+			ocr_model=?, ocr_rule=?, ocr_requirement=?, ocr_background_file=?, review_language=?,
 			llm_provider_id=?, llm_model_id=?, enabled=?, updated_at=?
 		WHERE id=?`,
 		r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
 		setPAT, enc, clear,
 		r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
-		nullStr(r.ReviewLanguage), nullInt64(r.LLMProviderID), nullInt64(r.LLMModelID), enabled, now, r.ID)
+		nullStr(r.OCRBackgroundFile), nullStr(r.ReviewLanguage), nullInt64(r.LLMProviderID), nullInt64(r.LLMModelID),
+		enabled, now, r.ID)
 	return err
 }
 
@@ -430,11 +433,11 @@ func scanRepo(scanner interface {
 	var poll, llmProvider, llmModel sql.NullInt64
 	var lastPolled sql.NullString
 	var remove, approve, enabled int
-	var ocrModel, ocrRule, ocrReq, reviewLang sql.NullString
+	var ocrModel, ocrRule, ocrReq, ocrBgFile, reviewLang sql.NullString
 	var created, updated string
 	err := scanner.Scan(
 		&rv.ID, &rv.GitHostID, &rv.Owner, &rv.Name, &rv.DefaultBranch, &rv.TriggerLabel, &poll,
-		&rv.CommentMode, &remove, &approve, &ocrModel, &ocrRule, &ocrReq, &reviewLang,
+		&rv.CommentMode, &remove, &approve, &ocrModel, &ocrRule, &ocrReq, &ocrBgFile, &reviewLang,
 		&llmProvider, &llmModel, &enabled, &lastPolled, &created, &updated,
 		&rv.HostName, &rv.HostKind,
 	)
@@ -457,6 +460,9 @@ func scanRepo(scanner interface {
 	if ocrReq.Valid {
 		rv.OCRRequirement = ocrReq.String
 	}
+	if ocrBgFile.Valid {
+		rv.OCRBackgroundFile = ocrBgFile.String
+	}
 	if reviewLang.Valid {
 		rv.ReviewLanguage = reviewLang.String
 	}
@@ -478,7 +484,7 @@ func scanRepo(scanner interface {
 func (s *Store) ListRepos(ctx context.Context) ([]RepoView, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT r.id, r.git_host_id, r.owner, r.name, r.default_branch, r.trigger_label, r.poll_interval_seconds,
-			r.comment_mode, r.remove_label_after_review, r.approve_on_zero_findings, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.review_language,
+			r.comment_mode, r.remove_label_after_review, r.approve_on_zero_findings, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.ocr_background_file, r.review_language,
 			r.llm_provider_id, r.llm_model_id,
 			r.enabled, r.last_polled_at, r.created_at, r.updated_at, h.name, h.kind
 		FROM repos r JOIN git_hosts h ON h.id = r.git_host_id
@@ -501,7 +507,7 @@ func (s *Store) ListRepos(ctx context.Context) ([]RepoView, error) {
 func (s *Store) GetRepo(ctx context.Context, id int64) (RepoView, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT r.id, r.git_host_id, r.owner, r.name, r.default_branch, r.trigger_label, r.poll_interval_seconds,
-			r.comment_mode, r.remove_label_after_review, r.approve_on_zero_findings, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.review_language,
+			r.comment_mode, r.remove_label_after_review, r.approve_on_zero_findings, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.ocr_background_file, r.review_language,
 			r.llm_provider_id, r.llm_model_id,
 			r.enabled, r.last_polled_at, r.created_at, r.updated_at, h.name, h.kind
 		FROM repos r JOIN git_hosts h ON h.id = r.git_host_id

@@ -105,15 +105,23 @@ Review Manager が保持する Open Code Review CLI 向けのグローバル LLM
 _Avoid_: グローバル設定（曖昧）, Global OCR Config JSON（移行後の正式名にしない）
 
 **Repo OCR Overrides**:
-Registered Repo ごとに Global OCR Settings を上書きするレビュー実行パラメータ。Registered LLM Provider、Registered LLM Model、カスタムルール、追加コンテキスト（requirement）、Review Language を含む。Provider / Model の上書きは組単位（両方空＝Global に従う、両方指定＝その組。片方だけは不可）。組のクリア（両方空へ戻す）は可。旧モデル名文字列（`ocr_model`）は移行期間の互換用とする。
+Registered Repo ごとに Global OCR Settings を上書きするレビュー実行パラメータ。Registered LLM Provider、Registered LLM Model、カスタムルール、OCR Requirement、Review Background File、Review Language を含む。Provider / Model の上書きは組単位（両方空＝Global に従う、両方指定＝その組。片方だけは不可）。組のクリア（両方空へ戻す）は可。旧モデル名文字列（`ocr_model`）は移行期間の互換用とする。
 _Avoid_: Repo 設定（曖昧）
 
 **Review Background**:
-Review Run 実行時に Open Code Review CLI の `--background` に渡す結合済みテキスト。先頭に PR Description Context、続けて Registered Repo の OCR Requirement（空でなければ）を結合する。言語別のデフォルト requirement は注入しない。セクション見出しと Title/Body ラベルは Review Language に合わせる。
+Review Run 実行時に Open Code Review CLI の `--background` に渡す結合済みテキスト。先頭に PR Description Context、続けて Registered Repo の OCR Requirement（空でなければ）を結合する。言語別のデフォルト requirement は注入しない。セクション見出しと Title/Body ラベルは Review Language に合わせる。Review Background File とは独立で、両方あるときは OCR 側でインライン（Review Background）が先・ファイル内容が後に結合される。
 _Avoid_: プロンプト, prompt（OCR テンプレート用語との混同）
 
+**Review Background File**:
+Registered Repo の Repo OCR Overrides に属する、リポジトリルート相対の背景コンテキストファイルのパス。Global Settings には持たない（空＝未設定）。絶対パス、リポジトリ外へ出る相対パス、改行を含む値は設定として受け付けない。受け付ける値は正規化した相対パスとして保持する。シンボリックリンクは通常ファイルとみなさず使わない。Review Worktree 上に通常ファイル（非 symlink）として存在するとき、Open Code Review の `--background-file` に渡す。OCR Requirement や Review Background を置き換えず、併存して渡す。パスは設定されているが欠落している、または通常ファイルでない（ディレクトリ・シンボリックリンク等）ときは `--background-file` を付けず Review Background のみで続行し、Review Manager プロセスログに警告を出す（Review Run の UI・PR コメント・ErrorMessage には載せない。それだけでは `failed` にしない）。通常ファイルを渡したあと OCR が内容を拒否した場合（空・サイズ上限・予約タグ等）は OCR 実行失敗として扱い、Review Run は `failed` になり得る。サーバー上の絶対パス指定や、ファイル内容の WebUI 編集は対象外。Open Code Review が `--background-file` 未対応の環境では、フラグ付与後の OCR 失敗として表面化し得る（実行前のバージョンゲートはしない）。
+_Avoid_: background file（単独・曖昧）, 背景ファイルパス（曖昧）, REQUIREMENT.md（特定ファイル名に固定しない）
+
+**OCR Requirement**:
+Registered Repo の Repo OCR Overrides に属する、Administrator が書く追加コンテキスト文字列。空でなければ Review Background に結合される。Review Background File（リポジトリ内ファイル）とは別物で、排他ではない。
+_Avoid_: requirement（単独・曖昧）, 背景テキスト（Review Background 全体との混同）
+
 **PR Description Context**:
-Review Background に含める Pull Request のタイトルと本文。コード diff とは別に LLM へ渡し、変更の意図をレビューに反映させる。本文が空の場合はタイトルのみ渡す。Registered Repo ごとの ON/OFF は設けず、Review Run では常に含める。本文は先頭から 8,000 ルーンで切り詰め、超過分は省略マーカーで示す。タイトルも本文も取得できない場合は PR Description Context ごと省略し、requirement のみでレビューを続行する。
+Review Background に含める Pull Request のタイトルと本文。コード diff とは別に LLM へ渡し、変更の意図をレビューに反映させる。本文が空の場合はタイトルのみ渡す。Registered Repo ごとの ON/OFF は設けず、Review Run では常に含める。本文は先頭から 8,000 ルーンで切り詰め、超過分は省略マーカーで示す。タイトルも本文も取得できない場合は PR Description Context ごと省略し、OCR Requirement のみでレビューを続行する。
 _Avoid_: PR プロンプト, PR メタデータ（曖昧）
 
 **OCR Review Output**:

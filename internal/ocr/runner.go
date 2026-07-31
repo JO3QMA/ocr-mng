@@ -57,7 +57,7 @@ type Runner struct {
 	ConfigJSON string
 }
 
-func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, model, rule, requirement string) (Result, []byte, error) {
+func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, model, rule, requirement, backgroundFile string) (Result, []byte, error) {
 	cfgPath := filepath.Join(r.HomeDir, ".opencodereview", "config.json")
 	if strings.TrimSpace(r.ConfigJSON) != "" && r.ConfigJSON != "{}" {
 		if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
@@ -80,6 +80,9 @@ func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, mod
 	}
 	if requirement != "" {
 		args = append(args, "--background", requirement)
+	}
+	if backgroundFile != "" {
+		args = append(args, "--background-file", backgroundFile)
 	}
 	cmd := exec.CommandContext(ctx, r.Binary, args...)
 	cmd.Dir = repoDir

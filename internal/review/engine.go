@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -404,7 +405,17 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 		HomeDir:    homeDir,
 		ConfigJSON: sel.ConfigJSON,
 	}
-	result, raw, err := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, sel.ModelFlag, repo.OCRRule, BuildReviewBackground(reviewLang, pr.Title, pr.Body, repo.OCRRequirement))
+	bg := BuildReviewBackground(reviewLang, pr.Title, pr.Body, repo.OCRRequirement)
+	bgFile := ""
+	if rel := strings.TrimSpace(repo.OCRBackgroundFile); rel != "" {
+		if p, ok := ResolveReviewBackgroundFile(ws.WorktreeDir, rel); ok {
+			bgFile = p
+		} else {
+			e.log.Warn("review background file unavailable; continuing without --background-file",
+				"run_id", run.ID, "repo_id", repo.ID, "path", rel)
+		}
+	}
+	result, raw, err := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, sel.ModelFlag, repo.OCRRule, bg, bgFile)
 	if err != nil {
 		return fmt.Errorf("ocr review: %w", err)
 	}

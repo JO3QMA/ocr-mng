@@ -19,7 +19,7 @@ func TestReviewWithFakeBinary(t *testing.T) {
 	}
 
 	runner := ocr.Runner{Binary: binary, HomeDir: t.TempDir()}
-	result, raw, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "")
+	result, raw, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,21 @@ func TestReviewPassesBackground(t *testing.T) {
 	}
 
 	runner := ocr.Runner{Binary: binary, HomeDir: t.TempDir()}
-	if _, _, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "need path"); err != nil {
+	if _, _, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "need path", ""); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReviewPassesBackgroundFile(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "fake-ocr")
+	script := "#!/bin/sh\ncase \"$*\" in *--background-file*docs/ctx.md*) echo '{\"comments\":[],\"message\":\"ok\"}' ;; *) echo \"args: $*\" >&2; exit 1 ;; esac\n"
+	if err := os.WriteFile(binary, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := ocr.Runner{Binary: binary, HomeDir: t.TempDir()}
+	if _, _, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "inline", "docs/ctx.md"); err != nil {
 		t.Fatal(err)
 	}
 }
