@@ -62,8 +62,8 @@ func ResolveReviewBackgroundFile(worktreeDir, relPath string) (pathForOCR string
 	if err != nil {
 		return "", false
 	}
-	sep := string(os.PathSeparator)
-	if absResolved != absWork && !strings.HasPrefix(absResolved, absWork+sep) {
+	rel, err := filepath.Rel(absWork, absResolved)
+	if err != nil || (rel != "." && !filepath.IsLocal(rel)) {
 		return "", false
 	}
 	return clean, true
