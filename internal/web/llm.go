@@ -224,7 +224,11 @@ func (s *Server) llmProviderUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, apiKey, err := parseLLMProviderForm(r)
-	models, _ := s.store.ListLLMProviderModels(r.Context(), id)
+	models, listErr := s.store.ListLLMProviderModels(r.Context(), id)
+	if listErr != nil {
+		http.Error(w, listErr.Error(), 500)
+		return
+	}
 	enabled := enabledLLMModels(models)
 	failView := llmProviderFormView{
 		Provider: p, Models: models, EnabledModels: enabled,
@@ -263,7 +267,12 @@ func (s *Server) llmProviderTest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		hasStoredKey = stored.HasAPIKey
-		models, _ = s.store.ListLLMProviderModels(r.Context(), providerID)
+		var listErr error
+		models, listErr = s.store.ListLLMProviderModels(r.Context(), providerID)
+		if listErr != nil {
+			http.Error(w, listErr.Error(), 500)
+			return
+		}
 		p.HasAPIKey = hasStoredKey
 	}
 	enabled := enabledLLMModels(models)
