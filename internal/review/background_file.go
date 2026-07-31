@@ -14,6 +14,9 @@ func NormalizeReviewBackgroundFilePath(raw string) (string, error) {
 	if s == "" {
 		return "", nil
 	}
+	if strings.ContainsRune(s, 0) {
+		return "", fmt.Errorf("review background file path must not contain null bytes")
+	}
 	if strings.ContainsAny(s, "\n\r") {
 		return "", fmt.Errorf("review background file path must not contain newlines")
 	}

@@ -24,6 +24,7 @@ func TestNormalizeReviewBackgroundFilePath(t *testing.T) {
 		{"../../outside.md", "", true},
 		{"docs/foo.md\nbad", "", true},
 		{"docs/foo.md\rbar", "", true},
+		{"docs/foo\x00.md", "", true},
 	}
 	for _, tc := range cases {
 		got, err := review.NormalizeReviewBackgroundFilePath(tc.in)

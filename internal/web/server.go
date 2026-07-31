@@ -436,7 +436,8 @@ func parseRepoForm(r *http.Request) (store.Repo, string, error) {
 		OCRRule:                strings.TrimSpace(r.FormValue("ocr_rule")),
 		OCRRequirement:         strings.TrimSpace(r.FormValue("ocr_requirement")),
 	}
-	bgFile, err := review.NormalizeReviewBackgroundFilePath(r.FormValue("ocr_background_file"))
+	repo.OCRBackgroundFile = strings.TrimSpace(r.FormValue("ocr_background_file"))
+	bgFile, err := review.NormalizeReviewBackgroundFilePath(repo.OCRBackgroundFile)
 	if err != nil {
 		return repo, "", err
 	}
