@@ -78,8 +78,16 @@ func TestParseLLMProviderFormBuiltinPreset(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost, "/llm-providers", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	_, _, err = parseLLMProviderForm(req)
-	if err == nil || err.Error() != "name are required" {
+	if err == nil || err.Error() != "name is required" {
 		t.Fatalf("expected name-only error, got %v", err)
+	}
+
+	form = url.Values{"kind": {"builtin"}}
+	req = httptest.NewRequest(http.MethodPost, "/llm-providers", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	_, _, err = parseLLMProviderForm(req)
+	if err == nil || err.Error() != "name and provider_key are required" {
+		t.Fatalf("expected both missing error, got %v", err)
 	}
 }
 

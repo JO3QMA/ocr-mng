@@ -610,7 +610,11 @@ func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
 		missing = append(missing, "provider_key")
 	}
 	if len(missing) > 0 {
-		return p, "", fmt.Errorf("%s are required", strings.Join(missing, " and "))
+		msg := strings.Join(missing, " and ") + " are required"
+		if len(missing) == 1 {
+			msg = missing[0] + " is required"
+		}
+		return p, "", fmt.Errorf("%s", msg)
 	}
 	if p.Kind != "builtin" && p.Kind != "custom" {
 		return p, "", fmt.Errorf("kind must be builtin or custom")
