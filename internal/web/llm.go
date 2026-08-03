@@ -591,18 +591,26 @@ func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
 	if p.Kind == "" {
 		p.Kind = "builtin"
 	}
-	if p.Kind == "builtin" && preset != "" && preset != ocr.BuiltinPresetOther {
+	usePreset := p.Kind == "builtin" && preset != "" && preset != ocr.BuiltinPresetOther && ocr.IsBuiltinPresetKey(preset)
+	if usePreset {
 		p.ProviderKey = preset
 	} else {
 		p.ProviderKey = strings.TrimSpace(r.FormValue("provider_key"))
 	}
-	if p.Name == "" && p.Kind == "builtin" && preset != "" && preset != ocr.BuiltinPresetOther {
+	if p.Name == "" && usePreset {
 		if label, ok := ocr.BuiltinPresetLabel(preset); ok {
 			p.Name = label
 		}
 	}
-	if p.Name == "" || p.ProviderKey == "" {
-		return p, "", fmt.Errorf("name and provider_key are required")
+	var missing []string
+	if p.Name == "" {
+		missing = append(missing, "name")
+	}
+	if p.ProviderKey == "" {
+		missing = append(missing, "provider_key")
+	}
+	if len(missing) > 0 {
+		return p, "", fmt.Errorf("%s are required", strings.Join(missing, " and "))
 	}
 	if p.Kind != "builtin" && p.Kind != "custom" {
 		return p, "", fmt.Errorf("kind must be builtin or custom")

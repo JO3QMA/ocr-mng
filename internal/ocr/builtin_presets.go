@@ -64,7 +64,8 @@ func SelectedBuiltinPreset(providerKey string) string {
 
 // BuiltinProviderDocsURL is the OCR Configuration doc for built-in providers.
 func BuiltinProviderDocsURL(uiLang string) string {
-	if strings.TrimSpace(uiLang) == "ja" {
+	lang := strings.ToLower(strings.TrimSpace(uiLang))
+	if strings.EqualFold(lang, "ja") || strings.HasPrefix(lang, "ja-") {
 		return "https://open-codereview.ai/docs/ja/configuration"
 	}
 	return "https://open-codereview.ai/docs/configuration"

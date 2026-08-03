@@ -29,6 +29,12 @@ func TestBuiltinProviderDocsURL(t *testing.T) {
 	if got := ocr.BuiltinProviderDocsURL("ja"); got != "https://open-codereview.ai/docs/ja/configuration" {
 		t.Fatalf("ja: %q", got)
 	}
+	if got := ocr.BuiltinProviderDocsURL("JA"); got != "https://open-codereview.ai/docs/ja/configuration" {
+		t.Fatalf("JA: %q", got)
+	}
+	if got := ocr.BuiltinProviderDocsURL("ja-JP"); got != "https://open-codereview.ai/docs/ja/configuration" {
+		t.Fatalf("ja-JP: %q", got)
+	}
 	if got := ocr.BuiltinProviderDocsURL("en"); got != "https://open-codereview.ai/docs/configuration" {
 		t.Fatalf("en: %q", got)
 	}

@@ -56,6 +56,31 @@ func TestParseLLMProviderFormBuiltinPreset(t *testing.T) {
 	if err != nil || p.ProviderKey != "ignored" || p.Name != "Keep" {
 		t.Fatalf("custom ignores preset: %#v %v", p, err)
 	}
+
+	form = url.Values{
+		"builtin_preset": {"tampered-key"},
+		"provider_key":   {"fallback-key"},
+		"name":           {"Fallback"},
+		"kind":           {"builtin"},
+	}
+	req = httptest.NewRequest(http.MethodPost, "/llm-providers", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	p, _, err = parseLLMProviderForm(req)
+	if err != nil || p.ProviderKey != "fallback-key" || p.Name != "Fallback" {
+		t.Fatalf("invalid preset uses provider_key: %#v %v", p, err)
+	}
+
+	form = url.Values{
+		"builtin_preset": {ocr.BuiltinPresetOther},
+		"provider_key":   {"my-key"},
+		"kind":           {"builtin"},
+	}
+	req = httptest.NewRequest(http.MethodPost, "/llm-providers", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	_, _, err = parseLLMProviderForm(req)
+	if err == nil || err.Error() != "name are required" {
+		t.Fatalf("expected name-only error, got %v", err)
+	}
 }
 
 func TestParseLLMPairField(t *testing.T) {
