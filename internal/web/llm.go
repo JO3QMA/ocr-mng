@@ -25,22 +25,25 @@ type llmPairOption struct {
 
 type llmProviderFormView struct {
 	page
-	Provider        store.LLMProvider
-	Models          []store.LLMProviderModel
-	EnabledModels   []store.LLMProviderModel
-	UseTempModel    bool
-	SelectedModelID int64
-	TempModelName   string
-	FormTitle       string
-	FormTitleKey    string
-	KeyHintKey      string
-	Action          string
-	TestAction      string
-	ErrMsg          string
-	TestOK          bool
-	TestMsg         string
-	KeyHint         string
-	ShowClearKey    bool
+	Provider               store.LLMProvider
+	Models                 []store.LLMProviderModel
+	EnabledModels          []store.LLMProviderModel
+	UseTempModel           bool
+	SelectedModelID        int64
+	TempModelName          string
+	FormTitle              string
+	FormTitleKey           string
+	KeyHintKey             string
+	Action                 string
+	TestAction             string
+	ErrMsg                 string
+	TestOK                 bool
+	TestMsg                string
+	KeyHint                string
+	ShowClearKey           bool
+	BuiltinPreset          string
+	BuiltinPresets         []ocr.BuiltinPreset
+	BuiltinProviderDocsURL string
 }
 
 func (s *Server) llmPairOptions(ctx context.Context) ([]llmPairOption, error) {
@@ -538,6 +541,11 @@ func (s *Server) renderLLMProviderForm(w http.ResponseWriter, r *http.Request, v
 	if v.EnabledModels == nil {
 		v.EnabledModels = enabledLLMModels(v.Models)
 	}
+	if v.BuiltinPreset == "" {
+		v.BuiltinPreset = formBuiltinPreset(r, v.Provider.ProviderKey)
+	}
+	v.BuiltinPresets = ocr.BuiltinPresets()
+	v.BuiltinProviderDocsURL = ocr.BuiltinProviderDocsURL(pge.Lang)
 	render(w, "llm_provider_form", v)
 }
 
@@ -559,23 +567,42 @@ func formModelID(r *http.Request) int64 {
 	return id
 }
 
+func formBuiltinPreset(r *http.Request, providerKey string) string {
+	if r != nil {
+		if v := strings.TrimSpace(r.FormValue("builtin_preset")); v != "" {
+			return v
+		}
+	}
+	return ocr.SelectedBuiltinPreset(providerKey)
+}
+
 func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
 	if err := r.ParseForm(); err != nil {
 		return store.LLMProvider{}, "", err
 	}
+	preset := strings.TrimSpace(r.FormValue("builtin_preset"))
 	p := store.LLMProvider{
-		Name:        strings.TrimSpace(r.FormValue("name")),
-		ProviderKey: strings.TrimSpace(r.FormValue("provider_key")),
-		Kind:        strings.TrimSpace(r.FormValue("kind")),
-		APIBaseURL:  strings.TrimSpace(r.FormValue("api_base_url")),
-		Protocol:    strings.TrimSpace(r.FormValue("protocol")),
-		Enabled:     r.FormValue("enabled") == "on",
-	}
-	if p.Name == "" || p.ProviderKey == "" {
-		return p, "", fmt.Errorf("name and provider_key are required")
+		Name:       strings.TrimSpace(r.FormValue("name")),
+		Kind:       strings.TrimSpace(r.FormValue("kind")),
+		APIBaseURL: strings.TrimSpace(r.FormValue("api_base_url")),
+		Protocol:   strings.TrimSpace(r.FormValue("protocol")),
+		Enabled:    r.FormValue("enabled") == "on",
 	}
 	if p.Kind == "" {
 		p.Kind = "builtin"
+	}
+	if p.Kind == "builtin" && preset != "" && preset != ocr.BuiltinPresetOther {
+		p.ProviderKey = preset
+	} else {
+		p.ProviderKey = strings.TrimSpace(r.FormValue("provider_key"))
+	}
+	if p.Name == "" && p.Kind == "builtin" && preset != "" && preset != ocr.BuiltinPresetOther {
+		if label, ok := ocr.BuiltinPresetLabel(preset); ok {
+			p.Name = label
+		}
+	}
+	if p.Name == "" || p.ProviderKey == "" {
+		return p, "", fmt.Errorf("name and provider_key are required")
 	}
 	if p.Kind != "builtin" && p.Kind != "custom" {
 		return p, "", fmt.Errorf("kind must be builtin or custom")

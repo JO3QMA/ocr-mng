@@ -12,8 +12,51 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jo3qma/ocr-mng/internal/ocr"
 	"github.com/jo3qma/ocr-mng/internal/store"
 )
+
+func TestParseLLMProviderFormBuiltinPreset(t *testing.T) {
+	form := url.Values{
+		"builtin_preset": {"anthropic"},
+		"kind":           {"builtin"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/llm-providers", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	p, _, err := parseLLMProviderForm(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.ProviderKey != "anthropic" || p.Name != "Anthropic" {
+		t.Fatalf("got %#v", p)
+	}
+
+	form = url.Values{
+		"builtin_preset": {ocr.BuiltinPresetOther},
+		"provider_key":   {"my-gateway"},
+		"name":           {"Gateway"},
+		"kind":           {"builtin"},
+	}
+	req = httptest.NewRequest(http.MethodPost, "/llm-providers", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	p, _, err = parseLLMProviderForm(req)
+	if err != nil || p.ProviderKey != "my-gateway" || p.Name != "Gateway" {
+		t.Fatalf("other: %#v %v", p, err)
+	}
+
+	form = url.Values{
+		"builtin_preset": {"anthropic"},
+		"provider_key":   {"ignored"},
+		"name":           {"Keep"},
+		"kind":           {"custom"},
+	}
+	req = httptest.NewRequest(http.MethodPost, "/llm-providers", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	p, _, err = parseLLMProviderForm(req)
+	if err != nil || p.ProviderKey != "ignored" || p.Name != "Keep" {
+		t.Fatalf("custom ignores preset: %#v %v", p, err)
+	}
+}
 
 func TestParseLLMPairField(t *testing.T) {
 	pid, mid, err := parseLLMPairField("0:0")

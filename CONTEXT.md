@@ -85,8 +85,12 @@ Review Manager に明示的に登録された LLM 接続先。表示名、Provid
 _Avoid_: プロバイダー（単独・Git Host と混同）, LLM Backend, Model Endpoint
 
 **Provider Key**:
-Registered LLM Provider を Open Code Review の config 上で指す識別子。表示名（Administrator 向けラベル）とも LLM Protocol（API 方言）とも別。builtin では OCR 組み込み名（例: `anthropic`）、custom では `custom_providers` マップのキーになる。
+Registered LLM Provider を Open Code Review の config 上で指す識別子。表示名（Administrator 向けラベル）とも LLM Protocol（API 方言）とも別。builtin では OCR 組み込み名（例: `anthropic`）、custom では `custom_providers` マップのキーになる。builtin で使えるキーの正は Open Code Review 公式 Configuration ドキュメントである（Builtin Provider Preset を参照）。
 _Avoid_: provider id（DB の数値 ID と混同）, API Key, LLM Protocol
+
+**Builtin Provider Preset**:
+Registered LLM Provider を `kind=builtin` で新規登録するとき、Administrator が選べる Open Code Review 組み込みプロバイダーのテンプレート。正しい Provider Key の一覧は Open Code Review 公式 Configuration ドキュメントが正である。Review Manager は利便のため同名キーの選択肢を提示するが、一覧に無いキーも手入力で許容する（OCR 側での成否は Review Manager が事前検証しない）。新規登録で表示名が空のとき、選んだテンプレートの表示ラベルを名前の初期値にできる。
+_Avoid_: プロバイダーテンプレート（custom と混同）, builtin 一覧（実装の静的リストを指す用法）
 
 **LLM Protocol**:
 Open Code Review が LLM エンドポイントと話す API 方言。取りうる値は OCR が認めるものに限る（`anthropic` / `openai` / `openai-responses`）。Registered LLM Provider の属性であり、未設定なら API Base URL から決めて台帳に残す。一度入った明示値は、API Base URL だけ変えても自動では付け替えない。
