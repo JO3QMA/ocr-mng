@@ -11,8 +11,8 @@ type BuiltinPreset struct {
 	Label string
 }
 
-// ponytail: static copy of OCR Configuration built-in table; sync when target OCR version bumps.
-// Upgrade path: https://open-codereview.ai/docs/configuration
+// TODO(ocr): sync built-in provider list when target OCR version bumps.
+// See https://open-codereview.ai/docs/configuration
 var builtinPresets = []BuiltinPreset{
 	{Key: "anthropic", Label: "Anthropic"},
 	{Key: "openai", Label: "OpenAI"},

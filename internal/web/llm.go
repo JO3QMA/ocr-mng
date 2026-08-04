@@ -174,7 +174,7 @@ func (s *Server) llmProviderCreate(w http.ResponseWriter, r *http.Request) {
 		UseTempModel: true, TempModelName: strings.TrimSpace(r.FormValue("temp_model_name")),
 	}
 	if err != nil {
-		view.ErrMsg = err.Error()
+		view.ErrMsg = s.llmFormErrMsg(r, err)
 		s.renderLLMProviderForm(w, r, view)
 		return
 	}
@@ -251,7 +251,7 @@ func (s *Server) llmProviderUpdate(w http.ResponseWriter, r *http.Request) {
 		failView.SelectedModelID = enabled[0].ID
 	}
 	if err != nil {
-		failView.ErrMsg = err.Error()
+		failView.ErrMsg = s.llmFormErrMsg(r, err)
 		s.renderLLMProviderForm(w, r, failView)
 		return
 	}
@@ -327,7 +327,7 @@ func (s *Server) llmProviderTest(w http.ResponseWriter, r *http.Request) {
 		loc = s.page(r, view.FormTitleKey).L
 	}
 	if err != nil {
-		view.TestMsg = err.Error()
+		view.TestMsg = s.llmFormErrMsg(r, err)
 		s.renderLLMProviderForm(w, r, view)
 		return
 	}
@@ -576,6 +576,13 @@ func formBuiltinPreset(r *http.Request, providerKey string) string {
 	return ocr.SelectedBuiltinPreset(providerKey)
 }
 
+func (s *Server) llmFormErrMsg(r *http.Request, err error) string {
+	if err == nil {
+		return ""
+	}
+	return s.page(r, "page.llm_providers").L.T(err.Error())
+}
+
 func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
 	if err := r.ParseForm(); err != nil {
 		return store.LLMProvider{}, "", err
@@ -602,22 +609,20 @@ func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
 			p.Name = label
 		}
 	}
-	var missing []string
-	if p.Name == "" {
-		missing = append(missing, "name")
+	var missingKey string
+	switch {
+	case p.Name == "" && p.ProviderKey == "":
+		missingKey = "llm.form_name_and_provider_key_required"
+	case p.Name == "":
+		missingKey = "llm.form_name_required"
+	case p.ProviderKey == "":
+		missingKey = "llm.form_provider_key_required"
 	}
-	if p.ProviderKey == "" {
-		missing = append(missing, "provider_key")
-	}
-	if len(missing) > 0 {
-		msg := strings.Join(missing, " and ") + " are required"
-		if len(missing) == 1 {
-			msg = missing[0] + " is required"
-		}
-		return p, "", fmt.Errorf("%s", msg)
+	if missingKey != "" {
+		return p, "", fmt.Errorf("%s", missingKey)
 	}
 	if p.Kind != "builtin" && p.Kind != "custom" {
-		return p, "", fmt.Errorf("kind must be builtin or custom")
+		return p, "", fmt.Errorf("llm.form_kind_invalid")
 	}
 	return p, strings.TrimSpace(r.FormValue("api_key")), nil
 }
