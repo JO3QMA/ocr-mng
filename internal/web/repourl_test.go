@@ -139,4 +139,13 @@ func TestFormatRepoURL(t *testing.T) {
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
+	got = FormatRepoURL("https://github.com", "acme org", "app#1")
+	want = "https://github.com/acme%20org/app%231"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+	owner, name, err := ParseRepoURL(got, "https://github.com")
+	if err != nil || owner != "acme org" || name != "app#1" {
+		t.Fatalf("round-trip: owner=%q name=%q err=%v", owner, name, err)
+	}
 }

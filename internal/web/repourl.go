@@ -64,7 +64,7 @@ func FormatRepoURL(webBaseURL, owner, name string) string {
 	if owner == "" || name == "" || base == "" {
 		return ""
 	}
-	return strings.TrimRight(base, "/") + "/" + owner + "/" + name
+	return strings.TrimRight(base, "/") + "/" + url.PathEscape(owner) + "/" + url.PathEscape(name)
 }
 
 func parseWebBase(raw string) (*url.URL, error) {
@@ -82,9 +82,6 @@ func parseWebBase(raw string) (*url.URL, error) {
 	u.Fragment = ""
 	u.User = nil
 	u.Path = strings.TrimRight(u.Path, "/")
-	if u.Path == "/" {
-		u.Path = ""
-	}
 	return u, nil
 }
 

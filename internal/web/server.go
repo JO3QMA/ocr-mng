@@ -207,7 +207,11 @@ func (s *Server) repoNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) repoCreate(w http.ResponseWriter, r *http.Request) {
-	hosts, _ := s.store.ListGitHosts(r.Context())
+	hosts, err := s.store.ListGitHosts(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	repo, pat, repoURL, err := parseRepoForm(r, hosts)
 	if err != nil {
 		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, s.formErr(r, err), repoURL, "/repos", "page.new_repo", false)
@@ -227,13 +231,21 @@ func (s *Server) repoEdit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	hosts, _ := s.store.ListGitHosts(r.Context())
+	hosts, err := s.store.ListGitHosts(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	s.renderRepoForm(w, r, rv, hosts, nil, "", "", fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 }
 
 func (s *Server) repoUpdate(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	hosts, _ := s.store.ListGitHosts(r.Context())
+	hosts, err := s.store.ListGitHosts(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	repo, pat, repoURL, err := parseRepoForm(r, hosts)
 	if err != nil {
 		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, s.formErr(r, err), repoURL, fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
