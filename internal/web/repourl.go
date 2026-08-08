@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/url"
+	"path"
 	"strings"
 )
 
@@ -26,7 +27,7 @@ func ParseRepoURL(raw, webBaseURL string) (owner, name string, err error) {
 
 	base, err := parseWebBase(webBaseURL)
 	if err != nil {
-		return "", "", fmt.Errorf("form.repo_url_host_mismatch")
+		return "", "", fmt.Errorf("form.repo_url_bad_base")
 	}
 	if strings.ToLower(u.Scheme) != base.Scheme || !sameHostPort(u, base) {
 		return "", "", fmt.Errorf("form.repo_url_host_mismatch")
@@ -110,8 +111,8 @@ func hostnamePort(u *url.URL) (host, port string) {
 // pathUnderBase reports whether uPath is under basePath and returns the remainder
 // (without a leading slash), e.g. base /gitea + /gitea/org/repo → org/repo.
 func pathUnderBase(uPath, basePath string) (rest string, ok bool) {
-	uPath = strings.TrimRight(uPath, "/")
-	basePath = strings.TrimRight(basePath, "/")
+	uPath = cleanURLPath(uPath)
+	basePath = cleanURLPath(basePath)
 	if basePath == "" || basePath == "/" {
 		return strings.TrimPrefix(uPath, "/"), true
 	}
@@ -123,4 +124,15 @@ func pathUnderBase(uPath, basePath string) (rest string, ok bool) {
 		return "", false
 	}
 	return uPath[len(prefix):], true
+}
+
+func cleanURLPath(p string) string {
+	if p == "" {
+		return ""
+	}
+	c := path.Clean(p)
+	if c == "." {
+		return ""
+	}
+	return c
 }

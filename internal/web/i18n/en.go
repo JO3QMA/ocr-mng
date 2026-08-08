@@ -130,6 +130,7 @@ var en = map[string]string{
 	"form.repo_url_https":             "Repo URL must use HTTPS.",
 	"form.repo_url_userinfo":          "Do not include userinfo (user:token@) in Repo URL.",
 	"form.repo_url_host_mismatch":     "Repo URL host does not match the selected Git Host.",
+	"form.repo_url_bad_base":          "The selected Git Host Web Base URL is invalid.",
 	"form.repo_url_path":              "Repo URL path must be exactly Owner/Name (e.g. /owner/name).",
 	"form.default_branch":             "Default Branch",
 	"form.trigger_label":              "Trigger Label",

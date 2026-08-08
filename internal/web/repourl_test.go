@@ -108,6 +108,24 @@ func TestParseRepoURL(t *testing.T) {
 			base:   "https://git.example.com/gitea",
 			errKey: "form.repo_url_host_mismatch",
 		},
+		{
+			name:   "dotdot escapes base",
+			raw:    "https://git.example.com/gitea/../other/org/repo",
+			base:   "https://git.example.com/gitea",
+			errKey: "form.repo_url_host_mismatch",
+		},
+		{
+			name:  "dotdot cleans within base",
+			raw:   "https://git.example.com/gitea/./org/../org/repo",
+			base:  "https://git.example.com/gitea",
+			owner: "org", repo: "repo",
+		},
+		{
+			name:   "bad web base",
+			raw:    "https://github.com/JO3QMA/ocr-mng",
+			base:   "not-a-url",
+			errKey: "form.repo_url_bad_base",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

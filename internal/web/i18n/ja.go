@@ -130,6 +130,7 @@ var ja = map[string]string{
 	"form.repo_url_https":     "Repo URL は HTTPS である必要があります。",
 	"form.repo_url_userinfo":  "Repo URL にユーザー情報（user:token@）を含めないでください。",
 	"form.repo_url_host_mismatch": "Repo URL のホストが選択中の Git Host と一致しません。",
+	"form.repo_url_bad_base":   "選択中 Git Host の Web Base URL が不正です。",
 	"form.repo_url_path":      "Repo URL は Owner/Name の 2 セグメントである必要があります（例: /owner/name）。",
 	"form.default_branch":     "デフォルトブランチ",
 	"form.trigger_label":      "トリガーラベル",
