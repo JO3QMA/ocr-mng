@@ -47,11 +47,15 @@ func ParseRepoURL(raw, webBaseURL string) (owner, name string, err error) {
 		return "", "", fmt.Errorf("form.repo_url_path")
 	}
 	owner, err = url.PathUnescape(parts[0])
-	if err != nil || owner == "" {
+	if err != nil {
 		return "", "", fmt.Errorf("form.repo_url_path")
 	}
 	name, err = url.PathUnescape(parts[1])
-	if err != nil || name == "" {
+	if err != nil {
+		return "", "", fmt.Errorf("form.repo_url_path")
+	}
+	owner, name = strings.TrimSpace(owner), strings.TrimSpace(name)
+	if owner == "" || name == "" {
 		return "", "", fmt.Errorf("form.repo_url_path")
 	}
 	return owner, name, nil

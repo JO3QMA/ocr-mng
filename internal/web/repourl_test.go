@@ -121,6 +121,12 @@ func TestParseRepoURL(t *testing.T) {
 			owner: "org", repo: "repo",
 		},
 		{
+			name:  "trimmed percent-encoded spaces",
+			raw:   "https://github.com/%20JO3QMA%20/%20ocr-mng%20",
+			base:  "https://github.com",
+			owner: "JO3QMA", repo: "ocr-mng",
+		},
+		{
 			name:   "bad web base",
 			raw:    "https://github.com/JO3QMA/ocr-mng",
 			base:   "not-a-url",
