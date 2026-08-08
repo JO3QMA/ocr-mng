@@ -49,8 +49,12 @@ Review Manager WebUI にログインできる単一の運用者。Basic Auth ま
 _Avoid_: ユーザー, オペレーター（曖昧）
 
 **Registered Repo**:
-Review Manager に登録され、ポーリング・OCR レビューの対象となる Git リポジトリ。Trigger Label や Repo 固有設定を持つ。Administrator 向けの識別表示は `Owner/Name`（例: `acme/app`）とし、内部通番（Repo ID）は表示の主ラベルにしない。
+Review Manager に登録され、ポーリング・OCR レビューの対象となる Git リポジトリ。Trigger Label や Repo 固有設定を持つ。Administrator 向けの識別表示は `Owner/Name`（例: `acme/app`）とし、内部通番（Repo ID）は表示の主ラベルにしない。登録・編集の入力は Repo URL から Owner/Name を得る。
 _Avoid_: 監視対象, ターゲットリポジトリ, リポジトリ名（Owner なしの Name 単独を指す用法）
+
+**Repo URL**:
+Registered Repo の登録・編集フォームで Administrator が貼る HTTPS のリポジトリ URL（Web または末尾 `.git` の clone 形）。選択中の Registered Git Host の WebBaseURL（正規化後）配下にあり、接頭辞除去後の path がちょうど Owner と Name の 2 セグメントであるものだけを受け付ける。query と fragment は無視してパースする。userinfo（`user:token@`）付きは受け付けない。識別表示の正本ではなく、保存時に Owner/Name へ分解する。編集時の初期表示は WebBaseURL と Owner/Name から組み立てた HTTPS URL（末尾 `.git` なし）とする。
+_Avoid_: Clone URL（入力専用名として単独で使う用法）, リポジトリ名, Owner（フォーム欄としての分割入力）
 
 **Repo Mirror**:
 Registered Repo ごとに保持する bare Git リポジトリ。レビュー前に fetch して最新状態を反映する。
