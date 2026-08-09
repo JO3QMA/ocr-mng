@@ -72,11 +72,14 @@ func (r *Runner) writeConfig() error {
 	return os.WriteFile(cfgPath, pretty.Bytes(), 0o600)
 }
 
-func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, model, rule, requirement, backgroundFile string) (Result, []byte, error) {
+func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, provider, model, rule, requirement, backgroundFile string) (Result, []byte, error) {
 	if err := r.writeConfig(); err != nil {
 		return Result{}, nil, err
 	}
 	args := []string{"review", "--repo", repoDir, "--from", fromRef, "--to", toSHA, "--format", "json"}
+	if provider != "" {
+		args = append(args, "--provider", provider)
+	}
 	if model != "" {
 		args = append(args, "--model", model)
 	}
