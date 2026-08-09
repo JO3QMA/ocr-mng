@@ -251,7 +251,7 @@ func (s *Store) SaveGlobalSettings(ctx context.Context, gs GlobalSettings) error
 		return err
 	}
 	if len(prevRot) > 0 && len(nextRot) == 0 {
-		return fmt.Errorf("global llm pair cannot be cleared once set")
+		return fmt.Errorf("global llm rotation set cannot be cleared once set")
 	}
 	if err := s.assertLLMRotationSelectable(ctx, nextRot); err != nil {
 		return err
@@ -476,7 +476,12 @@ func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, erro
 		return 0, err
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	res, err := s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.ExecContext(ctx, `
 		INSERT INTO repos(git_host_id, owner, name, default_branch, trigger_label, poll_interval_seconds,
 			repo_pat_encrypted, comment_mode, remove_label_after_review, approve_on_zero_findings,
 			ocr_model, ocr_rule, ocr_requirement, ocr_background_file, review_language, llm_provider_id, llm_model_id,
@@ -495,9 +500,12 @@ func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, erro
 		return 0, err
 	}
 	if len(r.LLMRotation) > 0 {
-		if err := s.ResetLLMRotationCursor(ctx, LLMRotationKeyRepo(id)); err != nil {
+		if err := resetLLMRotationCursorTx(ctx, tx, LLMRotationKeyRepo(id)); err != nil {
 			return 0, err
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
 	}
 	return id, nil
 }
@@ -528,7 +536,12 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.ExecContext(ctx, `
 		UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
 			poll_interval_seconds=?,
 			repo_pat_encrypted=CASE WHEN ?=1 THEN ? WHEN ?=1 THEN NULL ELSE repo_pat_encrypted END,
@@ -548,12 +561,15 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 	nextRot := r.EffectiveLLMRotation()
 	key := LLMRotationKeyRepo(r.ID)
 	if len(nextRot) == 0 {
-		return s.DeleteLLMRotationCursor(ctx, key)
+		if err := deleteLLMRotationCursorTx(ctx, tx, key); err != nil {
+			return err
+		}
+	} else if !LLMPairsEqual(prevRot, nextRot) {
+		if err := resetLLMRotationCursorTx(ctx, tx, key); err != nil {
+			return err
+		}
 	}
-	if !LLMPairsEqual(prevRot, nextRot) {
-		return s.ResetLLMRotationCursor(ctx, key)
-	}
-	return nil
+	return tx.Commit()
 }
 
 func scanRepo(scanner interface {

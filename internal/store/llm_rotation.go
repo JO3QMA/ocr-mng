@@ -140,6 +140,18 @@ func (s *Store) DeleteLLMRotationCursor(ctx context.Context, setKey string) erro
 	return err
 }
 
+func resetLLMRotationCursorTx(ctx context.Context, tx *sql.Tx, setKey string) error {
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO llm_rotation_cursors(set_key, cursor_index) VALUES (?, 0)
+		ON CONFLICT(set_key) DO UPDATE SET cursor_index=0`, setKey)
+	return err
+}
+
+func deleteLLMRotationCursorTx(ctx context.Context, tx *sql.Tx, setKey string) error {
+	_, err := tx.ExecContext(ctx, `DELETE FROM llm_rotation_cursors WHERE set_key=?`, setKey)
+	return err
+}
+
 // ClaimLLMRotation picks the next usable pair (round-robin) and advances the cursor.
 // Usable means provider/model enabled, model belongs to provider, and API key present.
 func (s *Store) ClaimLLMRotation(ctx context.Context, setKey string, pairs []LLMPair) (LLMPair, error) {
@@ -149,7 +161,29 @@ func (s *Store) ClaimLLMRotation(ctx context.Context, setKey string, pairs []LLM
 	if err := ValidateLLMRotation(pairs); err != nil {
 		return LLMPair{}, err
 	}
+	var last error
+	for attempt := 0; attempt < 5; attempt++ {
+		pair, err := s.claimLLMRotationOnce(ctx, setKey, pairs)
+		if err == nil {
+			return pair, nil
+		}
+		last = err
+		if !isSQLiteBusy(err) {
+			return LLMPair{}, err
+		}
+	}
+	return LLMPair{}, last
+}
 
+func isSQLiteBusy(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "busy") || strings.Contains(msg, "locked")
+}
+
+func (s *Store) claimLLMRotationOnce(ctx context.Context, setKey string, pairs []LLMPair) (LLMPair, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return LLMPair{}, err
