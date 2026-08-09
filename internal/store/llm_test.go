@@ -229,6 +229,7 @@ func TestRepoLLMPair_overrideAndClear(t *testing.T) {
 		t.Fatalf("repo pair: %+v err=%v", rv, err)
 	}
 
+	rv.LLMRotation = nil
 	rv.LLMProviderID = provider2
 	rv.LLMModelID = model2
 	if err := st.UpdateRepo(ctx, rv.Repo, "", false); err != nil {
@@ -239,6 +240,7 @@ func TestRepoLLMPair_overrideAndClear(t *testing.T) {
 		t.Fatalf("override: %+v", rv)
 	}
 
+	rv.LLMRotation = nil
 	rv.LLMProviderID = 0
 	rv.LLMModelID = 0
 	if err := st.UpdateRepo(ctx, rv.Repo, "", false); err != nil {
@@ -275,6 +277,7 @@ func TestDeleteProvider_afterRepoCleared(t *testing.T) {
 	}
 
 	rv, _ := st.GetRepo(ctx, repoID)
+	rv.LLMRotation = nil
 	rv.LLMProviderID, rv.LLMModelID = 0, 0
 	if err := st.UpdateRepo(ctx, rv.Repo, "", false); err != nil {
 		t.Fatal(err)

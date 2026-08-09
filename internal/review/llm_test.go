@@ -154,8 +154,33 @@ func TestResolveLLM_disabledModel(t *testing.T) {
 	_, err = review.ResolveLLMSelection(ctx, st, gs, store.RepoView{
 		Repo: store.Repo{LLMProviderID: pid, LLMModelID: mid},
 	}, "Japanese")
-	if err == nil || !strings.Contains(err.Error(), "disabled") {
-		t.Fatalf("expected disabled: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "no usable") {
+		t.Fatalf("expected no usable: %v", err)
+	}
+}
+
+func TestResolveLLM_roundRobin(t *testing.T) {
+	st := openReviewStore(t)
+	ctx := context.Background()
+	pid1, mid1 := mustLLMPair(t, st, ctx, "P1", "anthropic", "m1")
+	pid2, mid2 := mustLLMPair(t, st, ctx, "P2", "openai", "m2")
+	gs, _ := st.GetGlobalSettings(ctx)
+	gs.DefaultLLMRotation = []store.LLMPair{
+		{ProviderID: pid1, ModelID: mid1},
+		{ProviderID: pid2, ModelID: mid2},
+	}
+	if err := st.SaveGlobalSettings(ctx, gs); err != nil {
+		t.Fatal(err)
+	}
+	gs, _ = st.GetGlobalSettings(ctx)
+
+	a, err := review.ResolveLLMSelection(ctx, st, gs, store.RepoView{}, "Japanese")
+	if err != nil || a.ModelName != "m1" {
+		t.Fatalf("1st: %+v %v", a, err)
+	}
+	b, err := review.ResolveLLMSelection(ctx, st, gs, store.RepoView{}, "Japanese")
+	if err != nil || b.ModelName != "m2" {
+		t.Fatalf("2nd: %+v %v", b, err)
 	}
 }
 
@@ -182,7 +207,7 @@ func TestResolveLLM_missingAPIKey(t *testing.T) {
 	gs, _ = st.GetGlobalSettings(ctx)
 
 	_, err = review.ResolveLLMSelection(ctx, st, gs, store.RepoView{}, "Japanese")
-	if err == nil || !strings.Contains(err.Error(), "no api key") {
+	if err == nil || (!strings.Contains(err.Error(), "no api key") && !strings.Contains(err.Error(), "no usable")) {
 		t.Fatalf("expected missing key: %v", err)
 	}
 	if err != nil && strings.Contains(err.Error(), "sk-") {

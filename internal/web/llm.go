@@ -47,12 +47,12 @@ type llmProviderFormView struct {
 }
 
 func (s *Server) llmPairOptions(ctx context.Context) ([]llmPairOption, error) {
-	return s.llmPairOptionsWithCurrent(ctx, 0, 0)
+	return s.llmPairOptionsWithCurrents(ctx, nil)
 }
 
-// llmPairOptionsWithCurrent lists enabled pairs, and always includes the current
-// provider/model pair (even if disabled) so settings/repo forms cannot drop it.
-func (s *Server) llmPairOptionsWithCurrent(ctx context.Context, curProviderID, curModelID int64) ([]llmPairOption, error) {
+// llmPairOptionsWithCurrents lists enabled pairs, and always includes current
+// pairs (even if disabled) so settings/repo forms cannot drop them.
+func (s *Server) llmPairOptionsWithCurrents(ctx context.Context, currents []store.LLMPair) ([]llmPairOption, error) {
 	providers, err := s.store.ListLLMProviders(ctx)
 	if err != nil {
 		return nil, err
@@ -83,22 +83,34 @@ func (s *Server) llmPairOptionsWithCurrent(ctx context.Context, curProviderID, c
 			})
 		}
 	}
-	if curProviderID != 0 && curModelID != 0 {
-		val := formatLLMPair(curProviderID, curModelID)
-		if !seen[val] {
-			label, err := s.llmPairLabel(ctx, curProviderID, curModelID)
-			if err != nil {
-				label = val
-			}
-			add(llmPairOption{
-				ProviderID: curProviderID,
-				ModelID:    curModelID,
-				Value:      val,
-				Label:      label,
-			})
+	for _, cur := range currents {
+		if cur.ProviderID == 0 || cur.ModelID == 0 {
+			continue
 		}
+		val := formatLLMPair(cur.ProviderID, cur.ModelID)
+		if seen[val] {
+			continue
+		}
+		label, err := s.llmPairLabel(ctx, cur.ProviderID, cur.ModelID)
+		if err != nil {
+			label = val
+		}
+		add(llmPairOption{
+			ProviderID: cur.ProviderID,
+			ModelID:    cur.ModelID,
+			Value:      val,
+			Label:      label,
+		})
 	}
 	return out, nil
+}
+
+func (s *Server) llmPairOptionsWithCurrent(ctx context.Context, curProviderID, curModelID int64) ([]llmPairOption, error) {
+	var currents []store.LLMPair
+	if curProviderID != 0 && curModelID != 0 {
+		currents = []store.LLMPair{{ProviderID: curProviderID, ModelID: curModelID}}
+	}
+	return s.llmPairOptionsWithCurrents(ctx, currents)
 }
 
 func (s *Server) llmPairLabel(ctx context.Context, providerID, modelID int64) (string, error) {
@@ -137,11 +149,43 @@ func parseLLMPairField(v string) (providerID, modelID int64, err error) {
 	return providerID, modelID, store.ValidateLLMPairIDs(providerID, modelID)
 }
 
+func parseLLMPairsFields(values []string) ([]store.LLMPair, error) {
+	var out []store.LLMPair
+	seen := map[string]struct{}{}
+	for _, v := range values {
+		pid, mid, err := parseLLMPairField(v)
+		if err != nil {
+			return nil, err
+		}
+		if pid == 0 && mid == 0 {
+			continue
+		}
+		key := formatLLMPair(pid, mid)
+		if _, ok := seen[key]; ok {
+			return nil, fmt.Errorf("duplicate llm pair in rotation set")
+		}
+		seen[key] = struct{}{}
+		out = append(out, store.LLMPair{ProviderID: pid, ModelID: mid})
+	}
+	return out, nil
+}
+
 func formatLLMPair(providerID, modelID int64) string {
 	if providerID == 0 && modelID == 0 {
 		return "0:0"
 	}
 	return fmt.Sprintf("%d:%d", providerID, modelID)
+}
+
+func llmRotationValues(pairs []store.LLMPair) []string {
+	if len(pairs) == 0 {
+		return nil
+	}
+	out := make([]string, len(pairs))
+	for i, p := range pairs {
+		out[i] = formatLLMPair(p.ProviderID, p.ModelID)
+	}
+	return out
 }
 
 func (s *Server) llmProvidersList(w http.ResponseWriter, r *http.Request) {

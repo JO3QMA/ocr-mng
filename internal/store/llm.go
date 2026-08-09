@@ -282,6 +282,11 @@ func (s *Store) assertLLMProviderNotReferenced(ctx context.Context, id int64) er
 			return fmt.Errorf("llm provider %d is referenced by global settings", id)
 		}
 	}
+	for _, p := range gs.DefaultLLMRotation {
+		if p.ProviderID == id {
+			return fmt.Errorf("llm provider %d is referenced by global settings", id)
+		}
+	}
 	var n int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM repos WHERE llm_provider_id=?`, id).Scan(&n); err != nil {
 		return err
@@ -298,6 +303,17 @@ func (s *Store) assertLLMProviderNotReferenced(ctx context.Context, id int64) er
 	if n > 0 {
 		return fmt.Errorf("llm provider %d is referenced by a registered repo", id)
 	}
+	sets, err := s.listAllRepoLLMRotations(ctx)
+	if err != nil {
+		return err
+	}
+	for _, pairs := range sets {
+		for _, p := range pairs {
+			if p.ProviderID == id {
+				return fmt.Errorf("llm provider %d is referenced by a registered repo", id)
+			}
+		}
+	}
 	return nil
 }
 
@@ -309,12 +325,28 @@ func (s *Store) assertLLMModelNotReferenced(ctx context.Context, id int64) error
 	if gs.DefaultLLMModelID == id {
 		return fmt.Errorf("llm model %d is referenced by global settings", id)
 	}
+	for _, p := range gs.DefaultLLMRotation {
+		if p.ModelID == id {
+			return fmt.Errorf("llm model %d is referenced by global settings", id)
+		}
+	}
 	var n int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM repos WHERE llm_model_id=?`, id).Scan(&n); err != nil {
 		return err
 	}
 	if n > 0 {
 		return fmt.Errorf("llm model %d is referenced by a registered repo", id)
+	}
+	sets, err := s.listAllRepoLLMRotations(ctx)
+	if err != nil {
+		return err
+	}
+	for _, pairs := range sets {
+		for _, p := range pairs {
+			if p.ModelID == id {
+				return fmt.Errorf("llm model %d is referenced by a registered repo", id)
+			}
+		}
 	}
 	return nil
 }

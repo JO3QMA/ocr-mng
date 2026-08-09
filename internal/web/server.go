@@ -279,7 +279,7 @@ func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo sto
 		repo.Enabled = true
 	}
 	if llmOpts == nil {
-		llmOpts, _ = s.llmPairOptionsWithCurrent(r.Context(), repo.LLMProviderID, repo.LLMModelID)
+		llmOpts, _ = s.llmPairOptionsWithCurrents(r.Context(), repo.EffectiveLLMRotation())
 	}
 	if repoURL == "" {
 		for _, h := range hosts {
@@ -292,19 +292,19 @@ func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo sto
 	p := s.page(r, titleKey)
 	render(w, "repo_form", struct {
 		page
-		Repo         store.RepoView
-		Hosts        []store.GitHost
-		LLMOptions   []llmPairOption
-		LLMPairValue string
-		FormTitle    string
-		Action       string
-		ErrMsg       string
-		RepoURL      string
-		PollInterval string
-		ShowClearPAT bool
+		Repo              store.RepoView
+		Hosts             []store.GitHost
+		LLMOptions        []llmPairOption
+		LLMRotationValues []string
+		FormTitle         string
+		Action            string
+		ErrMsg            string
+		RepoURL           string
+		PollInterval      string
+		ShowClearPAT      bool
 	}{
 		page: p, Repo: repo, Hosts: hosts, LLMOptions: llmOpts,
-		LLMPairValue: formatLLMPair(repo.LLMProviderID, repo.LLMModelID),
+		LLMRotationValues: llmRotationValues(repo.EffectiveLLMRotation()),
 		FormTitle: p.Title, Action: action, ErrMsg: errMsg, RepoURL: repoURL, PollInterval: poll, ShowClearPAT: showClear,
 	})
 }
@@ -403,17 +403,17 @@ func (s *Server) settingsForm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	opts, _ := s.llmPairOptionsWithCurrent(r.Context(), gs.DefaultLLMProviderID, gs.DefaultLLMModelID)
+	opts, _ := s.llmPairOptionsWithCurrents(r.Context(), gs.EffectiveLLMRotation())
 	render(w, "settings", struct {
 		page
-		Settings     store.GlobalSettings
-		LLMOptions   []llmPairOption
-		LLMPairValue string
-		LedgerMode   bool
+		Settings          store.GlobalSettings
+		LLMOptions        []llmPairOption
+		LLMRotationValues []string
+		LedgerMode        bool
 	}{
 		page: s.page(r, "page.settings"), Settings: gs, LLMOptions: opts,
-		LLMPairValue: formatLLMPair(gs.DefaultLLMProviderID, gs.DefaultLLMModelID),
-		LedgerMode:   ledgerModeActive(gs),
+		LLMRotationValues: llmRotationValues(gs.EffectiveLLMRotation()),
+		LedgerMode:        ledgerModeActive(gs),
 	})
 }
 
@@ -511,7 +511,18 @@ func parseRepoForm(r *http.Request, hosts []store.GitHost) (store.Repo, string, 
 	if err != nil {
 		return repo, "", repoURL, err
 	}
-	repo.LLMProviderID, repo.LLMModelID = pid, mid
+	// Prefer multi-pair field when present (rotation UI).
+	if vals, ok := r.Form["llm_pairs"]; ok {
+		pairs, err := parseLLMPairsFields(vals)
+		if err != nil {
+			return repo, "", repoURL, err
+		}
+		repo.LLMRotation = pairs
+		repo.NormalizeLLMRotation()
+	} else {
+		repo.LLMProviderID, repo.LLMModelID = pid, mid
+		repo.NormalizeLLMRotation()
+	}
 	return repo, strings.TrimSpace(r.FormValue("repo_pat")), repoURL, nil
 }
 
@@ -552,11 +563,21 @@ func parseSettingsForm(r *http.Request) (store.GlobalSettings, error) {
 	if minPoll > poll {
 		return store.GlobalSettings{}, fmt.Errorf("min poll interval cannot exceed default poll interval")
 	}
-	pid, mid, err := parseLLMPairField(r.FormValue("default_llm_pair"))
+	pairs, err := parseLLMPairsFields(r.Form["default_llm_pairs"])
 	if err != nil {
 		return store.GlobalSettings{}, err
 	}
-	return store.GlobalSettings{
+	// Backward-compatible single field if multi-pair absent.
+	if len(r.Form["default_llm_pairs"]) == 0 {
+		pid, mid, err := parseLLMPairField(r.FormValue("default_llm_pair"))
+		if err != nil {
+			return store.GlobalSettings{}, err
+		}
+		if pid != 0 {
+			pairs = []store.LLMPair{{ProviderID: pid, ModelID: mid}}
+		}
+	}
+	gs := store.GlobalSettings{
 		PollIntervalSeconds:    poll,
 		MinPollIntervalSeconds: minPoll,
 		MaxConcurrentReviews:   maxConc,
@@ -564,7 +585,8 @@ func parseSettingsForm(r *http.Request) (store.GlobalSettings, error) {
 		OCRConfigJSON:          ocrJSON,
 		UILanguage:             store.NormalizeUILanguage(strings.TrimSpace(r.FormValue("ui_language"))),
 		ReviewLanguage:         store.NormalizeReviewLanguage(strings.TrimSpace(r.FormValue("review_language"))),
-		DefaultLLMProviderID:   pid,
-		DefaultLLMModelID:      mid,
-	}.WithDefaults(), nil
+		DefaultLLMRotation:     pairs,
+	}.WithDefaults()
+	gs.NormalizeDefaultLLMRotation()
+	return gs, nil
 }
