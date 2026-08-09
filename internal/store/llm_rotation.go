@@ -150,7 +150,7 @@ func (s *Store) ClaimLLMRotation(ctx context.Context, setKey string, pairs []LLM
 		return LLMPair{}, err
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return LLMPair{}, err
 	}

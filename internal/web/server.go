@@ -507,10 +507,6 @@ func parseRepoForm(r *http.Request, hosts []store.GitHost) (store.Repo, string, 
 		}
 		repo.PollIntervalSeconds = &n
 	}
-	pid, mid, err := parseLLMPairField(r.FormValue("llm_pair"))
-	if err != nil {
-		return repo, "", repoURL, err
-	}
 	// Prefer multi-pair field when present (rotation UI).
 	if vals, ok := r.Form["llm_pairs"]; ok {
 		pairs, err := parseLLMPairsFields(vals)
@@ -520,6 +516,10 @@ func parseRepoForm(r *http.Request, hosts []store.GitHost) (store.Repo, string, 
 		repo.LLMRotation = pairs
 		repo.NormalizeLLMRotation()
 	} else {
+		pid, mid, err := parseLLMPairField(r.FormValue("llm_pair"))
+		if err != nil {
+			return repo, "", repoURL, err
+		}
 		repo.LLMProviderID, repo.LLMModelID = pid, mid
 		repo.NormalizeLLMRotation()
 	}
