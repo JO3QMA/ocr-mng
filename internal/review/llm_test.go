@@ -48,7 +48,7 @@ func TestResolveLLM_legacyJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sel.Ledger || sel.ModelFlag != "repo-m" {
+	if sel.Ledger || sel.ModelFlag != "repo-m" || sel.ProviderFlag != "" {
 		t.Fatalf("%+v", sel)
 	}
 	var m map[string]any
@@ -75,6 +75,9 @@ func TestResolveLLM_ledgerPair(t *testing.T) {
 	}
 	if !sel.Ledger || sel.ProviderName != "Anthropic" || sel.ModelName != "claude-x" {
 		t.Fatalf("%+v", sel)
+	}
+	if sel.ProviderFlag != "anthropic" || sel.ModelFlag != "claude-x" {
+		t.Fatalf("flags: %+v", sel)
 	}
 	var m map[string]any
 	_ = json.Unmarshal([]byte(sel.ConfigJSON), &m)
@@ -106,6 +109,9 @@ func TestResolveLLM_repoOverride(t *testing.T) {
 	}
 	if sel.ProviderName != "P2" || sel.ModelName != "m2" {
 		t.Fatalf("%+v", sel)
+	}
+	if sel.ProviderFlag != "openai" || sel.ModelFlag != "m2" {
+		t.Fatalf("flags: %+v", sel)
 	}
 }
 

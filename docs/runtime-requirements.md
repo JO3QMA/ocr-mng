@@ -1,6 +1,6 @@
 # Runtime requirements
 
-Open Code Review (OCR) v1.8.x requires **Git >= 2.41** ([alibaba/open-code-review#261](https://github.com/alibaba/open-code-review/issues/261)). Review Manager uses the host `git` for Repo Mirror fetch and Review Worktree creation; the production Docker image bundles `git` for the same paths inside the container.
+Open Code Review (OCR) requires **Git >= 2.41** ([alibaba/open-code-review#261](https://github.com/alibaba/open-code-review/issues/261)) and **OCR CLI >= v1.8.7** for per-run `--provider` / `--model` selection ([alibaba/open-code-review#687](https://github.com/alibaba/open-code-review/pull/687)). Review Manager does not version-gate before invoking OCR; an older binary fails the Review Run when it rejects unknown flags. Review Manager uses the host `git` for Repo Mirror fetch and Review Worktree creation; the production Docker image bundles `git` for the same paths inside the container.
 
 ## Production Docker image
 
