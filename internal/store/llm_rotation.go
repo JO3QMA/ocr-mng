@@ -137,10 +137,6 @@ func deleteLLMRotationCursor(ctx context.Context, db sqlExecer, setKey string) e
 	return err
 }
 
-func (s *Store) ResetLLMRotationCursor(ctx context.Context, setKey string) error {
-	return resetLLMRotationCursor(ctx, s.db, setKey)
-}
-
 func resetLLMRotationCursorTx(ctx context.Context, tx *sql.Tx, setKey string) error {
 	return resetLLMRotationCursor(ctx, tx, setKey)
 }
