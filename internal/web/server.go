@@ -203,19 +203,22 @@ func (s *Server) repoNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rv := store.RepoView{Repo: store.Repo{GitHostID: hosts[0].ID, DefaultBranch: "main", CommentMode: "inline", Enabled: true}}
-	s.renderRepoForm(w, r, rv, hosts, nil, "", "/repos", "page.new_repo", false)
+	s.renderRepoForm(w, r, rv, hosts, nil, "", "", "/repos", "page.new_repo", false)
 }
 
 func (s *Server) repoCreate(w http.ResponseWriter, r *http.Request) {
-	repo, pat, err := parseRepoForm(r)
+	hosts, err := s.store.ListGitHosts(r.Context())
 	if err != nil {
-		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, err.Error(), "/repos", "page.new_repo", false)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	repo, pat, repoURL, err := parseRepoForm(r, hosts)
+	if err != nil {
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, s.formErr(r, err), repoURL, "/repos", "page.new_repo", false)
 		return
 	}
 	if _, err := s.store.CreateRepo(r.Context(), repo, pat); err != nil {
-		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, err.Error(), "/repos", "page.new_repo", false)
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, err.Error(), repoURL, "/repos", "page.new_repo", false)
 		return
 	}
 	http.Redirect(w, r, "/repos?flash=created", http.StatusSeeOther)
@@ -228,28 +231,46 @@ func (s *Server) repoEdit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	hosts, _ := s.store.ListGitHosts(r.Context())
-	s.renderRepoForm(w, r, rv, hosts, nil, "", fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
+	hosts, err := s.store.ListGitHosts(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.renderRepoForm(w, r, rv, hosts, nil, "", "", fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 }
 
 func (s *Server) repoUpdate(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	repo, pat, err := parseRepoForm(r)
+	hosts, err := s.store.ListGitHosts(r.Context())
 	if err != nil {
-		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	repo, pat, repoURL, err := parseRepoForm(r, hosts)
+	if err != nil {
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, s.formErr(r, err), repoURL, fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 		return
 	}
 	repo.ID = id
 	if err := s.store.UpdateRepo(r.Context(), repo, pat, r.FormValue("clear_pat") == "on"); err != nil {
-		hosts, _ := s.store.ListGitHosts(r.Context())
-		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, err.Error(), fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
+		s.renderRepoForm(w, r, store.RepoView{Repo: repo}, hosts, nil, err.Error(), repoURL, fmt.Sprintf("/repos/%d", id), "page.edit_repo", true)
 		return
 	}
 	http.Redirect(w, r, "/repos?flash=updated", http.StatusSeeOther)
 }
 
-func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo store.RepoView, hosts []store.GitHost, llmOpts []llmPairOption, errMsg, action, titleKey string, showClear bool) {
+func (s *Server) formErr(r *http.Request, err error) string {
+	if err == nil {
+		return ""
+	}
+	key := err.Error()
+	if strings.HasPrefix(key, "form.repo_url") {
+		return s.page(r, "").L.T(key)
+	}
+	return key
+}
+
+func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo store.RepoView, hosts []store.GitHost, llmOpts []llmPairOption, errMsg, repoURL, action, titleKey string, showClear bool) {
 	poll := ""
 	if repo.PollIntervalSeconds != nil {
 		poll = strconv.Itoa(*repo.PollIntervalSeconds)
@@ -259,6 +280,14 @@ func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo sto
 	}
 	if llmOpts == nil {
 		llmOpts, _ = s.llmPairOptionsWithCurrent(r.Context(), repo.LLMProviderID, repo.LLMModelID)
+	}
+	if repoURL == "" {
+		for _, h := range hosts {
+			if h.ID == repo.GitHostID {
+				repoURL = FormatRepoURL(h.WebBaseURL, repo.Owner, repo.Name)
+				break
+			}
+		}
 	}
 	p := s.page(r, titleKey)
 	render(w, "repo_form", struct {
@@ -270,12 +299,13 @@ func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo sto
 		FormTitle    string
 		Action       string
 		ErrMsg       string
+		RepoURL      string
 		PollInterval string
 		ShowClearPAT bool
 	}{
 		page: p, Repo: repo, Hosts: hosts, LLMOptions: llmOpts,
 		LLMPairValue: formatLLMPair(repo.LLMProviderID, repo.LLMModelID),
-		FormTitle: p.Title, Action: action, ErrMsg: errMsg, PollInterval: poll, ShowClearPAT: showClear,
+		FormTitle: p.Title, Action: action, ErrMsg: errMsg, RepoURL: repoURL, PollInterval: poll, ShowClearPAT: showClear,
 	})
 }
 
@@ -419,15 +449,14 @@ func parseHostForm(r *http.Request) (store.GitHost, string, error) {
 	return h, strings.TrimSpace(r.FormValue("host_pat")), nil
 }
 
-func parseRepoForm(r *http.Request) (store.Repo, string, error) {
+func parseRepoForm(r *http.Request, hosts []store.GitHost) (store.Repo, string, string, error) {
 	if err := r.ParseForm(); err != nil {
-		return store.Repo{}, "", err
+		return store.Repo{}, "", "", err
 	}
 	hostID, _ := strconv.ParseInt(r.FormValue("git_host_id"), 10, 64)
+	repoURL := strings.TrimSpace(r.FormValue("repo_url"))
 	repo := store.Repo{
 		GitHostID:              hostID,
-		Owner:                  strings.TrimSpace(r.FormValue("owner")),
-		Name:                   strings.TrimSpace(r.FormValue("name")),
 		DefaultBranch:          strings.TrimSpace(r.FormValue("default_branch")),
 		TriggerLabel:           strings.TrimSpace(r.FormValue("trigger_label")),
 		CommentMode:            strings.TrimSpace(r.FormValue("comment_mode")),
@@ -441,7 +470,7 @@ func parseRepoForm(r *http.Request) (store.Repo, string, error) {
 	repo.OCRBackgroundFile = strings.TrimSpace(r.FormValue("ocr_background_file"))
 	bgFile, err := review.NormalizeReviewBackgroundFilePath(repo.OCRBackgroundFile)
 	if err != nil {
-		return repo, "", err
+		return repo, "", repoURL, err
 	}
 	repo.OCRBackgroundFile = bgFile
 	if lang := strings.TrimSpace(r.FormValue("review_language")); lang != "" {
@@ -453,22 +482,37 @@ func parseRepoForm(r *http.Request) (store.Repo, string, error) {
 	if repo.CommentMode == "" {
 		repo.CommentMode = "inline"
 	}
-	if repo.Owner == "" || repo.Name == "" || repo.TriggerLabel == "" || hostID == 0 {
-		return repo, "", fmt.Errorf("host, owner, name, and trigger label are required")
+	if hostID == 0 || repo.TriggerLabel == "" {
+		return repo, "", repoURL, fmt.Errorf("host and trigger label are required")
 	}
+	var webBase string
+	for _, h := range hosts {
+		if h.ID == hostID {
+			webBase = h.WebBaseURL
+			break
+		}
+	}
+	if webBase == "" {
+		return repo, "", repoURL, fmt.Errorf("form.repo_url_host_mismatch")
+	}
+	owner, name, err := ParseRepoURL(repoURL, webBase)
+	if err != nil {
+		return repo, "", repoURL, err
+	}
+	repo.Owner, repo.Name = owner, name
 	if v := strings.TrimSpace(r.FormValue("poll_interval_seconds")); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n <= 0 {
-			return repo, "", fmt.Errorf("invalid poll interval")
+			return repo, "", repoURL, fmt.Errorf("invalid poll interval")
 		}
 		repo.PollIntervalSeconds = &n
 	}
 	pid, mid, err := parseLLMPairField(r.FormValue("llm_pair"))
 	if err != nil {
-		return repo, "", err
+		return repo, "", repoURL, err
 	}
 	repo.LLMProviderID, repo.LLMModelID = pid, mid
-	return repo, strings.TrimSpace(r.FormValue("repo_pat")), nil
+	return repo, strings.TrimSpace(r.FormValue("repo_pat")), repoURL, nil
 }
 
 func parseSettingsForm(r *http.Request) (store.GlobalSettings, error) {

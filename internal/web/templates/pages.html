@@ -171,7 +171,15 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <label class="settings-toggle"><span>{{.L.T "form.enabled"}}</span><input class="settings-toggle-input" type="checkbox" name="enabled" {{checked .Provider.Enabled}}></label>
 {{end}}
 <label>{{.L.T "form.name"}}</label><input name="name" value="{{.Provider.Name}}" required>
-<label>{{.L.T "form.provider_key"}}</label><input name="provider_key" value="{{.Provider.ProviderKey}}" required>
+<label>{{.L.T "form.builtin_preset"}}</label>
+<select name="builtin_preset">
+<option value="" {{selected .BuiltinPreset ""}}>{{.L.T "form.builtin_preset_unset"}}</option>
+{{range .BuiltinPresets}}<option value="{{.Key}}" {{selected $.BuiltinPreset .Key}}>{{.Label}} ({{.Key}})</option>{{end}}
+<option value="__other__" {{selected .BuiltinPreset "__other__"}}>{{.L.T "form.builtin_preset_other"}}</option>
+</select>
+<p class="hint">{{.L.T "form.builtin_preset_hint"}} <a href="{{.BuiltinProviderDocsURL}}" target="_blank" rel="noopener">{{.L.T "form.builtin_preset_docs"}}</a></p>
+<label>{{.L.T "form.provider_key"}}</label><input name="provider_key" value="{{.Provider.ProviderKey}}">
+<p class="hint">{{.L.T "form.provider_key_builtin_hint"}}</p>
 <label>{{.L.T "form.kind"}}</label>
 <select name="kind">
 <option value="builtin" {{selected .Provider.Kind "builtin"}}>{{.L.T "llm.kind_builtin"}}</option>
@@ -263,8 +271,8 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <form method="post" action="{{.Action}}">
 <label>{{.L.T "form.git_host"}}</label>
 <select name="git_host_id">{{range .Hosts}}<option value="{{.ID}}" {{selectedInt $.Repo.GitHostID .ID}}>{{.Name}}</option>{{end}}</select>
-<label>{{.L.T "form.owner"}}</label><input name="owner" value="{{.Repo.Owner}}" required>
-<label>{{.L.T "form.repo_name"}}</label><input name="name" value="{{.Repo.Name}}" required>
+<label>{{.L.T "form.repo_url"}}</label><input name="repo_url" value="{{.RepoURL}}" required placeholder="{{.L.T "form.repo_url_placeholder"}}">
+<p class="hint">{{.L.T "form.repo_url_hint"}}</p>
 <label>{{.L.T "form.default_branch"}}</label><input name="default_branch" value="{{defaultStr .Repo.DefaultBranch "main"}}" required>
 <label>{{.L.T "form.trigger_label"}}</label><input name="trigger_label" value="{{.Repo.TriggerLabel}}" required>
 <label>{{.L.T "form.poll_interval"}}</label><input name="poll_interval_seconds" value="{{.PollInterval}}" type="number" min="0">

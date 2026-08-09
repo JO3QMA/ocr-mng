@@ -18,6 +18,7 @@ type LLMSelection struct {
 	ProviderKey  string
 	ModelName    string
 	ConfigJSON   string
+	ProviderFlag string // OCR --provider (Provider Key); empty in legacy path
 	ModelFlag    string // OCR --model; empty uses config default
 	Ledger       bool
 }
@@ -94,6 +95,7 @@ func resolveLedgerLLM(ctx context.Context, st *store.Store, gs store.GlobalSetti
 		ProviderKey:  p.ProviderKey,
 		ModelName:    m.ModelName,
 		ConfigJSON:   configJSON,
+		ProviderFlag: p.ProviderKey,
 		ModelFlag:    m.ModelName,
 		Ledger:       true,
 	}, nil

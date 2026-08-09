@@ -415,7 +415,7 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 				"run_id", run.ID, "repo_id", repo.ID, "path", rel)
 		}
 	}
-	result, raw, err := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, sel.ModelFlag, repo.OCRRule, bg, bgFile)
+	result, raw, err := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, sel.ProviderFlag, sel.ModelFlag, repo.OCRRule, bg, bgFile)
 	if err != nil {
 		return fmt.Errorf("ocr review: %w", err)
 	}
