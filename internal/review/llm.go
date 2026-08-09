@@ -23,14 +23,14 @@ type LLMSelection struct {
 	Ledger       bool
 }
 
-// LedgerMode reports whether Global default LLM pair has been set (one-way switch from legacy).
+// LedgerMode reports whether Global LLM Rotation Set has been set (one-way switch from legacy).
 func LedgerMode(gs store.GlobalSettings) bool {
-	return gs.DefaultLLMProviderID != 0 && gs.DefaultLLMModelID != 0
+	return len(gs.EffectiveLLMRotation()) > 0
 }
 
 // ResolveLLMSelection picks the LLM pair or legacy JSON path for a Review Run.
 //
-// ponytail: dual path until Global default pair is set once; then ledger-only.
+// dual path until Global default rotation is set once; then ledger-only.
 // OCR_LLM_* env stripping is intentionally not done here (MVP); empty those in compose.
 func ResolveLLMSelection(ctx context.Context, st *store.Store, gs store.GlobalSettings, repo store.RepoView, language string) (LLMSelection, error) {
 	if !LedgerMode(gs) {
@@ -55,13 +55,20 @@ func resolveLegacyLLM(gs store.GlobalSettings, repo store.RepoView, language str
 }
 
 func resolveLedgerLLM(ctx context.Context, st *store.Store, gs store.GlobalSettings, repo store.RepoView, language string) (LLMSelection, error) {
-	providerID, modelID := gs.DefaultLLMProviderID, gs.DefaultLLMModelID
-	if repo.LLMProviderID != 0 || repo.LLMModelID != 0 {
-		if err := store.ValidateLLMPairIDs(repo.LLMProviderID, repo.LLMModelID); err != nil {
-			return LLMSelection{}, err
-		}
-		providerID, modelID = repo.LLMProviderID, repo.LLMModelID
+	pairs := gs.EffectiveLLMRotation()
+	setKey := store.LLMRotationKeyGlobal
+	if override := repo.EffectiveLLMRotation(); len(override) > 0 {
+		pairs = override
+		setKey = store.LLMRotationKeyRepo(repo.ID)
 	}
+	claimed, err := st.ClaimLLMRotation(ctx, setKey, pairs)
+	if err != nil {
+		return LLMSelection{}, err
+	}
+	return buildLedgerSelection(ctx, st, claimed.ProviderID, claimed.ModelID, language)
+}
+
+func buildLedgerSelection(ctx context.Context, st *store.Store, providerID, modelID int64, language string) (LLMSelection, error) {
 	p, err := st.GetLLMProvider(ctx, providerID)
 	if err != nil {
 		return LLMSelection{}, fmt.Errorf("llm provider: %w", err)
@@ -107,7 +114,7 @@ func OCRHomeDir(dataDir string, runID int64) string {
 }
 
 // PruneOrphanOCRHomes removes leftover run-* dirs under ocr-home.
-// ponytail: best-effort startup cleanup; RemoveAll errors ignored, ReadDir failure is logged.
+// best-effort startup cleanup; RemoveAll errors ignored, ReadDir failure is logged.
 func PruneOrphanOCRHomes(ocrHomeRoot string, log *slog.Logger) {
 	if log == nil {
 		log = slog.Default()

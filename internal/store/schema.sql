@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS repos (
     review_language TEXT,
     llm_provider_id INTEGER REFERENCES llm_providers(id),
     llm_model_id INTEGER REFERENCES llm_provider_models(id),
+    llm_rotation TEXT,
     enabled INTEGER NOT NULL DEFAULT 1,
     last_polled_at TEXT,
     created_at TEXT NOT NULL,
@@ -89,6 +90,11 @@ CREATE TABLE IF NOT EXISTS review_runs (
     started_at TEXT,
     finished_at TEXT,
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS llm_rotation_cursors (
+    set_key TEXT PRIMARY KEY,
+    cursor_index INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_review_runs_repo ON review_runs(repo_id, created_at DESC);

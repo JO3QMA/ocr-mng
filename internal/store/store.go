@@ -49,8 +49,9 @@ type Repo struct {
 	OCRRequirement         string
 	OCRBackgroundFile      string // repo-root-relative; empty = unset
 	ReviewLanguage         string
-	LLMProviderID          int64 // 0 = follow Global
-	LLMModelID             int64 // 0 = follow Global; must pair with LLMProviderID
+	LLMProviderID          int64 // legacy / first of LLMRotation; 0 = follow Global when set empty
+	LLMModelID             int64 // legacy / first of LLMRotation; must pair with LLMProviderID
+	LLMRotation            []LLMPair // empty = follow Global; replaces Global entirely when non-empty
 	Enabled                bool
 	LastPolledAt           *time.Time
 	CreatedAt              time.Time
@@ -107,8 +108,9 @@ type GlobalSettings struct {
 	OCRConfigJSON          string `json:"ocr_config_json"`
 	UILanguage             string `json:"ui_language"`
 	ReviewLanguage         string `json:"review_language"`
-	DefaultLLMProviderID   int64  `json:"default_llm_provider_id"`
-	DefaultLLMModelID      int64  `json:"default_llm_model_id"`
+	DefaultLLMProviderID   int64     `json:"default_llm_provider_id"`
+	DefaultLLMModelID      int64     `json:"default_llm_model_id"`
+	DefaultLLMRotation     []LLMPair `json:"default_llm_rotation,omitempty"`
 }
 
 func NormalizeUILanguage(s string) string {
@@ -195,12 +197,17 @@ func (s *Store) migrate(ctx context.Context) error {
 		`ALTER TABLE repos ADD COLUMN approve_on_zero_findings INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE repos ADD COLUMN llm_provider_id INTEGER REFERENCES llm_providers(id)`,
 		`ALTER TABLE repos ADD COLUMN llm_model_id INTEGER REFERENCES llm_provider_models(id)`,
+		`ALTER TABLE repos ADD COLUMN llm_rotation TEXT`,
 		`ALTER TABLE repos ADD COLUMN ocr_background_file TEXT`,
 		`ALTER TABLE review_runs ADD COLUMN llm_provider_name TEXT`,
 		`ALTER TABLE review_runs ADD COLUMN llm_model_name TEXT`,
 		`ALTER TABLE review_runs DROP COLUMN summary_total_count`,
 		`ALTER TABLE pr_snapshots DROP COLUMN last_reviewed_head_sha`,
 		`ALTER TABLE pr_snapshots DROP COLUMN last_run_id`,
+		`CREATE TABLE IF NOT EXISTS llm_rotation_cursors (
+			set_key TEXT PRIMARY KEY,
+			cursor_index INTEGER NOT NULL DEFAULT 0
+		)`,
 	} {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
 			msg := strings.ToLower(err.Error())
@@ -210,7 +217,7 @@ func (s *Store) migrate(ctx context.Context) error {
 			return fmt.Errorf("migration %q: %w", stmt, err)
 		}
 	}
-	return nil
+	return s.migrateLLMRotationFromPairs(ctx)
 }
 
 func (s *Store) GetGlobalSettings(ctx context.Context) (GlobalSettings, error) {
@@ -223,7 +230,9 @@ func (s *Store) GetGlobalSettings(ctx context.Context) (GlobalSettings, error) {
 	if err := json.Unmarshal([]byte(raw), &gs); err != nil {
 		return GlobalSettings{}, err
 	}
-	return gs.WithDefaults(), nil
+	gs = gs.WithDefaults()
+	gs.NormalizeDefaultLLMRotation()
+	return gs, nil
 }
 
 func (s *Store) SaveGlobalSettings(ctx context.Context, gs GlobalSettings) error {
@@ -231,23 +240,114 @@ func (s *Store) SaveGlobalSettings(ctx context.Context, gs GlobalSettings) error
 	if err != nil {
 		return err
 	}
-	if err := ValidateLLMPairIDs(gs.DefaultLLMProviderID, gs.DefaultLLMModelID); err != nil {
+	gs.NormalizeDefaultLLMRotation()
+	prevRot := prev.EffectiveLLMRotation()
+	nextRot := gs.EffectiveLLMRotation()
+	if len(nextRot) == 0 {
+		if err := ValidateLLMPairIDs(gs.DefaultLLMProviderID, gs.DefaultLLMModelID); err != nil {
+			return err
+		}
+	} else if err := ValidateLLMRotation(nextRot); err != nil {
 		return err
 	}
-	if prev.DefaultLLMProviderID != 0 && prev.DefaultLLMModelID != 0 &&
-		gs.DefaultLLMProviderID == 0 && gs.DefaultLLMModelID == 0 {
-		return fmt.Errorf("global llm pair cannot be cleared once set")
+	if len(prevRot) > 0 && len(nextRot) == 0 {
+		return fmt.Errorf("global llm rotation set cannot be cleared once set")
 	}
-	if err := s.assertLLMPairSelectable(ctx, gs.DefaultLLMProviderID, gs.DefaultLLMModelID); err != nil {
+	if err := s.assertLLMRotationSelectable(ctx, nextRot); err != nil {
 		return err
 	}
 	gs = gs.WithDefaults()
+	gs.NormalizeDefaultLLMRotation()
 	b, err := json.Marshal(gs)
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `UPDATE global_settings SET value = ? WHERE key = 'settings'`, string(b))
-	return err
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `UPDATE global_settings SET value = ? WHERE key = 'settings'`, string(b)); err != nil {
+		return err
+	}
+	if !LLMPairsEqual(prevRot, nextRot) {
+		if err := resetLLMRotationCursorTx(ctx, tx, LLMRotationKeyGlobal); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *Store) migrateLLMRotationFromPairs(ctx context.Context) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var raw string
+	if err := tx.QueryRowContext(ctx, `SELECT value FROM global_settings WHERE key = 'settings'`).Scan(&raw); err != nil {
+		return err
+	}
+	var gs GlobalSettings
+	if err := json.Unmarshal([]byte(raw), &gs); err != nil {
+		return err
+	}
+	gs = gs.WithDefaults()
+	if len(gs.DefaultLLMRotation) == 0 && gs.DefaultLLMProviderID != 0 && gs.DefaultLLMModelID != 0 {
+		gs.NormalizeDefaultLLMRotation()
+		b, err := json.Marshal(gs)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE global_settings SET value = ? WHERE key = 'settings'`, string(b)); err != nil {
+			return err
+		}
+	}
+
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, llm_rotation, llm_provider_id, llm_model_id FROM repos
+		WHERE llm_rotation IS NULL AND llm_provider_id IS NOT NULL AND llm_model_id IS NOT NULL`)
+	if err != nil {
+		return err
+	}
+	type row struct {
+		id  int64
+		pid int64
+		mid int64
+	}
+	var todo []row
+	for rows.Next() {
+		var id int64
+		var rot sql.NullString
+		var pid, mid sql.NullInt64
+		if err := rows.Scan(&id, &rot, &pid, &mid); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if rot.Valid && strings.TrimSpace(rot.String) != "" {
+			continue
+		}
+		if !pid.Valid || !mid.Valid || pid.Int64 == 0 || mid.Int64 == 0 {
+			continue
+		}
+		todo = append(todo, row{id: id, pid: pid.Int64, mid: mid.Int64})
+	}
+	err = rows.Err()
+	_ = rows.Close()
+	if err != nil {
+		return err
+	}
+	for _, r := range todo {
+		enc, err := marshalLLMRotation([]LLMPair{{ProviderID: r.pid, ModelID: r.mid}})
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE repos SET llm_rotation=? WHERE id=?`, enc, r.id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (s *Store) encryptPAT(pat string) (string, error) {
@@ -368,33 +468,56 @@ func (s *Store) GetGitHost(ctx context.Context, id int64) (GitHost, error) {
 }
 
 func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, error) {
-	if err := s.assertLLMPairSelectable(ctx, r.LLMProviderID, r.LLMModelID); err != nil {
+	r.NormalizeLLMRotation()
+	if err := s.assertLLMRotationSelectable(ctx, r.EffectiveLLMRotation()); err != nil {
 		return 0, err
 	}
 	enc, err := s.encryptPAT(pat)
 	if err != nil {
 		return 0, err
 	}
+	rot, err := marshalLLMRotation(r.LLMRotation)
+	if err != nil {
+		return 0, err
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	res, err := s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.ExecContext(ctx, `
 		INSERT INTO repos(git_host_id, owner, name, default_branch, trigger_label, poll_interval_seconds,
 			repo_pat_encrypted, comment_mode, remove_label_after_review, approve_on_zero_findings,
 			ocr_model, ocr_rule, ocr_requirement, ocr_background_file, review_language, llm_provider_id, llm_model_id,
-			enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			llm_rotation, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
 		nullStr(enc), r.CommentMode, b2i(r.RemoveLabelAfterReview), b2i(r.ApproveOnZeroFindings),
 		nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement), nullStr(r.OCRBackgroundFile),
-		nullStr(r.ReviewLanguage), nullInt64(r.LLMProviderID), nullInt64(r.LLMModelID),
+		nullStr(r.ReviewLanguage), nullInt64(r.LLMProviderID), nullInt64(r.LLMModelID), rot,
 		b2i(r.Enabled), now, now)
 	if err != nil {
 		return 0, err
 	}
-	return res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	if len(r.LLMRotation) > 0 {
+		if err := resetLLMRotationCursorTx(ctx, tx, LLMRotationKeyRepo(id)); err != nil {
+			return 0, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
 func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT bool) error {
-	if err := s.assertLLMPairSelectable(ctx, r.LLMProviderID, r.LLMModelID); err != nil {
+	r.NormalizeLLMRotation()
+	if err := s.assertLLMRotationSelectable(ctx, r.EffectiveLLMRotation()); err != nil {
 		return err
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -410,20 +533,47 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 	} else if clearPAT {
 		clear = 1
 	}
-	_, err := s.db.ExecContext(ctx, `
+	rot, err := marshalLLMRotation(r.LLMRotation)
+	if err != nil {
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	prevRot, err := loadRepoLLMRotationTx(ctx, tx, r.ID)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
 		UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
 			poll_interval_seconds=?,
 			repo_pat_encrypted=CASE WHEN ?=1 THEN ? WHEN ?=1 THEN NULL ELSE repo_pat_encrypted END,
 			comment_mode=?, remove_label_after_review=?, approve_on_zero_findings=?,
 			ocr_model=?, ocr_rule=?, ocr_requirement=?, ocr_background_file=?, review_language=?,
-			llm_provider_id=?, llm_model_id=?, enabled=?, updated_at=?
+			llm_provider_id=?, llm_model_id=?, llm_rotation=?, enabled=?, updated_at=?
 		WHERE id=?`,
 		r.GitHostID, r.Owner, r.Name, r.DefaultBranch, r.TriggerLabel, r.PollIntervalSeconds,
 		setPAT, enc, clear,
 		r.CommentMode, remove, approve, nullStr(r.OCRModel), nullStr(r.OCRRule), nullStr(r.OCRRequirement),
 		nullStr(r.OCRBackgroundFile), nullStr(r.ReviewLanguage), nullInt64(r.LLMProviderID), nullInt64(r.LLMModelID),
-		enabled, now, r.ID)
-	return err
+		rot, enabled, now, r.ID)
+	if err != nil {
+		return err
+	}
+	nextRot := r.EffectiveLLMRotation()
+	key := LLMRotationKeyRepo(r.ID)
+	if len(nextRot) == 0 {
+		if err := deleteLLMRotationCursorTx(ctx, tx, key); err != nil {
+			return err
+		}
+	} else if !LLMPairsEqual(prevRot, nextRot) {
+		if err := resetLLMRotationCursorTx(ctx, tx, key); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func scanRepo(scanner interface {
@@ -433,12 +583,12 @@ func scanRepo(scanner interface {
 	var poll, llmProvider, llmModel sql.NullInt64
 	var lastPolled sql.NullString
 	var remove, approve, enabled int
-	var ocrModel, ocrRule, ocrReq, ocrBgFile, reviewLang sql.NullString
+	var ocrModel, ocrRule, ocrReq, ocrBgFile, reviewLang, llmRotation sql.NullString
 	var created, updated string
 	err := scanner.Scan(
 		&rv.ID, &rv.GitHostID, &rv.Owner, &rv.Name, &rv.DefaultBranch, &rv.TriggerLabel, &poll,
 		&rv.CommentMode, &remove, &approve, &ocrModel, &ocrRule, &ocrReq, &ocrBgFile, &reviewLang,
-		&llmProvider, &llmModel, &enabled, &lastPolled, &created, &updated,
+		&llmProvider, &llmModel, &llmRotation, &enabled, &lastPolled, &created, &updated,
 		&rv.HostName, &rv.HostKind,
 	)
 	if err != nil {
@@ -472,6 +622,12 @@ func scanRepo(scanner interface {
 	if llmModel.Valid {
 		rv.LLMModelID = llmModel.Int64
 	}
+	pairs, err := parseLLMRotationJSON(llmRotation)
+	if err != nil {
+		pairs = nil // corrupt JSON: fall back to legacy pair columns via Normalize
+	}
+	rv.LLMRotation = pairs
+	rv.NormalizeLLMRotation()
 	if lastPolled.Valid {
 		t, _ := time.Parse(time.RFC3339, lastPolled.String)
 		rv.LastPolledAt = &t
@@ -485,7 +641,7 @@ func (s *Store) ListRepos(ctx context.Context) ([]RepoView, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT r.id, r.git_host_id, r.owner, r.name, r.default_branch, r.trigger_label, r.poll_interval_seconds,
 			r.comment_mode, r.remove_label_after_review, r.approve_on_zero_findings, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.ocr_background_file, r.review_language,
-			r.llm_provider_id, r.llm_model_id,
+			r.llm_provider_id, r.llm_model_id, r.llm_rotation,
 			r.enabled, r.last_polled_at, r.created_at, r.updated_at, h.name, h.kind
 		FROM repos r JOIN git_hosts h ON h.id = r.git_host_id
 		ORDER BY h.name, r.owner, r.name`)
@@ -508,7 +664,7 @@ func (s *Store) GetRepo(ctx context.Context, id int64) (RepoView, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT r.id, r.git_host_id, r.owner, r.name, r.default_branch, r.trigger_label, r.poll_interval_seconds,
 			r.comment_mode, r.remove_label_after_review, r.approve_on_zero_findings, r.ocr_model, r.ocr_rule, r.ocr_requirement, r.ocr_background_file, r.review_language,
-			r.llm_provider_id, r.llm_model_id,
+			r.llm_provider_id, r.llm_model_id, r.llm_rotation,
 			r.enabled, r.last_polled_at, r.created_at, r.updated_at, h.name, h.kind
 		FROM repos r JOIN git_hosts h ON h.id = r.git_host_id
 		WHERE r.id=?`, id)
