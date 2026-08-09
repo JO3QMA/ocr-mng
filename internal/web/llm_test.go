@@ -165,7 +165,7 @@ func TestLLMPairOptionsIncludesDisabledCurrent(t *testing.T) {
 		}
 	}
 
-	opts, err = s.llmPairOptionsWithCurrent(ctx, pid, mid)
+	opts, err = s.llmPairOptionsWithCurrents(ctx, []store.LLMPair{{ProviderID: pid, ModelID: mid}})
 	if err != nil {
 		t.Fatal(err)
 	}

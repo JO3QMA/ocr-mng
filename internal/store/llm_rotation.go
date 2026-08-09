@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -21,15 +22,7 @@ func LLMRotationKeyRepo(repoID int64) string {
 }
 
 func LLMPairsEqual(a, b []LLMPair) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i].ProviderID != b[i].ProviderID || a[i].ModelID != b[i].ModelID {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(a, b)
 }
 
 func ValidateLLMRotation(pairs []LLMPair) error {
@@ -128,28 +121,32 @@ func (s *Store) assertLLMRotationSelectable(ctx context.Context, pairs []LLMPair
 	return nil
 }
 
-func (s *Store) ResetLLMRotationCursor(ctx context.Context, setKey string) error {
-	_, err := s.db.ExecContext(ctx, `
+type sqlExecer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func resetLLMRotationCursor(ctx context.Context, db sqlExecer, setKey string) error {
+	_, err := db.ExecContext(ctx, `
 		INSERT INTO llm_rotation_cursors(set_key, cursor_index) VALUES (?, 0)
 		ON CONFLICT(set_key) DO UPDATE SET cursor_index=0`, setKey)
 	return err
 }
 
-func (s *Store) DeleteLLMRotationCursor(ctx context.Context, setKey string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM llm_rotation_cursors WHERE set_key=?`, setKey)
+func deleteLLMRotationCursor(ctx context.Context, db sqlExecer, setKey string) error {
+	_, err := db.ExecContext(ctx, `DELETE FROM llm_rotation_cursors WHERE set_key=?`, setKey)
 	return err
+}
+
+func (s *Store) ResetLLMRotationCursor(ctx context.Context, setKey string) error {
+	return resetLLMRotationCursor(ctx, s.db, setKey)
 }
 
 func resetLLMRotationCursorTx(ctx context.Context, tx *sql.Tx, setKey string) error {
-	_, err := tx.ExecContext(ctx, `
-		INSERT INTO llm_rotation_cursors(set_key, cursor_index) VALUES (?, 0)
-		ON CONFLICT(set_key) DO UPDATE SET cursor_index=0`, setKey)
-	return err
+	return resetLLMRotationCursor(ctx, tx, setKey)
 }
 
 func deleteLLMRotationCursorTx(ctx context.Context, tx *sql.Tx, setKey string) error {
-	_, err := tx.ExecContext(ctx, `DELETE FROM llm_rotation_cursors WHERE set_key=?`, setKey)
-	return err
+	return deleteLLMRotationCursor(ctx, tx, setKey)
 }
 
 // ClaimLLMRotation picks the next usable pair (round-robin) and advances the cursor.
@@ -161,29 +158,6 @@ func (s *Store) ClaimLLMRotation(ctx context.Context, setKey string, pairs []LLM
 	if err := ValidateLLMRotation(pairs); err != nil {
 		return LLMPair{}, err
 	}
-	var last error
-	for attempt := 0; attempt < 5; attempt++ {
-		pair, err := s.claimLLMRotationOnce(ctx, setKey, pairs)
-		if err == nil {
-			return pair, nil
-		}
-		last = err
-		if !isSQLiteBusy(err) {
-			return LLMPair{}, err
-		}
-	}
-	return LLMPair{}, last
-}
-
-func isSQLiteBusy(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "busy") || strings.Contains(msg, "locked")
-}
-
-func (s *Store) claimLLMRotationOnce(ctx context.Context, setKey string, pairs []LLMPair) (LLMPair, error) {
 	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return LLMPair{}, err

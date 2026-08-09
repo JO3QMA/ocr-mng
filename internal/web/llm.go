@@ -57,11 +57,7 @@ func (s *Server) llmPairOptionsWithCurrents(ctx context.Context, currents []stor
 	if err != nil {
 		return nil, err
 	}
-	type pairMeta struct {
-		label   string
-		enabled bool
-	}
-	meta := map[string]pairMeta{}
+	meta := map[string]string{}
 	var out []llmPairOption
 	seen := map[string]bool{}
 	add := func(opt llmPairOption) {
@@ -79,19 +75,16 @@ func (s *Server) llmPairOptionsWithCurrents(ctx context.Context, currents []stor
 		for _, m := range models {
 			val := formatLLMPair(p.ID, m.ID)
 			label := p.Name + " / " + m.ModelName
-			en := p.Enabled && m.Enabled
-			if !en {
-				label += " (disabled)"
-			}
-			meta[val] = pairMeta{label: label, enabled: en}
-			if !en {
+			if !p.Enabled || !m.Enabled {
+				meta[val] = label + " (disabled)"
 				continue
 			}
+			meta[val] = label
 			add(llmPairOption{
 				ProviderID: p.ID,
 				ModelID:    m.ID,
 				Value:      val,
-				Label:      p.Name + " / " + m.ModelName,
+				Label:      label,
 			})
 		}
 	}
@@ -105,7 +98,7 @@ func (s *Server) llmPairOptionsWithCurrents(ctx context.Context, currents []stor
 		}
 		label := val
 		if m, ok := meta[val]; ok {
-			label = m.label
+			label = m
 		} else if l, err := s.llmPairLabel(ctx, cur.ProviderID, cur.ModelID); err == nil {
 			label = l
 		}
@@ -117,14 +110,6 @@ func (s *Server) llmPairOptionsWithCurrents(ctx context.Context, currents []stor
 		})
 	}
 	return out, nil
-}
-
-func (s *Server) llmPairOptionsWithCurrent(ctx context.Context, curProviderID, curModelID int64) ([]llmPairOption, error) {
-	var currents []store.LLMPair
-	if curProviderID != 0 && curModelID != 0 {
-		currents = []store.LLMPair{{ProviderID: curProviderID, ModelID: curModelID}}
-	}
-	return s.llmPairOptionsWithCurrents(ctx, currents)
 }
 
 func (s *Server) llmPairLabel(ctx context.Context, providerID, modelID int64) (string, error) {
@@ -164,10 +149,6 @@ func parseLLMPairField(v string) (providerID, modelID int64, err error) {
 }
 
 func parseLLMPairsFields(values []string) ([]store.LLMPair, error) {
-	const maxLLMPairsFields = 32
-	if len(values) > maxLLMPairsFields {
-		return nil, fmt.Errorf("too many llm pairs (max %d)", maxLLMPairsFields)
-	}
 	var out []store.LLMPair
 	seen := map[string]struct{}{}
 	for _, v := range values {
@@ -196,9 +177,6 @@ func formatLLMPair(providerID, modelID int64) string {
 }
 
 func llmRotationValues(pairs []store.LLMPair) []string {
-	if len(pairs) == 0 {
-		return nil
-	}
 	out := make([]string, len(pairs))
 	for i, p := range pairs {
 		out[i] = formatLLMPair(p.ProviderID, p.ModelID)

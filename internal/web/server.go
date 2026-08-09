@@ -507,22 +507,12 @@ func parseRepoForm(r *http.Request, hosts []store.GitHost) (store.Repo, string, 
 		}
 		repo.PollIntervalSeconds = &n
 	}
-	// Prefer multi-pair field when present (rotation UI).
-	if vals, ok := r.Form["llm_pairs"]; ok {
-		pairs, err := parseLLMPairsFields(vals)
-		if err != nil {
-			return repo, "", repoURL, err
-		}
-		repo.LLMRotation = pairs
-		repo.NormalizeLLMRotation()
-	} else {
-		pid, mid, err := parseLLMPairField(r.FormValue("llm_pair"))
-		if err != nil {
-			return repo, "", repoURL, err
-		}
-		repo.LLMProviderID, repo.LLMModelID = pid, mid
-		repo.NormalizeLLMRotation()
+	pairs, err := parseLLMPairsFields(r.Form["llm_pairs"])
+	if err != nil {
+		return repo, "", repoURL, err
 	}
+	repo.LLMRotation = pairs
+	repo.NormalizeLLMRotation()
 	return repo, strings.TrimSpace(r.FormValue("repo_pat")), repoURL, nil
 }
 
@@ -566,16 +556,6 @@ func parseSettingsForm(r *http.Request) (store.GlobalSettings, error) {
 	pairs, err := parseLLMPairsFields(r.Form["default_llm_pairs"])
 	if err != nil {
 		return store.GlobalSettings{}, err
-	}
-	// Backward-compatible single field if multi-pair absent.
-	if len(r.Form["default_llm_pairs"]) == 0 {
-		pid, mid, err := parseLLMPairField(r.FormValue("default_llm_pair"))
-		if err != nil {
-			return store.GlobalSettings{}, err
-		}
-		if pid != 0 {
-			pairs = []store.LLMPair{{ProviderID: pid, ModelID: mid}}
-		}
 	}
 	gs := store.GlobalSettings{
 		PollIntervalSeconds:    poll,
