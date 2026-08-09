@@ -262,15 +262,20 @@ func (s *Store) SaveGlobalSettings(ctx context.Context, gs GlobalSettings) error
 	if err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(ctx, `UPDATE global_settings SET value = ? WHERE key = 'settings'`, string(b)); err != nil {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `UPDATE global_settings SET value = ? WHERE key = 'settings'`, string(b)); err != nil {
 		return err
 	}
 	if !LLMPairsEqual(prevRot, nextRot) {
-		if err := s.ResetLLMRotationCursor(ctx, LLMRotationKeyGlobal); err != nil {
+		if err := resetLLMRotationCursorTx(ctx, tx, LLMRotationKeyGlobal); err != nil {
 			return err
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (s *Store) migrateLLMRotationFromPairs(ctx context.Context) error {
@@ -511,10 +516,6 @@ func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, erro
 }
 
 func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT bool) error {
-	prev, err := s.GetRepo(ctx, r.ID)
-	if err != nil {
-		return err
-	}
 	r.NormalizeLLMRotation()
 	if err := s.assertLLMRotationSelectable(ctx, r.EffectiveLLMRotation()); err != nil {
 		return err
@@ -541,6 +542,10 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	prevRot, err := loadRepoLLMRotationTx(ctx, tx, r.ID)
+	if err != nil {
+		return err
+	}
 	_, err = tx.ExecContext(ctx, `
 		UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
 			poll_interval_seconds=?,
@@ -557,7 +562,6 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 	if err != nil {
 		return err
 	}
-	prevRot := prev.EffectiveLLMRotation()
 	nextRot := r.EffectiveLLMRotation()
 	key := LLMRotationKeyRepo(r.ID)
 	if len(nextRot) == 0 {
@@ -620,7 +624,7 @@ func scanRepo(scanner interface {
 	}
 	pairs, err := parseLLMRotationJSON(llmRotation)
 	if err != nil {
-		return RepoView{}, err
+		pairs = nil // corrupt JSON: fall back to legacy pair columns via Normalize
 	}
 	rv.LLMRotation = pairs
 	rv.NormalizeLLMRotation()

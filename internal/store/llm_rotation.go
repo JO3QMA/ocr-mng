@@ -149,6 +149,25 @@ func deleteLLMRotationCursorTx(ctx context.Context, tx *sql.Tx, setKey string) e
 	return deleteLLMRotationCursor(ctx, tx, setKey)
 }
 
+func loadRepoLLMRotationTx(ctx context.Context, tx *sql.Tx, repoID int64) ([]LLMPair, error) {
+	var raw sql.NullString
+	var pid, mid sql.NullInt64
+	err := tx.QueryRowContext(ctx,
+		`SELECT llm_rotation, llm_provider_id, llm_model_id FROM repos WHERE id=?`, repoID,
+	).Scan(&raw, &pid, &mid)
+	if err != nil {
+		return nil, err
+	}
+	pairs, err := parseLLMRotationJSON(raw)
+	if err != nil {
+		pairs = nil
+	}
+	if len(pairs) == 0 && pid.Valid && mid.Valid && pid.Int64 != 0 && mid.Int64 != 0 {
+		pairs = []LLMPair{{ProviderID: pid.Int64, ModelID: mid.Int64}}
+	}
+	return pairs, nil
+}
+
 // ClaimLLMRotation picks the next usable pair (round-robin) and advances the cursor.
 // Usable means provider/model enabled, model belongs to provider, and API key present.
 func (s *Store) ClaimLLMRotation(ctx context.Context, setKey string, pairs []LLMPair) (LLMPair, error) {
