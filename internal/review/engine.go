@@ -415,9 +415,9 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 				"run_id", run.ID, "repo_id", repo.ID, "path", rel)
 		}
 	}
-	result, raw, err := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, sel.ProviderFlag, sel.ModelFlag, repo.OCRRule, bg, bgFile)
-	if err != nil {
-		return fmt.Errorf("ocr review: %w", err)
+	result, raw, ocrErr := ocrRunner.Review(ctx, ws.WorktreeDir, fromRef, pr.HeadSHA, sel.ProviderFlag, sel.ModelFlag, repo.OCRRule, bg, bgFile)
+	if ocrErr != nil && len(raw) == 0 {
+		return fmt.Errorf("ocr review: %w", ocrErr)
 	}
 	ocrDir := filepath.Join(e.cfg.DataDir, "ocr-output")
 	_ = os.MkdirAll(ocrDir, 0o755)
@@ -436,6 +436,10 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 			return fmt.Errorf("ocr review completed with %d warning(s)", n)
 		}
 		return fmt.Errorf("ocr review completed with status %q", result.Status)
+	}
+
+	if ocrErr != nil {
+		return fmt.Errorf("ocr review: %w", ocrErr)
 	}
 
 	if repo.RemoveLabelAfterReview && (len(result.Comments) > 0 || IsCleanZeroFinding(result)) {

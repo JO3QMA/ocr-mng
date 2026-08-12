@@ -168,17 +168,17 @@ func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, pro
 	err := cmd.Run()
 	raw := stdout.Bytes()
 	var result Result
+	if len(raw) > 0 {
+		if parseErr := json.Unmarshal(raw, &result); parseErr != nil {
+			return result, raw, fmt.Errorf("parse ocr output: %w", parseErr)
+		}
+	}
 	if err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = err.Error()
 		}
 		return result, raw, fmt.Errorf("%s", msg)
-	}
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &result); err != nil {
-			return result, raw, fmt.Errorf("parse ocr output: %w", err)
-		}
 	}
 	return result, raw, nil
 }

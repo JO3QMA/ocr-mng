@@ -43,13 +43,28 @@ func TestReviewPrefersCommandErrorOverParseError(t *testing.T) {
 	runner := ocr.Runner{Binary: binary, HomeDir: t.TempDir()}
 	_, _, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "", "", "")
 	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "parse ocr output") {
+		t.Fatalf("parse error when stdout is not JSON: %v", err)
+	}
+}
+
+func TestReviewParsesJSONWhenCommandFails(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "fake-ocr")
+	script := "#!/bin/sh\necho '{\"comments\":[],\"warnings\":[{\"type\":\"subtask_error\",\"message\":\"boom\"}]}'\necho fail >&2\nexit 1\n"
+	if err := os.WriteFile(binary, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := ocr.Runner{Binary: binary, HomeDir: t.TempDir()}
+	result, _, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "", "", "")
+	if err == nil {
 		t.Fatal("expected command error")
 	}
-	if strings.Contains(err.Error(), "parse ocr output") {
-		t.Fatalf("command error should win: %v", err)
-	}
-	if !strings.Contains(err.Error(), "not json") {
-		t.Fatalf("err: %v", err)
+	if len(result.Warnings) != 1 || !result.HasReviewWarnings() {
+		t.Fatalf("parsed result: %+v err=%v", result, err)
 	}
 }
 
