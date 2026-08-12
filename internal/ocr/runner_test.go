@@ -229,4 +229,15 @@ func TestWarningsJSONSkipsEmptyElements(t *testing.T) {
 	if !one.HasReviewWarnings() {
 		t.Fatal("non-empty warning should fail the run")
 	}
+
+	var typeOnly ocr.Result
+	if err := json.Unmarshal([]byte(`{"comments":[],"warnings":[{"type":"subtask_error"}]}`), &typeOnly); err != nil {
+		t.Fatal(err)
+	}
+	if len(typeOnly.Warnings) != 1 || typeOnly.Warnings[0].Display() != "subtask_error" {
+		t.Fatalf("type-only warning: %+v", typeOnly.Warnings)
+	}
+	if !typeOnly.HasReviewWarnings() {
+		t.Fatal("type-only warning should fail the run")
+	}
 }

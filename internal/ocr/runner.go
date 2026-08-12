@@ -45,13 +45,17 @@ type Warning struct {
 func (w Warning) Display() string {
 	msg := strings.TrimSpace(w.Message)
 	file := strings.TrimSpace(w.File)
+	typ := strings.TrimSpace(w.Type)
 	if file != "" && msg != "" {
 		return file + ": " + msg
 	}
 	if msg != "" {
 		return msg
 	}
-	return file
+	if file != "" {
+		return file
+	}
+	return typ
 }
 
 // Warnings unmarshals OCR warnings as either strings or objects.
