@@ -39,22 +39,24 @@ func mustLLMPair(t *testing.T, st *store.Store, ctx context.Context, name, key, 
 	return pid, mid
 }
 
-func TestResolveLLM_legacyJSON(t *testing.T) {
+func saveGlobalRotation(t *testing.T, st *store.Store, ctx context.Context, pairs ...store.LLMPair) store.GlobalSettings {
+	t.Helper()
+	gs, _ := st.GetGlobalSettings(ctx)
+	gs.DefaultLLMRotation = pairs
+	if err := st.SaveGlobalSettings(ctx, gs); err != nil {
+		t.Fatal(err)
+	}
+	gs, _ = st.GetGlobalSettings(ctx)
+	return gs
+}
+
+func TestResolveLLM_emptyGlobalRotationFails(t *testing.T) {
 	st := openReviewStore(t)
 	ctx := context.Background()
 	gs, _ := st.GetGlobalSettings(ctx)
-	gs.OCRConfigJSON = `{"llm":{"model":"legacy-m"}}`
-	sel, err := review.ResolveLLMSelection(ctx, st, gs, store.RepoView{Repo: store.Repo{OCRModel: "repo-m"}}, "Japanese")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sel.Ledger || sel.ModelFlag != "repo-m" || sel.ProviderFlag != "" {
-		t.Fatalf("%+v", sel)
-	}
-	var m map[string]any
-	_ = json.Unmarshal([]byte(sel.ConfigJSON), &m)
-	if m["language"] != "Japanese" {
-		t.Fatalf("config: %s", sel.ConfigJSON)
+	_, err := review.ResolveLLMSelection(ctx, st, gs, store.RepoView{}, "Japanese")
+	if err == nil || !strings.Contains(err.Error(), "empty") {
+		t.Fatalf("expected empty rotation error: %v", err)
 	}
 }
 
@@ -62,18 +64,13 @@ func TestResolveLLM_ledgerPair(t *testing.T) {
 	st := openReviewStore(t)
 	ctx := context.Background()
 	pid, mid := mustLLMPair(t, st, ctx, "Anthropic", "anthropic", "claude-x")
-	gs, _ := st.GetGlobalSettings(ctx)
-	gs.DefaultLLMProviderID, gs.DefaultLLMModelID = pid, mid
-	if err := st.SaveGlobalSettings(ctx, gs); err != nil {
-		t.Fatal(err)
-	}
-	gs, _ = st.GetGlobalSettings(ctx)
+	gs := saveGlobalRotation(t, st, ctx, store.LLMPair{ProviderID: pid, ModelID: mid})
 
 	sel, err := review.ResolveLLMSelection(ctx, st, gs, store.RepoView{}, "Japanese")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sel.Ledger || sel.ProviderName != "Anthropic" || sel.ModelName != "claude-x" {
+	if sel.ProviderName != "Anthropic" || sel.ModelName != "claude-x" {
 		t.Fatalf("%+v", sel)
 	}
 	if sel.ProviderFlag != "anthropic" || sel.ModelFlag != "claude-x" {
@@ -96,13 +93,10 @@ func TestResolveLLM_repoOverride(t *testing.T) {
 	ctx := context.Background()
 	pid1, mid1 := mustLLMPair(t, st, ctx, "P1", "anthropic", "m1")
 	pid2, mid2 := mustLLMPair(t, st, ctx, "P2", "openai", "m2")
-	gs, _ := st.GetGlobalSettings(ctx)
-	gs.DefaultLLMProviderID, gs.DefaultLLMModelID = pid1, mid1
-	_ = st.SaveGlobalSettings(ctx, gs)
-	gs, _ = st.GetGlobalSettings(ctx)
+	gs := saveGlobalRotation(t, st, ctx, store.LLMPair{ProviderID: pid1, ModelID: mid1})
 
 	sel, err := review.ResolveLLMSelection(ctx, st, gs, store.RepoView{
-		Repo: store.Repo{LLMProviderID: pid2, LLMModelID: mid2},
+		Repo: store.Repo{LLMRotation: []store.LLMPair{{ProviderID: pid2, ModelID: mid2}}},
 	}, "English")
 	if err != nil {
 		t.Fatal(err)
@@ -119,10 +113,7 @@ func TestResolveLLM_repoCleared(t *testing.T) {
 	st := openReviewStore(t)
 	ctx := context.Background()
 	pid, mid := mustLLMPair(t, st, ctx, "P1", "anthropic", "m1")
-	gs, _ := st.GetGlobalSettings(ctx)
-	gs.DefaultLLMProviderID, gs.DefaultLLMModelID = pid, mid
-	_ = st.SaveGlobalSettings(ctx, gs)
-	gs, _ = st.GetGlobalSettings(ctx)
+	gs := saveGlobalRotation(t, st, ctx, store.LLMPair{ProviderID: pid, ModelID: mid})
 
 	sel, err := review.ResolveLLMSelection(ctx, st, gs, store.RepoView{}, "Japanese")
 	if err != nil || sel.ProviderName != "P1" {
@@ -144,15 +135,10 @@ func TestResolveLLM_disabledModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gs, _ := st.GetGlobalSettings(ctx)
-	gs.DefaultLLMProviderID, gs.DefaultLLMModelID = pid, mid2
-	if err := st.SaveGlobalSettings(ctx, gs); err != nil {
-		t.Fatal(err)
-	}
-	gs, _ = st.GetGlobalSettings(ctx)
+	gs := saveGlobalRotation(t, st, ctx, store.LLMPair{ProviderID: pid, ModelID: mid2})
 
 	_, err = review.ResolveLLMSelection(ctx, st, gs, store.RepoView{
-		Repo: store.Repo{LLMProviderID: pid, LLMModelID: mid},
+		Repo: store.Repo{LLMRotation: []store.LLMPair{{ProviderID: pid, ModelID: mid}}},
 	}, "Japanese")
 	if err == nil || !strings.Contains(err.Error(), "no usable") {
 		t.Fatalf("expected no usable: %v", err)
@@ -164,15 +150,10 @@ func TestResolveLLM_roundRobin(t *testing.T) {
 	ctx := context.Background()
 	pid1, mid1 := mustLLMPair(t, st, ctx, "P1", "anthropic", "m1")
 	pid2, mid2 := mustLLMPair(t, st, ctx, "P2", "openai", "m2")
-	gs, _ := st.GetGlobalSettings(ctx)
-	gs.DefaultLLMRotation = []store.LLMPair{
-		{ProviderID: pid1, ModelID: mid1},
-		{ProviderID: pid2, ModelID: mid2},
-	}
-	if err := st.SaveGlobalSettings(ctx, gs); err != nil {
-		t.Fatal(err)
-	}
-	gs, _ = st.GetGlobalSettings(ctx)
+	gs := saveGlobalRotation(t, st, ctx,
+		store.LLMPair{ProviderID: pid1, ModelID: mid1},
+		store.LLMPair{ProviderID: pid2, ModelID: mid2},
+	)
 
 	a, err := review.ResolveLLMSelection(ctx, st, gs, store.RepoView{}, "Japanese")
 	if err != nil || a.ModelName != "m1" {
@@ -199,12 +180,7 @@ func TestResolveLLM_missingAPIKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gs, _ := st.GetGlobalSettings(ctx)
-	gs.DefaultLLMProviderID, gs.DefaultLLMModelID = pid, mid
-	if err := st.SaveGlobalSettings(ctx, gs); err != nil {
-		t.Fatal(err)
-	}
-	gs, _ = st.GetGlobalSettings(ctx)
+	gs := saveGlobalRotation(t, st, ctx, store.LLMPair{ProviderID: pid, ModelID: mid})
 
 	_, err = review.ResolveLLMSelection(ctx, st, gs, store.RepoView{}, "Japanese")
 	if err == nil || (!strings.Contains(err.Error(), "no api key") && !strings.Contains(err.Error(), "no usable")) {

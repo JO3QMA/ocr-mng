@@ -43,48 +43,14 @@ func ValidateLLMRotation(pairs []LLMPair) error {
 	return nil
 }
 
-// EffectiveLLMRotation returns the Global LLM Rotation Set (legacy single pair if needed).
+// EffectiveLLMRotation returns the Global LLM Rotation Set.
 func (gs GlobalSettings) EffectiveLLMRotation() []LLMPair {
-	if len(gs.DefaultLLMRotation) > 0 {
-		return gs.DefaultLLMRotation
-	}
-	if gs.DefaultLLMProviderID != 0 && gs.DefaultLLMModelID != 0 {
-		return []LLMPair{{ProviderID: gs.DefaultLLMProviderID, ModelID: gs.DefaultLLMModelID}}
-	}
-	return nil
-}
-
-// NormalizeDefaultLLMRotation syncs DefaultLLMRotation with legacy first-pair fields.
-func (gs *GlobalSettings) NormalizeDefaultLLMRotation() {
-	if len(gs.DefaultLLMRotation) == 0 && gs.DefaultLLMProviderID != 0 && gs.DefaultLLMModelID != 0 {
-		gs.DefaultLLMRotation = []LLMPair{{ProviderID: gs.DefaultLLMProviderID, ModelID: gs.DefaultLLMModelID}}
-	}
-	if len(gs.DefaultLLMRotation) > 0 {
-		gs.DefaultLLMProviderID = gs.DefaultLLMRotation[0].ProviderID
-		gs.DefaultLLMModelID = gs.DefaultLLMRotation[0].ModelID
-	}
+	return gs.DefaultLLMRotation
 }
 
 // EffectiveLLMRotation returns the Repo override set, or nil to follow Global.
 func (r Repo) EffectiveLLMRotation() []LLMPair {
-	if len(r.LLMRotation) > 0 {
-		return r.LLMRotation
-	}
-	if r.LLMProviderID != 0 && r.LLMModelID != 0 {
-		return []LLMPair{{ProviderID: r.LLMProviderID, ModelID: r.LLMModelID}}
-	}
-	return nil
-}
-
-// NormalizeLLMRotation syncs LLMRotation with legacy first-pair columns.
-func (r *Repo) NormalizeLLMRotation() {
-	if len(r.LLMRotation) == 0 && r.LLMProviderID != 0 && r.LLMModelID != 0 {
-		r.LLMRotation = []LLMPair{{ProviderID: r.LLMProviderID, ModelID: r.LLMModelID}}
-	}
-	if len(r.LLMRotation) > 0 {
-		r.LLMProviderID = r.LLMRotation[0].ProviderID
-		r.LLMModelID = r.LLMRotation[0].ModelID
-	}
+	return r.LLMRotation
 }
 
 func marshalLLMRotation(pairs []LLMPair) (sql.NullString, error) {
@@ -147,21 +113,13 @@ func deleteLLMRotationCursorTx(ctx context.Context, tx *sql.Tx, setKey string) e
 
 func loadRepoLLMRotationTx(ctx context.Context, tx *sql.Tx, repoID int64) ([]LLMPair, error) {
 	var raw sql.NullString
-	var pid, mid sql.NullInt64
 	err := tx.QueryRowContext(ctx,
-		`SELECT llm_rotation, llm_provider_id, llm_model_id FROM repos WHERE id=?`, repoID,
-	).Scan(&raw, &pid, &mid)
+		`SELECT llm_rotation FROM repos WHERE id=?`, repoID,
+	).Scan(&raw)
 	if err != nil {
 		return nil, err
 	}
-	pairs, err := parseLLMRotationJSON(raw)
-	if err != nil {
-		pairs = nil
-	}
-	if len(pairs) == 0 && pid.Valid && mid.Valid && pid.Int64 != 0 && mid.Int64 != 0 {
-		pairs = []LLMPair{{ProviderID: pid.Int64, ModelID: mid.Int64}}
-	}
-	return pairs, nil
+	return parseLLMRotationJSON(raw)
 }
 
 // ClaimLLMRotation picks the next usable pair (round-robin) and advances the cursor.
@@ -252,7 +210,7 @@ func llmPairUsableTx(ctx context.Context, tx *sql.Tx, p LLMPair) (bool, error) {
 }
 
 func (s *Store) listAllRepoLLMRotations(ctx context.Context) ([][]LLMPair, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT llm_rotation, llm_provider_id, llm_model_id FROM repos`)
+	rows, err := s.db.QueryContext(ctx, `SELECT llm_rotation FROM repos`)
 	if err != nil {
 		return nil, err
 	}
@@ -260,16 +218,12 @@ func (s *Store) listAllRepoLLMRotations(ctx context.Context) ([][]LLMPair, error
 	var out [][]LLMPair
 	for rows.Next() {
 		var raw sql.NullString
-		var pid, mid sql.NullInt64
-		if err := rows.Scan(&raw, &pid, &mid); err != nil {
+		if err := rows.Scan(&raw); err != nil {
 			return nil, err
 		}
 		pairs, err := parseLLMRotationJSON(raw)
 		if err != nil {
 			return nil, err
-		}
-		if len(pairs) == 0 && pid.Valid && mid.Valid && pid.Int64 != 0 && mid.Int64 != 0 {
-			pairs = []LLMPair{{ProviderID: pid.Int64, ModelID: mid.Int64}}
 		}
 		if len(pairs) > 0 {
 			out = append(out, pairs)

@@ -304,8 +304,6 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 {{range .LLMOptions}}<option value="{{.Value}}">{{.Label}}</option>{{end}}
 </select>
 <p class="hint">{{.L.T "form.llm_rotation_hint"}}</p>
-<label>{{.L.T "form.ocr_model"}}</label><input name="ocr_model" value="{{.Repo.OCRModel}}">
-<p class="hint">{{.L.T "form.ocr_model_legacy_hint"}}</p>
 <label>{{.L.T "form.ocr_rule"}}</label><textarea name="ocr_rule" rows="4">{{.Repo.OCRRule}}</textarea>
 <label>{{.L.T "form.ocr_requirement"}}</label><textarea name="ocr_requirement" rows="3" placeholder="{{.L.T "form.ocr_requirement_placeholder"}}">{{.Repo.OCRRequirement}}</textarea>
 <label>{{.L.T "form.ocr_background_file"}}</label><input name="ocr_background_file" value="{{.Repo.OCRBackgroundFile}}" placeholder="{{.L.T "form.ocr_background_file_placeholder"}}">
@@ -402,20 +400,16 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <label>{{.L.T "settings.default_llm_rotation"}}</label>
 {{range $val := .LLMRotationValues}}
 <select name="default_llm_pairs">
-{{if not $.LedgerMode}}<option value="0:0" {{selected $val "0:0"}}>{{$.L.T "settings.llm_pair_legacy"}}</option>{{end}}
-{{if $.LedgerMode}}<option value="0:0">{{$.L.T "form.llm_pair_clear_row"}}</option>{{end}}
+<option value="0:0">{{$.L.T "form.llm_pair_clear_row"}}</option>
 {{range $.LLMOptions}}<option value="{{.Value}}" {{selected $val .Value}}>{{.Label}}</option>{{end}}
 </select>
 {{end}}
 <select name="default_llm_pairs">
-{{if not .LedgerMode}}<option value="0:0" selected>{{.L.T "settings.llm_pair_legacy"}}</option>{{end}}
-{{if .LedgerMode}}<option value="0:0" selected>{{.L.T "form.llm_pair_add"}}</option>{{end}}
+<option value="0:0" selected>{{.L.T "form.llm_pair_add"}}</option>
 {{range .LLMOptions}}<option value="{{.Value}}">{{.Label}}</option>{{end}}
 </select>
-{{if .LedgerMode}}<p class="hint">{{.L.T "settings.llm_rotation_locked_hint"}}</p>{{else}}<p class="hint">{{.L.T "settings.llm_rotation_hint"}}</p>{{end}}
+<p class="hint">{{.L.T "settings.llm_rotation_hint"}}</p>
 <p><a href="/llm-providers">{{.L.T "settings.manage_llm_providers"}}</a></p>
-<label>{{.L.T "settings.ocr_config"}}</label><textarea name="ocr_config_json" rows="12">{{.Settings.OCRConfigJSON}}</textarea>
-{{if .LedgerMode}}<p class="hint">{{.L.T "settings.ocr_config_deprecated_hint"}}</p>{{else}}<p class="hint">{{.L.T "settings.ocr_config_legacy_hint"}}</p>{{end}}
 <p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button></p>
 </form>
 </div>

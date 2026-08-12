@@ -4,10 +4,6 @@ services:
     ports:
       - "8088:8080"
     environment:
-      OCR_LLM_URL: ${OCR_LLM_URL:-}
-      OCR_LLM_TOKEN: ${OCR_LLM_TOKEN:-}
-      OCR_LLM_MODEL: ${OCR_LLM_MODEL:-}
-      OCR_USE_ANTHROPIC: ${OCR_USE_ANTHROPIC:-}
       RM_ADMIN_PASSWORD: ${RM_ADMIN_PASSWORD:-}
       RM_ADMIN_USER: ${RM_ADMIN_USER:-}
       RM_ENCRYPTION_KEY: ${RM_ENCRYPTION_KEY:-}

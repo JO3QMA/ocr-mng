@@ -272,19 +272,6 @@ func (s *Store) assertLLMProviderNotReferenced(ctx context.Context, id int64) er
 			return fmt.Errorf("llm provider %d is referenced by global settings", id)
 		}
 	}
-	// Drift: global model id set without a full pair.
-	if len(gs.EffectiveLLMRotation()) == 0 && gs.DefaultLLMModelID != 0 {
-		var n int
-		if err := s.db.QueryRowContext(ctx,
-			`SELECT COUNT(*) FROM llm_provider_models WHERE id=? AND provider_id=?`,
-			gs.DefaultLLMModelID, id,
-		).Scan(&n); err != nil {
-			return err
-		}
-		if n > 0 {
-			return fmt.Errorf("llm provider %d is referenced by global settings", id)
-		}
-	}
 	sets, err := s.listAllRepoLLMRotations(ctx)
 	if err != nil {
 		return err
@@ -295,17 +282,6 @@ func (s *Store) assertLLMProviderNotReferenced(ctx context.Context, id int64) er
 				return fmt.Errorf("llm provider %d is referenced by a registered repo", id)
 			}
 		}
-	}
-	// Drift: repo model FK only (no provider id / empty rotation).
-	var n int
-	if err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM repos WHERE llm_model_id IN (SELECT id FROM llm_provider_models WHERE provider_id=?)`,
-		id,
-	).Scan(&n); err != nil {
-		return err
-	}
-	if n > 0 {
-		return fmt.Errorf("llm provider %d is referenced by a registered repo", id)
 	}
 	return nil
 }
@@ -320,9 +296,6 @@ func (s *Store) assertLLMModelNotReferenced(ctx context.Context, id int64) error
 			return fmt.Errorf("llm model %d is referenced by global settings", id)
 		}
 	}
-	if gs.DefaultLLMModelID == id {
-		return fmt.Errorf("llm model %d is referenced by global settings", id)
-	}
 	sets, err := s.listAllRepoLLMRotations(ctx)
 	if err != nil {
 		return err
@@ -333,13 +306,6 @@ func (s *Store) assertLLMModelNotReferenced(ctx context.Context, id int64) error
 				return fmt.Errorf("llm model %d is referenced by a registered repo", id)
 			}
 		}
-	}
-	var n int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM repos WHERE llm_model_id=?`, id).Scan(&n); err != nil {
-		return err
-	}
-	if n > 0 {
-		return fmt.Errorf("llm model %d is referenced by a registered repo", id)
 	}
 	return nil
 }

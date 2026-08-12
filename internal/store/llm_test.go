@@ -128,14 +128,13 @@ func TestSaveLLMPair_partialRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gs.DefaultLLMProviderID = providerID
-	gs.DefaultLLMModelID = 0
+	gs.DefaultLLMRotation = []store.LLMPair{{ProviderID: providerID}}
 	if err := st.SaveGlobalSettings(ctx, gs); err == nil {
 		t.Fatal("expected save reject")
 	}
 }
 
-func TestGlobalLLMPair_clearRejected(t *testing.T) {
+func TestGlobalLLMRotation_emptyRejected(t *testing.T) {
 	st := openLLMStore(t)
 	ctx := context.Background()
 	providerID, modelID := mustCreateLLMPair(t, st, ctx, "p1", "anthropic")
@@ -144,17 +143,15 @@ func TestGlobalLLMPair_clearRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gs.DefaultLLMProviderID = providerID
-	gs.DefaultLLMModelID = modelID
+	gs.DefaultLLMRotation = []store.LLMPair{{ProviderID: providerID, ModelID: modelID}}
 	if err := st.SaveGlobalSettings(ctx, gs); err != nil {
 		t.Fatal(err)
 	}
 
-	gs.DefaultLLMProviderID = 0
-	gs.DefaultLLMModelID = 0
+	gs.DefaultLLMRotation = nil
 	err = st.SaveGlobalSettings(ctx, gs)
-	if err == nil || !strings.Contains(err.Error(), "cannot be cleared") {
-		t.Fatalf("expected clear reject: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "cannot be empty") {
+		t.Fatalf("expected empty reject: %v", err)
 	}
 }
 
@@ -164,8 +161,7 @@ func TestDeleteProvider_inUse(t *testing.T) {
 	providerID, modelID := mustCreateLLMPair(t, st, ctx, "p1", "anthropic")
 
 	gs, _ := st.GetGlobalSettings(ctx)
-	gs.DefaultLLMProviderID = providerID
-	gs.DefaultLLMModelID = modelID
+	gs.DefaultLLMRotation = []store.LLMPair{{ProviderID: providerID, ModelID: modelID}}
 	if err := st.SaveGlobalSettings(ctx, gs); err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +176,7 @@ func TestDeleteProvider_inUse(t *testing.T) {
 	}
 }
 
-func TestResolveLLM_disabledModel(t *testing.T) {
+func TestSaveGlobalRotation_disabledModelRejected(t *testing.T) {
 	st := openLLMStore(t)
 	ctx := context.Background()
 	providerID, modelID := mustCreateLLMPair(t, st, ctx, "p1", "anthropic")
@@ -195,15 +191,14 @@ func TestResolveLLM_disabledModel(t *testing.T) {
 	}
 
 	gs, _ := st.GetGlobalSettings(ctx)
-	gs.DefaultLLMProviderID = providerID
-	gs.DefaultLLMModelID = modelID
+	gs.DefaultLLMRotation = []store.LLMPair{{ProviderID: providerID, ModelID: modelID}}
 	err = st.SaveGlobalSettings(ctx, gs)
 	if err == nil || !strings.Contains(err.Error(), "disabled") {
 		t.Fatalf("expected disabled reject: %v", err)
 	}
 }
 
-func TestRepoLLMPair_overrideAndClear(t *testing.T) {
+func TestRepoLLMRotation_overrideAndClear(t *testing.T) {
 	st := openLLMStore(t)
 	ctx := context.Background()
 	providerID, modelID := mustCreateLLMPair(t, st, ctx, "p1", "anthropic")
@@ -219,35 +214,31 @@ func TestRepoLLMPair_overrideAndClear(t *testing.T) {
 	repoID, err := st.CreateRepo(ctx, store.Repo{
 		GitHostID: hostID, Owner: "acme", Name: "app",
 		DefaultBranch: "main", TriggerLabel: "review", CommentMode: "inline", Enabled: true,
-		LLMProviderID: providerID, LLMModelID: modelID,
+		LLMRotation: []store.LLMPair{{ProviderID: providerID, ModelID: modelID}},
 	}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	rv, err := st.GetRepo(ctx, repoID)
-	if err != nil || rv.LLMProviderID != providerID || rv.LLMModelID != modelID {
-		t.Fatalf("repo pair: %+v err=%v", rv, err)
+	if err != nil || len(rv.LLMRotation) != 1 || rv.LLMRotation[0].ModelID != modelID {
+		t.Fatalf("repo rotation: %+v err=%v", rv, err)
 	}
 
-	rv.LLMRotation = nil
-	rv.LLMProviderID = provider2
-	rv.LLMModelID = model2
+	rv.LLMRotation = []store.LLMPair{{ProviderID: provider2, ModelID: model2}}
 	if err := st.UpdateRepo(ctx, rv.Repo, "", false); err != nil {
 		t.Fatal(err)
 	}
 	rv, _ = st.GetRepo(ctx, repoID)
-	if rv.LLMProviderID != provider2 || rv.LLMModelID != model2 {
+	if len(rv.LLMRotation) != 1 || rv.LLMRotation[0].ModelID != model2 {
 		t.Fatalf("override: %+v", rv)
 	}
 
 	rv.LLMRotation = nil
-	rv.LLMProviderID = 0
-	rv.LLMModelID = 0
 	if err := st.UpdateRepo(ctx, rv.Repo, "", false); err != nil {
 		t.Fatal(err)
 	}
 	rv, _ = st.GetRepo(ctx, repoID)
-	if rv.LLMProviderID != 0 || rv.LLMModelID != 0 {
+	if len(rv.LLMRotation) != 0 {
 		t.Fatalf("cleared: %+v", rv)
 	}
 }
@@ -267,7 +258,7 @@ func TestDeleteProvider_afterRepoCleared(t *testing.T) {
 	repoID, err := st.CreateRepo(ctx, store.Repo{
 		GitHostID: hostID, Owner: "acme", Name: "app",
 		DefaultBranch: "main", TriggerLabel: "review", CommentMode: "inline", Enabled: true,
-		LLMProviderID: providerID, LLMModelID: modelID,
+		LLMRotation: []store.LLMPair{{ProviderID: providerID, ModelID: modelID}},
 	}, "")
 	if err != nil {
 		t.Fatal(err)
@@ -278,7 +269,6 @@ func TestDeleteProvider_afterRepoCleared(t *testing.T) {
 
 	rv, _ := st.GetRepo(ctx, repoID)
 	rv.LLMRotation = nil
-	rv.LLMProviderID, rv.LLMModelID = 0, 0
 	if err := st.UpdateRepo(ctx, rv.Repo, "", false); err != nil {
 		t.Fatal(err)
 	}

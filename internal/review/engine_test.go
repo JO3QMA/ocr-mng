@@ -197,11 +197,24 @@ func TestTryDispatch_drainsPendingWhenSlotFrees(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	providerID, err := st.CreateLLMProvider(ctx, store.LLMProvider{
+		Name: "anthropic", ProviderKey: "anthropic", Kind: "builtin", Enabled: true,
+	}, "sk-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	modelID, err := st.CreateLLMProviderModel(ctx, store.LLMProviderModel{
+		ProviderID: providerID, ModelName: "claude-x", Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	gs, err := st.GetGlobalSettings(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	gs.MaxConcurrentReviews = 1
+	gs.DefaultLLMRotation = []store.LLMPair{{ProviderID: providerID, ModelID: modelID}}
 	if err := st.SaveGlobalSettings(ctx, gs); err != nil {
 		t.Fatal(err)
 	}
