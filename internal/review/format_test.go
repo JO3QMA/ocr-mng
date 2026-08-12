@@ -76,8 +76,8 @@ func TestForInlineDegradedZeroFindingWarnings(t *testing.T) {
 
 func TestForInlineSkipsEmptyWarningDisplay(t *testing.T) {
 	_, summary := review.ForInline(ocr.Result{Warnings: ocr.Warnings{{}}}, englishFmt())
-	if strings.Contains(summary, "### Warnings\n- \n") || strings.Contains(summary, "### Warnings\n-\n") {
-		t.Fatalf("empty warning line should be omitted: %q", summary)
+	if strings.Contains(summary, "### Warnings") {
+		t.Fatalf("empty warnings should omit section header: %q", summary)
 	}
 }
 

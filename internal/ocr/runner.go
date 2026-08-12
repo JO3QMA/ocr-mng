@@ -70,14 +70,18 @@ func (w *Warnings) UnmarshalJSON(data []byte) error {
 	for _, item := range raw {
 		var s string
 		if err := json.Unmarshal(item, &s); err == nil {
-			out = append(out, Warning{Message: s})
+			if s != "" {
+				out = append(out, Warning{Message: s})
+			}
 			continue
 		}
 		var obj Warning
 		if err := json.Unmarshal(item, &obj); err != nil {
 			return err
 		}
-		out = append(out, obj)
+		if strings.TrimSpace(obj.Display()) != "" {
+			out = append(out, obj)
+		}
 	}
 	*w = out
 	return nil
@@ -159,17 +163,17 @@ func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, pro
 	err := cmd.Run()
 	raw := stdout.Bytes()
 	var result Result
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &result); err != nil {
-			return result, raw, fmt.Errorf("parse ocr output: %w", err)
-		}
-	}
 	if err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = err.Error()
 		}
 		return result, raw, fmt.Errorf("%s", msg)
+	}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &result); err != nil {
+			return result, raw, fmt.Errorf("parse ocr output: %w", err)
+		}
 	}
 	return result, raw, nil
 }

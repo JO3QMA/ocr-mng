@@ -32,6 +32,27 @@ func TestReviewRejectsInvalidJSONOutput(t *testing.T) {
 	}
 }
 
+func TestReviewPrefersCommandErrorOverParseError(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "fake-ocr")
+	script := "#!/bin/sh\necho 'not json' >&2\necho 'not json'\nexit 1\n"
+	if err := os.WriteFile(binary, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := ocr.Runner{Binary: binary, HomeDir: t.TempDir()}
+	_, _, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "", "", "")
+	if err == nil {
+		t.Fatal("expected command error")
+	}
+	if strings.Contains(err.Error(), "parse ocr output") {
+		t.Fatalf("command error should win: %v", err)
+	}
+	if !strings.Contains(err.Error(), "not json") {
+		t.Fatalf("err: %v", err)
+	}
+}
+
 func TestReviewWithFakeBinary(t *testing.T) {
 	dir := t.TempDir()
 	binary := filepath.Join(dir, "fake-ocr")
@@ -175,5 +196,29 @@ func TestWarningsJSONStringAndObject(t *testing.T) {
 	}
 	if result.Warnings[1].Display() != "internal/store/schema.sql: 429 Too Many Requests" {
 		t.Fatalf("object: %+v", result.Warnings[1])
+	}
+}
+
+func TestWarningsJSONSkipsEmptyElements(t *testing.T) {
+	var empty ocr.Result
+	if err := json.Unmarshal([]byte(`{"comments":[],"warnings":["",null,{}]}`), &empty); err != nil {
+		t.Fatal(err)
+	}
+	if len(empty.Warnings) != 0 {
+		t.Fatalf("empty slots: %+v", empty.Warnings)
+	}
+	if empty.HasReviewWarnings() {
+		t.Fatal("empty warning slots should not fail the run")
+	}
+
+	var one ocr.Result
+	if err := json.Unmarshal([]byte(`{"comments":[],"warnings":["",null,"real"]}`), &one); err != nil {
+		t.Fatal(err)
+	}
+	if len(one.Warnings) != 1 || one.Warnings[0].Message != "real" {
+		t.Fatalf("warnings: %+v", one.Warnings)
+	}
+	if !one.HasReviewWarnings() {
+		t.Fatal("non-empty warning should fail the run")
 	}
 }

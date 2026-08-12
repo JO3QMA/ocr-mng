@@ -196,9 +196,13 @@ func writeWarningsSection(b *strings.Builder, warnings ocr.Warnings, w wrapperMs
 	if len(warnings) == 0 {
 		return
 	}
-	b.WriteString(w.warnings)
+	wroteHeader := false
 	for _, warn := range warnings {
 		if line := warn.Display(); line != "" {
+			if !wroteHeader {
+				b.WriteString(w.warnings)
+				wroteHeader = true
+			}
 			fmt.Fprintf(b, "- %s\n", escapeMarkdown(line))
 		}
 	}
