@@ -5,10 +5,32 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jo3qma/ocr-mng/internal/ocr"
 )
+
+func TestReviewRejectsInvalidJSONOutput(t *testing.T) {
+	dir := t.TempDir()
+	binary := filepath.Join(dir, "fake-ocr")
+	script := "#!/bin/sh\necho 'not json'\n"
+	if err := os.WriteFile(binary, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	runner := ocr.Runner{Binary: binary, HomeDir: t.TempDir()}
+	_, raw, err := runner.Review(context.Background(), dir, "origin/main", "HEAD", "", "", "", "", "")
+	if err == nil {
+		t.Fatal("expected parse error")
+	}
+	if !strings.Contains(err.Error(), "parse ocr output") {
+		t.Fatalf("err: %v", err)
+	}
+	if string(raw) != "not json\n" {
+		t.Fatalf("raw: %q", raw)
+	}
+}
 
 func TestReviewWithFakeBinary(t *testing.T) {
 	dir := t.TempDir()

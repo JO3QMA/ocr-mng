@@ -160,7 +160,9 @@ func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, pro
 	raw := stdout.Bytes()
 	var result Result
 	if len(raw) > 0 {
-		_ = json.Unmarshal(raw, &result)
+		if err := json.Unmarshal(raw, &result); err != nil {
+			return result, raw, fmt.Errorf("parse ocr output: %w", err)
+		}
 	}
 	if err != nil {
 		msg := strings.TrimSpace(stderr.String())

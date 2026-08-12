@@ -74,6 +74,13 @@ func TestForInlineDegradedZeroFindingWarnings(t *testing.T) {
 	}
 }
 
+func TestForInlineSkipsEmptyWarningDisplay(t *testing.T) {
+	_, summary := review.ForInline(ocr.Result{Warnings: ocr.Warnings{{}}}, englishFmt())
+	if strings.Contains(summary, "### Warnings\n- \n") || strings.Contains(summary, "### Warnings\n-\n") {
+		t.Fatalf("empty warning line should be omitted: %q", summary)
+	}
+}
+
 func TestAsSingleCommentWithLine(t *testing.T) {
 	body := review.AsSingleComment(ocr.Result{
 		Comments: []ocr.Comment{{FilePath: "a.go", StartLine: 3, Content: "note"}},

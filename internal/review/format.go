@@ -198,7 +198,9 @@ func writeWarningsSection(b *strings.Builder, warnings ocr.Warnings, w wrapperMs
 	}
 	b.WriteString(w.warnings)
 	for _, warn := range warnings {
-		fmt.Fprintf(b, "- %s\n", escapeMarkdown(warn.Display()))
+		if line := warn.Display(); line != "" {
+			fmt.Fprintf(b, "- %s\n", escapeMarkdown(line))
+		}
 	}
 }
 
