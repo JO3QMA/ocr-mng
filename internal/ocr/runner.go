@@ -70,7 +70,7 @@ func (w *Warnings) UnmarshalJSON(data []byte) error {
 	for _, item := range raw {
 		var s string
 		if err := json.Unmarshal(item, &s); err == nil {
-			if s != "" {
+			if strings.TrimSpace(s) != "" {
 				out = append(out, Warning{Message: s})
 			}
 			continue
@@ -134,6 +134,7 @@ func (r *Runner) writeConfig() error {
 	return os.WriteFile(cfgPath, pretty.Bytes(), 0o600)
 }
 
+// Review runs OCR and parses JSON stdout. When err != nil, Result is zero; use raw only if needed.
 func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, provider, model, rule, requirement, backgroundFile string) (Result, []byte, error) {
 	if err := r.writeConfig(); err != nil {
 		return Result{}, nil, err

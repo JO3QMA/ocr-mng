@@ -435,7 +435,7 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 		if n := len(result.Warnings); n > 0 {
 			return fmt.Errorf("ocr review completed with %d warning(s)", n)
 		}
-		return fmt.Errorf("ocr review completed with errors")
+		return fmt.Errorf("ocr review completed with status %q", result.Status)
 	}
 
 	if repo.RemoveLabelAfterReview && (len(result.Comments) > 0 || IsCleanZeroFinding(result)) {

@@ -211,6 +211,14 @@ func TestWarningsJSONSkipsEmptyElements(t *testing.T) {
 		t.Fatal("empty warning slots should not fail the run")
 	}
 
+	var blank ocr.Result
+	if err := json.Unmarshal([]byte(`{"comments":[],"warnings":["   "]}`), &blank); err != nil {
+		t.Fatal(err)
+	}
+	if len(blank.Warnings) != 0 {
+		t.Fatalf("whitespace warning: %+v", blank.Warnings)
+	}
+
 	var one ocr.Result
 	if err := json.Unmarshal([]byte(`{"comments":[],"warnings":["",null,"real"]}`), &one); err != nil {
 		t.Fatal(err)
