@@ -107,6 +107,8 @@ func escapeMarkdown(s string) string {
 		`_`, `\_`,
 		`[`, `\[`,
 		`]`, `\]`,
+		`(`, `\(`,
+		`)`, `\)`,
 	).Replace(s)
 }
 

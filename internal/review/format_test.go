@@ -363,3 +363,13 @@ func TestCommentMetaEscapesMarkdown(t *testing.T) {
 		t.Fatalf("summary category: %q", summary)
 	}
 }
+
+func TestEscapeMarkdownParens(t *testing.T) {
+	_, summary := review.ForInline(ocr.Result{Warnings: ocr.Warnings{{Message: "see [x](http://evil)"}}}, englishFmt())
+	if strings.Contains(summary, "](http://evil)") {
+		t.Fatalf("parens should be escaped in warnings: %q", summary)
+	}
+	if !strings.Contains(summary, `\(http://evil\)`) {
+		t.Fatalf("summary: %q", summary)
+	}
+}
