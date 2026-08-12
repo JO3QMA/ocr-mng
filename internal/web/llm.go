@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/jo3qma/ocr-mng/internal/ocr"
-	"github.com/jo3qma/ocr-mng/internal/review"
 	"github.com/jo3qma/ocr-mng/internal/store"
 )
 
@@ -670,9 +669,4 @@ func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
 func pathID(r *http.Request, name string) (int64, bool) {
 	id, err := strconv.ParseInt(r.PathValue(name), 10, 64)
 	return id, err == nil
-}
-
-// ledgerModeActive mirrors review.LedgerMode for templates/handlers.
-func ledgerModeActive(gs store.GlobalSettings) bool {
-	return review.LedgerMode(gs)
 }

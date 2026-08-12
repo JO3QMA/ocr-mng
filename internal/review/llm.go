@@ -12,49 +12,19 @@ import (
 	"github.com/jo3qma/ocr-mng/internal/store"
 )
 
-// LLMSelection is the resolved provider+model (or legacy config) for one Review Run.
+// LLMSelection is the resolved Registered LLM Provider + Model for one Review Run.
 type LLMSelection struct {
 	ProviderName string // display / snapshot
 	ProviderKey  string
 	ModelName    string
 	ConfigJSON   string
-	ProviderFlag string // OCR --provider (Provider Key); empty in legacy path
-	ModelFlag    string // OCR --model; empty uses config default
-	Ledger       bool
+	ProviderFlag string // OCR --provider (Provider Key)
+	ModelFlag    string // OCR --model
 }
 
-// LedgerMode reports whether Global LLM Rotation Set has been set (one-way switch from legacy).
-func LedgerMode(gs store.GlobalSettings) bool {
-	return len(gs.EffectiveLLMRotation()) > 0
-}
-
-// ResolveLLMSelection picks the LLM pair or legacy JSON path for a Review Run.
-//
-// dual path until Global default rotation is set once; then ledger-only.
-// OCR_LLM_* env stripping is intentionally not done here (MVP); empty those in compose.
+// ResolveLLMSelection picks one pair from the effective LLM Rotation Set
+// (Repo override replaces Global) for a Review Run.
 func ResolveLLMSelection(ctx context.Context, st *store.Store, gs store.GlobalSettings, repo store.RepoView, language string) (LLMSelection, error) {
-	if !LedgerMode(gs) {
-		return resolveLegacyLLM(gs, repo, language)
-	}
-	return resolveLedgerLLM(ctx, st, gs, repo, language)
-}
-
-func resolveLegacyLLM(gs store.GlobalSettings, repo store.RepoView, language string) (LLMSelection, error) {
-	configJSON, err := ocr.ConfigWithLanguage(gs.OCRConfigJSON, language)
-	if err != nil {
-		return LLMSelection{}, fmt.Errorf("ocr config: %w", err)
-	}
-	model := strings.TrimSpace(repo.OCRModel)
-	return LLMSelection{
-		ProviderName: "",
-		ModelName:    model,
-		ConfigJSON:   configJSON,
-		ModelFlag:    model,
-		Ledger:       false,
-	}, nil
-}
-
-func resolveLedgerLLM(ctx context.Context, st *store.Store, gs store.GlobalSettings, repo store.RepoView, language string) (LLMSelection, error) {
 	pairs := gs.EffectiveLLMRotation()
 	setKey := store.LLMRotationKeyGlobal
 	if override := repo.EffectiveLLMRotation(); len(override) > 0 {
@@ -104,7 +74,6 @@ func buildLedgerSelection(ctx context.Context, st *store.Store, providerID, mode
 		ConfigJSON:   configJSON,
 		ProviderFlag: p.ProviderKey,
 		ModelFlag:    m.ModelName,
-		Ledger:       true,
 	}, nil
 }
 

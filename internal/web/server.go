@@ -409,11 +409,9 @@ func (s *Server) settingsForm(w http.ResponseWriter, r *http.Request) {
 		Settings          store.GlobalSettings
 		LLMOptions        []llmPairOption
 		LLMRotationValues []string
-		LedgerMode        bool
 	}{
 		page: s.page(r, "page.settings"), Settings: gs, LLMOptions: opts,
 		LLMRotationValues: llmRotationValues(gs.EffectiveLLMRotation()),
-		LedgerMode:        ledgerModeActive(gs),
 	})
 }
 
@@ -463,7 +461,6 @@ func parseRepoForm(r *http.Request, hosts []store.GitHost) (store.Repo, string, 
 		RemoveLabelAfterReview: r.FormValue("remove_label_after_review") == "on",
 		ApproveOnZeroFindings:  r.FormValue("approve_on_zero_findings") == "on",
 		Enabled:                r.FormValue("enabled") == "on",
-		OCRModel:               strings.TrimSpace(r.FormValue("ocr_model")),
 		OCRRule:                strings.TrimSpace(r.FormValue("ocr_rule")),
 		OCRRequirement:         strings.TrimSpace(r.FormValue("ocr_requirement")),
 	}
@@ -512,7 +509,6 @@ func parseRepoForm(r *http.Request, hosts []store.GitHost) (store.Repo, string, 
 		return repo, "", repoURL, err
 	}
 	repo.LLMRotation = pairs
-	repo.NormalizeLLMRotation()
 	return repo, strings.TrimSpace(r.FormValue("repo_pat")), repoURL, nil
 }
 
@@ -543,13 +539,6 @@ func parseSettingsForm(r *http.Request) (store.GlobalSettings, error) {
 	if err != nil {
 		return store.GlobalSettings{}, err
 	}
-	ocrJSON := strings.TrimSpace(r.FormValue("ocr_config_json"))
-	if ocrJSON == "" {
-		ocrJSON = "{}"
-	}
-	if !json.Valid([]byte(ocrJSON)) {
-		return store.GlobalSettings{}, fmt.Errorf("invalid OCR config JSON")
-	}
 	if minPoll > poll {
 		return store.GlobalSettings{}, fmt.Errorf("min poll interval cannot exceed default poll interval")
 	}
@@ -562,11 +551,9 @@ func parseSettingsForm(r *http.Request) (store.GlobalSettings, error) {
 		MinPollIntervalSeconds: minPoll,
 		MaxConcurrentReviews:   maxConc,
 		ReviewRunRetentionDays: retention,
-		OCRConfigJSON:          ocrJSON,
 		UILanguage:             store.NormalizeUILanguage(strings.TrimSpace(r.FormValue("ui_language"))),
 		ReviewLanguage:         store.NormalizeReviewLanguage(strings.TrimSpace(r.FormValue("review_language"))),
 		DefaultLLMRotation:     pairs,
 	}.WithDefaults()
-	gs.NormalizeDefaultLLMRotation()
 	return gs, nil
 }
