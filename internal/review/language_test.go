@@ -30,8 +30,11 @@ func TestZeroFindingApprovalEnabled(t *testing.T) {
 	if !review.ZeroFindingApprovalEnabled(repo, ocr.Result{Message: "No comments generated. Looks good to me."}) {
 		t.Fatal("expected enabled for OCR clean LGTM message")
 	}
-	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Message: "errors"}) {
-		t.Fatal("expected disabled for degraded zero findings")
+	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Warnings: ocr.Warnings{{Message: "parse failed"}}}) {
+		t.Fatal("expected disabled when review warnings exist")
+	}
+	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Status: "completed_with_errors"}) {
+		t.Fatal("expected disabled for completed_with_errors status")
 	}
 	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Comments: []ocr.Comment{{Content: "x"}}}) {
 		t.Fatal("expected disabled when comments exist")

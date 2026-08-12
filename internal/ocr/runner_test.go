@@ -127,3 +127,31 @@ func TestSummaryPresentEmpty(t *testing.T) {
 		t.Fatal("budget_exceeded false alone should not be present")
 	}
 }
+
+func TestWarningsJSONStringAndObject(t *testing.T) {
+	var result ocr.Result
+	raw := `{
+		"status":"completed_with_errors",
+		"message":"Some files could not be reviewed due to errors.",
+		"comments":[],
+		"warnings":[
+			"legacy warning",
+			{"file":"internal/store/schema.sql","message":"429 Too Many Requests","type":"subtask_error"}
+		]
+	}`
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.HasReviewWarnings() {
+		t.Fatal("expected review warnings")
+	}
+	if len(result.Warnings) != 2 {
+		t.Fatalf("warnings: %+v", result.Warnings)
+	}
+	if result.Warnings[0].Display() != "legacy warning" {
+		t.Fatalf("legacy: %+v", result.Warnings[0])
+	}
+	if result.Warnings[1].Display() != "internal/store/schema.sql: 429 Too Many Requests" {
+		t.Fatalf("object: %+v", result.Warnings[1])
+	}
+}

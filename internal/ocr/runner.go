@@ -34,11 +34,69 @@ func (s Summary) Present() bool {
 		(s.BudgetExceeded != nil && *s.BudgetExceeded)
 }
 
+// Warning is one OCR review warning (string legacy or object with file/message/type).
+type Warning struct {
+	File    string `json:"file"`
+	Message string `json:"message"`
+	Type    string `json:"type"`
+}
+
+// Display formats a warning for PR comment bullet lines.
+func (w Warning) Display() string {
+	msg := strings.TrimSpace(w.Message)
+	file := strings.TrimSpace(w.File)
+	if file != "" && msg != "" {
+		return file + ": " + msg
+	}
+	if msg != "" {
+		return msg
+	}
+	return file
+}
+
+// Warnings unmarshals OCR warnings as either strings or objects.
+type Warnings []Warning
+
+func (w *Warnings) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*w = nil
+		return nil
+	}
+	var raw []json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	out := make(Warnings, 0, len(raw))
+	for _, item := range raw {
+		var s string
+		if err := json.Unmarshal(item, &s); err == nil {
+			out = append(out, Warning{Message: s})
+			continue
+		}
+		var obj Warning
+		if err := json.Unmarshal(item, &obj); err != nil {
+			return err
+		}
+		out = append(out, obj)
+	}
+	*w = out
+	return nil
+}
+
 type Result struct {
+	Status   string    `json:"status"`
 	Comments []Comment `json:"comments"`
-	Warnings []string  `json:"warnings"`
+	Warnings Warnings  `json:"warnings"`
 	Message  string    `json:"message"`
 	Summary  Summary   `json:"summary"`
+}
+
+// HasReviewWarnings reports incomplete OCR runs that should fail and keep the trigger label.
+func (r Result) HasReviewWarnings() bool {
+	if len(r.Warnings) > 0 {
+		return true
+	}
+	return r.Status == "completed_with_errors"
 }
 
 type Comment struct {

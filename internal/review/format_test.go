@@ -28,8 +28,8 @@ func TestForInline(t *testing.T) {
 }
 
 func TestForInlineNoComments(t *testing.T) {
-	_, summary := review.ForInline(ocr.Result{Message: "clean"}, englishFmt())
-	if !strings.Contains(summary, "⚠ clean") {
+	_, summary := review.ForInline(ocr.Result{Message: "Review complete: 0 finding(s) across 4 selected item(s)."}, englishFmt())
+	if !strings.Contains(summary, "✅ Review complete: 0 finding(s) across 4 selected item(s).") {
 		t.Fatalf("summary: %q", summary)
 	}
 }
@@ -55,14 +55,17 @@ func TestForInlineCleanZeroFindingOCRLGTMMessage(t *testing.T) {
 
 func TestForInlineDegradedZeroFindingMessage(t *testing.T) {
 	msg := "Some files could not be reviewed due to errors."
-	_, summary := review.ForInline(ocr.Result{Message: msg}, englishFmt())
+	_, summary := review.ForInline(ocr.Result{Message: msg, Status: "completed_with_errors"}, englishFmt())
 	if !strings.Contains(summary, "⚠ "+msg) {
 		t.Fatalf("summary: %q", summary)
+	}
+	if review.IsCleanZeroFinding(ocr.Result{Message: msg, Status: "completed_with_errors"}) {
+		t.Fatal("completed_with_errors should not be clean")
 	}
 }
 
 func TestForInlineDegradedZeroFindingWarnings(t *testing.T) {
-	_, summary := review.ForInline(ocr.Result{Warnings: []string{"parse failed"}}, englishFmt())
+	_, summary := review.ForInline(ocr.Result{Warnings: ocr.Warnings{{Message: "parse failed"}}}, englishFmt())
 	if !strings.Contains(summary, "⚠ No comments generated.") {
 		t.Fatalf("summary: %q", summary)
 	}

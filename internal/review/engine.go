@@ -431,6 +431,13 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 	}
 	run.CommentURL = commentURL
 
+	if result.HasReviewWarnings() {
+		if n := len(result.Warnings); n > 0 {
+			return fmt.Errorf("ocr review completed with %d warning(s)", n)
+		}
+		return fmt.Errorf("ocr review completed with errors")
+	}
+
 	if repo.RemoveLabelAfterReview && (len(result.Comments) > 0 || IsCleanZeroFinding(result)) {
 		if err := client.RemoveLabel(ctx, pat, repo.Owner, repo.Name, pr.Number, repo.TriggerLabel); err != nil {
 			return fmt.Errorf("remove label: %w", err)
