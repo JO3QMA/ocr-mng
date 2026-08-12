@@ -34,11 +34,77 @@ func (s Summary) Present() bool {
 		(s.BudgetExceeded != nil && *s.BudgetExceeded)
 }
 
+// Warning is one OCR review warning (string legacy or object with file/message/type).
+type Warning struct {
+	File    string `json:"file"`
+	Message string `json:"message"`
+	Type    string `json:"type"`
+}
+
+// Display formats a warning for PR comment bullet lines.
+func (w Warning) Display() string {
+	msg := strings.TrimSpace(w.Message)
+	file := strings.TrimSpace(w.File)
+	typ := strings.TrimSpace(w.Type)
+	if file != "" && msg != "" {
+		return file + ": " + msg
+	}
+	if msg != "" {
+		return msg
+	}
+	if file != "" {
+		return file
+	}
+	return typ
+}
+
+// Warnings unmarshals OCR warnings as either strings or objects.
+type Warnings []Warning
+
+func (w *Warnings) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*w = nil
+		return nil
+	}
+	var raw []json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	out := make(Warnings, 0, len(raw))
+	for _, item := range raw {
+		var s string
+		if err := json.Unmarshal(item, &s); err == nil {
+			if strings.TrimSpace(s) != "" {
+				out = append(out, Warning{Message: s})
+			}
+			continue
+		}
+		var obj Warning
+		if err := json.Unmarshal(item, &obj); err != nil {
+			return err
+		}
+		if strings.TrimSpace(obj.Display()) != "" {
+			out = append(out, obj)
+		}
+	}
+	*w = out
+	return nil
+}
+
 type Result struct {
+	Status   string    `json:"status"`
 	Comments []Comment `json:"comments"`
-	Warnings []string  `json:"warnings"`
+	Warnings Warnings  `json:"warnings"`
 	Message  string    `json:"message"`
 	Summary  Summary   `json:"summary"`
+}
+
+// HasReviewWarnings reports incomplete OCR runs that should fail and keep the trigger label.
+func (r Result) HasReviewWarnings() bool {
+	if len(r.Warnings) > 0 {
+		return true
+	}
+	return r.Status == "completed_with_errors"
 }
 
 type Comment struct {
@@ -72,6 +138,7 @@ func (r *Runner) writeConfig() error {
 	return os.WriteFile(cfgPath, pretty.Bytes(), 0o600)
 }
 
+// Review runs OCR and parses JSON stdout. When err != nil, Result is zero; use raw only if needed.
 func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, provider, model, rule, requirement, backgroundFile string) (Result, []byte, error) {
 	if err := r.writeConfig(); err != nil {
 		return Result{}, nil, err
@@ -102,7 +169,9 @@ func (r *Runner) Review(ctx context.Context, repoDir, fromRef, toSHA string, pro
 	raw := stdout.Bytes()
 	var result Result
 	if len(raw) > 0 {
-		_ = json.Unmarshal(raw, &result)
+		if parseErr := json.Unmarshal(raw, &result); parseErr != nil {
+			return result, raw, fmt.Errorf("parse ocr output: %w", parseErr)
+		}
 	}
 	if err != nil {
 		msg := strings.TrimSpace(stderr.String())

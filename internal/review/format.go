@@ -107,6 +107,8 @@ func escapeMarkdown(s string) string {
 		`_`, `\_`,
 		`[`, `\[`,
 		`]`, `\]`,
+		`(`, `\(`,
+		`)`, `\)`,
 	).Replace(s)
 }
 
@@ -187,27 +189,24 @@ func writeSummaryHeading(b *strings.Builder, c ocr.Comment, cf CommentFormat, w 
 	fmt.Fprintf(b, "#### %s\n%s\n\n", title, commentBody(c, cf, w, false))
 }
 
-// ocrCleanLGTMMessage is OCR's fixed success text when comments are empty
-// (alibaba/open-code-review outputJSON / outputJSONWithWarnings).
-const ocrCleanLGTMMessage = "No comments generated. Looks good to me."
-
-// IsCleanZeroFinding reports a zero-finding OCR result that is not degraded.
-// OCR always fills message on empty comments; the clean LGTM sentence is not a degradation.
+// IsCleanZeroFinding reports a zero-finding OCR result with no review warnings.
 func IsCleanZeroFinding(result ocr.Result) bool {
-	if len(result.Warnings) > 0 {
-		return false
-	}
-	msg := strings.TrimSpace(result.Message)
-	return msg == "" || msg == ocrCleanLGTMMessage
+	return !result.HasReviewWarnings()
 }
 
-func writeWarningsSection(b *strings.Builder, warnings []string, w wrapperMsgs) {
+func writeWarningsSection(b *strings.Builder, warnings ocr.Warnings, w wrapperMsgs) {
 	if len(warnings) == 0 {
 		return
 	}
-	b.WriteString(w.warnings)
+	wroteHeader := false
 	for _, warn := range warnings {
-		fmt.Fprintf(b, "- %s\n", warn)
+		if line := warn.Display(); line != "" {
+			if !wroteHeader {
+				b.WriteString(w.warnings)
+				wroteHeader = true
+			}
+			fmt.Fprintf(b, "- %s\n", escapeMarkdown(line))
+		}
 	}
 }
 
