@@ -31,6 +31,7 @@ type ReviewComment struct {
 }
 
 type Client struct {
+	kind       string
 	apiBase    string
 	webBase    string
 	authPrefix string // "Bearer " or "token "
@@ -39,6 +40,7 @@ type Client struct {
 
 func New(kind, apiBase, webBase string) *Client {
 	c := &Client{
+		kind:       kind,
 		apiBase:    strings.TrimRight(apiBase, "/"),
 		webBase:    strings.TrimRight(webBase, "/"),
 		authPrefix: "Bearer ",
@@ -138,9 +140,38 @@ func (c *Client) GetPullRequest(ctx context.Context, pat, owner, repo string, pr
 }
 
 func (c *Client) RemoveLabel(ctx context.Context, pat, owner, repo string, prNumber int, label string) error {
-	url := fmt.Sprintf("%s/repos/%s/%s/issues/%d/labels/%s", c.apiBase, owner, repo, prNumber, label)
-	_, err := c.do(ctx, pat, http.MethodDelete, url, nil)
+	id := label
+	if c.kind == "gitea" {
+		n, err := c.giteaIssueLabelID(ctx, pat, owner, repo, prNumber, label)
+		if err != nil {
+			return err
+		}
+		id = fmt.Sprintf("%d", n)
+	}
+	u := fmt.Sprintf("%s/repos/%s/%s/issues/%d/labels/%s", c.apiBase, owner, repo, prNumber, id)
+	_, err := c.do(ctx, pat, http.MethodDelete, u, nil)
 	return err
+}
+
+func (c *Client) giteaIssueLabelID(ctx context.Context, pat, owner, repo string, prNumber int, name string) (int64, error) {
+	body, err := c.do(ctx, pat, http.MethodGet,
+		fmt.Sprintf("%s/repos/%s/%s/issues/%d/labels", c.apiBase, owner, repo, prNumber), nil)
+	if err != nil {
+		return 0, err
+	}
+	var labels []struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(body, &labels); err != nil {
+		return 0, err
+	}
+	for _, l := range labels {
+		if l.Name == name && l.ID != 0 {
+			return l.ID, nil
+		}
+	}
+	return 0, fmt.Errorf("label %q not found on issue", name)
 }
 
 func (c *Client) CreatePullRequestReview(ctx context.Context, pat, owner, repo string, prNumber int, headSHA, body, event string, comments []ReviewComment) (string, error) {
