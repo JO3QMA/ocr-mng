@@ -125,3 +125,55 @@ func TestGetPullRequestClosed(t *testing.T) {
 		t.Fatal("expected error for closed PR")
 	}
 }
+
+func TestRemoveLabelGitHubUsesName(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete || r.URL.Path != "/repos/o/r/issues/2/labels/ready-for-review" {
+			t.Fatalf("unexpected: %s %s", r.Method, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	c := githost.New("github", srv.URL, "https://github.com")
+	if err := c.RemoveLabel(context.Background(), "pat", "o", "r", 2, "ready-for-review"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRemoveLabelGiteaUsesNumericID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/copipe/chalk/issues/2/labels":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[{"id": 17, "name": "ready-for-review"}]`))
+		case r.Method == http.MethodDelete && r.URL.Path == "/repos/copipe/chalk/issues/2/labels/17":
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := githost.New("gitea", srv.URL, "https://gitea.example")
+	if err := c.RemoveLabel(context.Background(), "pat", "copipe", "chalk", 2, "ready-for-review"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRemoveLabelGiteaMissingDoesNotDeleteZero(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/repos/o/r/issues/2/labels" {
+			t.Fatalf("unexpected: %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id": 1, "name": "other"}]`))
+	}))
+	defer srv.Close()
+
+	c := githost.New("gitea", srv.URL, "https://gitea.example")
+	err := c.RemoveLabel(context.Background(), "pat", "o", "r", 2, "ready-for-review")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
