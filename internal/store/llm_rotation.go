@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"slices"
+	"math/rand/v2"
 	"strings"
 )
 
@@ -13,16 +13,6 @@ import (
 type LLMPair struct {
 	ProviderID int64 `json:"provider_id"`
 	ModelID    int64 `json:"model_id"`
-}
-
-const LLMRotationKeyGlobal = "global"
-
-func LLMRotationKeyRepo(repoID int64) string {
-	return fmt.Sprintf("repo:%d", repoID)
-}
-
-func LLMPairsEqual(a, b []LLMPair) bool {
-	return slices.Equal(a, b)
 }
 
 func ValidateLLMRotation(pairs []LLMPair) error {
@@ -87,103 +77,35 @@ func (s *Store) assertLLMRotationSelectable(ctx context.Context, pairs []LLMPair
 	return nil
 }
 
-type sqlExecer interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}
-
-func resetLLMRotationCursor(ctx context.Context, db sqlExecer, setKey string) error {
-	_, err := db.ExecContext(ctx, `
-		INSERT INTO llm_rotation_cursors(set_key, cursor_index) VALUES (?, 0)
-		ON CONFLICT(set_key) DO UPDATE SET cursor_index=0`, setKey)
-	return err
-}
-
-func deleteLLMRotationCursor(ctx context.Context, db sqlExecer, setKey string) error {
-	_, err := db.ExecContext(ctx, `DELETE FROM llm_rotation_cursors WHERE set_key=?`, setKey)
-	return err
-}
-
-func resetLLMRotationCursorTx(ctx context.Context, tx *sql.Tx, setKey string) error {
-	return resetLLMRotationCursor(ctx, tx, setKey)
-}
-
-func deleteLLMRotationCursorTx(ctx context.Context, tx *sql.Tx, setKey string) error {
-	return deleteLLMRotationCursor(ctx, tx, setKey)
-}
-
-func loadRepoLLMRotationTx(ctx context.Context, tx *sql.Tx, repoID int64) ([]LLMPair, error) {
-	var raw sql.NullString
-	err := tx.QueryRowContext(ctx,
-		`SELECT llm_rotation FROM repos WHERE id=?`, repoID,
-	).Scan(&raw)
-	if err != nil {
-		return nil, err
-	}
-	return parseLLMRotationJSON(raw)
-}
-
-// ClaimLLMRotation picks the next usable pair (round-robin) and advances the cursor.
+// PickLLMRotation picks one usable pair uniformly at random.
 // Usable means provider/model enabled, model belongs to provider, and API key present.
-func (s *Store) ClaimLLMRotation(ctx context.Context, setKey string, pairs []LLMPair) (LLMPair, error) {
+func (s *Store) PickLLMRotation(ctx context.Context, pairs []LLMPair) (LLMPair, error) {
 	if len(pairs) == 0 {
 		return LLMPair{}, fmt.Errorf("llm rotation set is empty")
 	}
 	if err := ValidateLLMRotation(pairs); err != nil {
 		return LLMPair{}, err
 	}
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
-	if err != nil {
-		return LLMPair{}, err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if _, err := tx.ExecContext(ctx, `
-		INSERT OR IGNORE INTO llm_rotation_cursors(set_key, cursor_index) VALUES (?, 0)`, setKey); err != nil {
-		return LLMPair{}, err
-	}
-
-	var cursor int
-	if err := tx.QueryRowContext(ctx, `SELECT cursor_index FROM llm_rotation_cursors WHERE set_key=?`, setKey).Scan(&cursor); err != nil {
-		return LLMPair{}, err
-	}
-	if cursor < 0 {
-		cursor = 0
-	}
-	cursor %= len(pairs)
-
-	var chosen LLMPair
-	chosenIdx := -1
-	for i := 0; i < len(pairs); i++ {
-		idx := (cursor + i) % len(pairs)
-		p := pairs[idx]
-		ok, err := llmPairUsableTx(ctx, tx, p)
+	var usable []LLMPair
+	for _, p := range pairs {
+		ok, err := s.llmPairUsable(ctx, p)
 		if err != nil {
 			return LLMPair{}, err
 		}
 		if ok {
-			chosen = p
-			chosenIdx = idx
-			break
+			usable = append(usable, p)
 		}
 	}
-	if chosenIdx < 0 {
+	if len(usable) == 0 {
 		return LLMPair{}, fmt.Errorf("no usable llm pair in rotation set")
 	}
-	next := (chosenIdx + 1) % len(pairs)
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE llm_rotation_cursors SET cursor_index=? WHERE set_key=?`, next, setKey); err != nil {
-		return LLMPair{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return LLMPair{}, err
-	}
-	return chosen, nil
+	return usable[rand.IntN(len(usable))], nil
 }
 
-func llmPairUsableTx(ctx context.Context, tx *sql.Tx, p LLMPair) (bool, error) {
+func (s *Store) llmPairUsable(ctx context.Context, p LLMPair) (bool, error) {
 	var providerEnabled int
 	var enc sql.NullString
-	err := tx.QueryRowContext(ctx, `
+	err := s.db.QueryRowContext(ctx, `
 		SELECT enabled, api_key_encrypted FROM llm_providers WHERE id=?`, p.ProviderID).
 		Scan(&providerEnabled, &enc)
 	if err == sql.ErrNoRows {
@@ -197,7 +119,7 @@ func llmPairUsableTx(ctx context.Context, tx *sql.Tx, p LLMPair) (bool, error) {
 	}
 	var modelProviderID int64
 	var modelEnabled int
-	err = tx.QueryRowContext(ctx, `
+	err = s.db.QueryRowContext(ctx, `
 		SELECT provider_id, enabled FROM llm_provider_models WHERE id=?`, p.ModelID).
 		Scan(&modelProviderID, &modelEnabled)
 	if err == sql.ErrNoRows {
