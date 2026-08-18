@@ -26,16 +26,14 @@ type LLMSelection struct {
 // (Repo override replaces Global) for a Review Run.
 func ResolveLLMSelection(ctx context.Context, st *store.Store, gs store.GlobalSettings, repo store.RepoView, language string) (LLMSelection, error) {
 	pairs := gs.EffectiveLLMRotation()
-	setKey := store.LLMRotationKeyGlobal
 	if override := repo.EffectiveLLMRotation(); len(override) > 0 {
 		pairs = override
-		setKey = store.LLMRotationKeyRepo(repo.ID)
 	}
-	claimed, err := st.ClaimLLMRotation(ctx, setKey, pairs)
+	picked, err := st.PickLLMRotation(ctx, pairs)
 	if err != nil {
 		return LLMSelection{}, err
 	}
-	return buildLedgerSelection(ctx, st, claimed.ProviderID, claimed.ModelID, language)
+	return buildLedgerSelection(ctx, st, picked.ProviderID, picked.ModelID, language)
 }
 
 func buildLedgerSelection(ctx context.Context, st *store.Store, providerID, modelID int64, language string) (LLMSelection, error) {

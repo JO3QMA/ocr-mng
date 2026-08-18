@@ -1,5 +1,7 @@
 # LLM Rotation Set as the unit of LLM selection
 
+選択戦略（実行開始時 round-robin と LLM Rotation Cursor）は [ADR-0009](./0009-llm-rotation-random.md) が置き換える。集合を正本とする決定はこの ADR のまま。
+
 Review Run が使う LLM は、モデル名文字列のリストではなく、Registered LLM Provider と Registered LLM Model の組からなる **LLM Rotation Set** から選ぶ。Global OCR Settings と Repo OCR Overrides の LLM 正本はこの集合であり、要素数 1 が従来の単一組指定と同一。Repo の集合は Global を完全置換する（結合・差分にしない）。MVP の選択は実行開始時の round-robin（LLM Rotation）で、カーソルは有効な集合ごと（Global 共有 / Repo 上書きは別）。同一 Review Run 内のフェイルオーバー再実行はしない。
 
 **Considered Options:** 同一 Provider 内のモデル名だけを回す / 単一組と集合の二重正本またはモード切替 / Repo 集合を Global に結合 / random または primary+fallback / 受付時に組を固定 / カーソルを Repo 単位・システム全体・PR 単位にする / 同一 Run 内で次組へリトライ / 使えぬ組で即 `failed` / 集合保存のたびにカーソルリセット / 集合内の組の重複を許す / Global のみ複数組 UI

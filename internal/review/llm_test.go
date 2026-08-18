@@ -145,7 +145,7 @@ func TestResolveLLM_disabledModel(t *testing.T) {
 	}
 }
 
-func TestResolveLLM_roundRobin(t *testing.T) {
+func TestResolveLLM_picksFromUsable(t *testing.T) {
 	st := openReviewStore(t)
 	ctx := context.Background()
 	pid1, mid1 := mustLLMPair(t, st, ctx, "P1", "anthropic", "m1")
@@ -155,13 +155,12 @@ func TestResolveLLM_roundRobin(t *testing.T) {
 		store.LLMPair{ProviderID: pid2, ModelID: mid2},
 	)
 
-	a, err := review.ResolveLLMSelection(ctx, st, gs, store.RepoView{}, "Japanese")
-	if err != nil || a.ModelName != "m1" {
-		t.Fatalf("1st: %+v %v", a, err)
+	got, err := review.ResolveLLMSelection(ctx, st, gs, store.RepoView{}, "Japanese")
+	if err != nil {
+		t.Fatal(err)
 	}
-	b, err := review.ResolveLLMSelection(ctx, st, gs, store.RepoView{}, "Japanese")
-	if err != nil || b.ModelName != "m2" {
-		t.Fatalf("2nd: %+v %v", b, err)
+	if got.ModelName != "m1" && got.ModelName != "m2" {
+		t.Fatalf("picked unknown: %+v", got)
 	}
 }
 
