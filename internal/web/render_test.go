@@ -59,6 +59,46 @@ func TestFormatCommaInt64(t *testing.T) {
 	}
 }
 
+func TestRenderRunDetailRetryButton(t *testing.T) {
+	run := store.ReviewRun{
+		ID: 7, RepoID: 2, PRNumber: 11, Status: "failed",
+		ErrorMessage: "ocr exited 1", RepoOwner: "acme", RepoName: "app",
+	}
+	rec := httptest.NewRecorder()
+	render(rec, "run_detail", struct {
+		page
+		Run         store.ReviewRun
+		SummaryView summaryView
+		OCRJSON     string
+	}{page: testPage(), Run: run})
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("status %d body %q", rec.Code, body)
+	}
+	for _, want := range []string{
+		`action="/repos/2/review"`,
+		`name="pr_number" value="11"`,
+		`class="btn accent"`,
+		"再実行",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q in %q", want, body)
+		}
+	}
+
+	run.Status = "success"
+	rec = httptest.NewRecorder()
+	render(rec, "run_detail", struct {
+		page
+		Run         store.ReviewRun
+		SummaryView summaryView
+		OCRJSON     string
+	}{page: testPage(), Run: run})
+	if strings.Contains(rec.Body.String(), "再実行") {
+		t.Fatalf("retry button on success: %q", rec.Body.String())
+	}
+}
+
 func TestRenderRunDetailTimes(t *testing.T) {
 	started := time.Date(2026, 7, 17, 10, 0, 0, 0, time.UTC)
 	finished := time.Date(2026, 7, 17, 10, 5, 0, 0, time.UTC)

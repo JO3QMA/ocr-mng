@@ -14,6 +14,7 @@ var ja = map[string]string{
 	"btn.save":                   "保存",
 	"btn.cancel":                 "キャンセル",
 	"btn.run":                    "実行",
+	"btn.retry":                  "再実行",
 	"btn.add":                    "追加",
 	"btn.delete":                 "削除",
 	"btn.add_host":               "認証情報を追加",

@@ -14,6 +14,7 @@ var en = map[string]string{
 	"btn.save":                   "Save",
 	"btn.cancel":                 "Cancel",
 	"btn.run":                    "Run",
+	"btn.retry":                  "Retry",
 	"btn.add":                    "Add",
 	"btn.delete":                 "Delete",
 	"btn.add_host":               "Add Git Host",
