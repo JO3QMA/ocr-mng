@@ -17,35 +17,35 @@ type CommentFormat struct {
 }
 
 var fenceLangByExt = map[string]string{
-	".go":   "go",
-	".ts":   "typescript",
-	".tsx":  "tsx",
-	".js":   "javascript",
-	".jsx":  "jsx",
-	".py":   "python",
-	".rb":   "ruby",
-	".java": "java",
-	".kt":   "kotlin",
+	".go":    "go",
+	".ts":    "typescript",
+	".tsx":   "tsx",
+	".js":    "javascript",
+	".jsx":   "jsx",
+	".py":    "python",
+	".rb":    "ruby",
+	".java":  "java",
+	".kt":    "kotlin",
 	".swift": "swift",
-	".cs":   "csharp",
-	".php":  "php",
-	".rs":   "rust",
-	".vue":  "vue",
-	".html": "html",
-	".css":  "css",
-	".scss": "scss",
-	".sql":  "sql",
-	".sh":   "bash",
-	".yaml": "yaml",
-	".yml":  "yaml",
-	".json": "json",
-	".md":   "markdown",
-	".c":    "c",
-	".cpp":  "cpp",
-	".h":    "c",
-	".hpp":  "cpp",
-	".xml":  "xml",
-	".toml": "toml",
+	".cs":    "csharp",
+	".php":   "php",
+	".rs":    "rust",
+	".vue":   "vue",
+	".html":  "html",
+	".css":   "css",
+	".scss":  "scss",
+	".sql":   "sql",
+	".sh":    "bash",
+	".yaml":  "yaml",
+	".yml":   "yaml",
+	".json":  "json",
+	".md":    "markdown",
+	".c":     "c",
+	".cpp":   "cpp",
+	".h":     "c",
+	".hpp":   "cpp",
+	".xml":   "xml",
+	".toml":  "toml",
 }
 
 func commentLine(c ocr.Comment) int {
@@ -189,9 +189,9 @@ func writeSummaryHeading(b *strings.Builder, c ocr.Comment, cf CommentFormat, w 
 	fmt.Fprintf(b, "#### %s\n%s\n\n", title, commentBody(c, cf, w, false))
 }
 
-// IsCleanZeroFinding reports a zero-finding OCR result with no review warnings.
+// IsCleanZeroFinding reports a zero-finding OCR result with no review warnings or total failure.
 func IsCleanZeroFinding(result ocr.Result) bool {
-	return !result.HasReviewWarnings()
+	return !result.HasReviewWarnings() && !result.Failed()
 }
 
 func writeWarningsSection(b *strings.Builder, warnings ocr.Warnings, w wrapperMsgs) {

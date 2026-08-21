@@ -107,6 +107,11 @@ func (r Result) HasReviewWarnings() bool {
 	return r.Status == "completed_with_errors"
 }
 
+// Failed reports a total OCR failure (all selected items failed), not a partial review.
+func (r Result) Failed() bool {
+	return r.Status == "failed"
+}
+
 type Comment struct {
 	FilePath   string `json:"path"`
 	StartLine  int    `json:"start_line"`

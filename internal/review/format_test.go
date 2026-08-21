@@ -53,6 +53,21 @@ func TestForInlineCleanZeroFindingOCRLGTMMessage(t *testing.T) {
 	}
 }
 
+func TestForInlineFailedStatusIsNotClean(t *testing.T) {
+	msg := "Review failed: 0 finding(s); 6 of 6 selected item(s) failed."
+	result := ocr.Result{Status: "failed", Message: msg}
+	_, summary := review.ForInline(result, englishFmt())
+	if !strings.Contains(summary, "⚠ "+msg) {
+		t.Fatalf("summary: %q", summary)
+	}
+	if strings.Contains(summary, "✅") {
+		t.Fatalf("failed OCR must not look like success: %q", summary)
+	}
+	if review.IsCleanZeroFinding(result) {
+		t.Fatal("status failed should not be a clean zero-finding")
+	}
+}
+
 func TestForInlineDegradedZeroFindingMessage(t *testing.T) {
 	msg := "Some files could not be reviewed due to errors."
 	_, summary := review.ForInline(ocr.Result{Message: msg, Status: "completed_with_errors"}, englishFmt())
@@ -124,7 +139,7 @@ func TestCommentBodyGitHubSuggestion(t *testing.T) {
 	inline, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{
 			FilePath: "frontend/src/VrcUserCacheDetail.vue", StartLine: 153, EndLine: 158,
-			Content: "check attrs",
+			Content:    "check attrs",
 			Suggestion: " <VrcUserTagChip\n class=\"tag-chip\"\n />\n",
 		}},
 	}, review.CommentFormat{Lang: "English", HostKind: "github"})
@@ -174,7 +189,7 @@ func TestCommentBodyPreservesLeadingTab(t *testing.T) {
 	inline, _ := review.ForInline(ocr.Result{
 		Comments: []ocr.Comment{{
 			FilePath: "internal/application/auction/preview_usecase.go", StartLine: 25, EndLine: 25,
-			Content: "remove json tag",
+			Content:    "remove json tag",
 			Suggestion: "\tMarketEstimate *domainmarket.MarketEstimate",
 		}},
 	}, englishFmt())
