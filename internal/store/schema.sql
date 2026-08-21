@@ -89,11 +89,6 @@ CREATE TABLE IF NOT EXISTS review_runs (
     created_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS llm_rotation_cursors (
-    set_key TEXT PRIMARY KEY,
-    cursor_index INTEGER NOT NULL DEFAULT 0
-);
-
 CREATE INDEX IF NOT EXISTS idx_review_runs_repo ON review_runs(repo_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_repos_host ON repos(git_host_id);
 CREATE INDEX IF NOT EXISTS idx_llm_models_provider ON llm_provider_models(provider_id);
