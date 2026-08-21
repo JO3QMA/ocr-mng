@@ -361,6 +361,12 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <p>{{.L.T "table.accepted"}}: {{formatTime .Run.CreatedAt}} · {{.L.T "table.started"}}: {{formatTime .Run.StartedAt}} · {{.L.T "table.finished"}}: {{formatTime .Run.FinishedAt}}</p>
 {{if or .Run.LLMProviderName .Run.LLMModelName}}<p>{{.L.T "run_detail.llm"}}: {{.Run.LLMProviderName}} / {{.Run.LLMModelName}}</p>{{end}}
 {{if .Run.ErrorMessage}}<div class="flash error">{{.Run.ErrorMessage}}</div>{{end}}
+{{if eq .Run.Status "failed"}}
+<form method="post" action="/repos/{{.Run.RepoID}}/review">
+<input type="hidden" name="pr_number" value="{{.Run.PRNumber}}">
+<p class="btn-row"><button type="submit" class="btn accent">{{.L.T "btn.retry"}}</button></p>
+</form>
+{{end}}
 {{if .Run.CommentURL}}<p><a href="{{.Run.CommentURL}}">{{.L.T "run_detail.view_post"}}</a></p>{{end}}
 {{if .SummaryView.Visible}}
 <h2>{{.L.T "run_detail.ocr_summary"}}</h2>

@@ -23,14 +23,14 @@ type Store struct {
 }
 
 type GitHost struct {
-	ID               int64
-	Name             string
-	Kind             string
-	APIBaseURL       string
-	WebBaseURL       string
-	HasHostPAT       bool
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID         int64
+	Name       string
+	Kind       string
+	APIBaseURL string
+	WebBaseURL string
+	HasHostPAT bool
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type Repo struct {
@@ -70,23 +70,23 @@ type PRSnapshot struct {
 }
 
 type ReviewRun struct {
-	ID               int64
-	RepoID           int64
-	RepoOwner        string // live join from repos; empty if missing
-	RepoName         string // live join from repos; empty if missing
-	PRNumber         int
-	HeadSHA          string
-	BaseRef          string
-	Status           string
-	TriggerKind      string
-	ErrorMessage     string
-	CommentURL       string
-	OCROutputPath    string
+	ID              int64
+	RepoID          int64
+	RepoOwner       string // live join from repos; empty if missing
+	RepoName        string // live join from repos; empty if missing
+	PRNumber        int
+	HeadSHA         string
+	BaseRef         string
+	Status          string
+	TriggerKind     string
+	ErrorMessage    string
+	CommentURL      string
+	OCROutputPath   string
 	LLMProviderName string // snapshot at execution
-	LLMModelName     string // snapshot at execution
-	StartedAt        *time.Time
-	FinishedAt       *time.Time
-	CreatedAt        time.Time
+	LLMModelName    string // snapshot at execution
+	StartedAt       *time.Time
+	FinishedAt      *time.Time
+	CreatedAt       time.Time
 }
 
 // RepoDisplay is Owner/Name for UI, or RepoID when the Registered Repo row is missing.
@@ -98,12 +98,12 @@ func (r ReviewRun) RepoDisplay() string {
 }
 
 type GlobalSettings struct {
-	PollIntervalSeconds    int    `json:"poll_interval_seconds"`
-	MinPollIntervalSeconds int    `json:"min_poll_interval_seconds"`
-	MaxConcurrentReviews   int    `json:"max_concurrent_reviews"`
-	ReviewRunRetentionDays int    `json:"review_run_retention_days"`
-	UILanguage             string `json:"ui_language"`
-	ReviewLanguage         string `json:"review_language"`
+	PollIntervalSeconds    int       `json:"poll_interval_seconds"`
+	MinPollIntervalSeconds int       `json:"min_poll_interval_seconds"`
+	MaxConcurrentReviews   int       `json:"max_concurrent_reviews"`
+	ReviewRunRetentionDays int       `json:"review_run_retention_days"`
+	UILanguage             string    `json:"ui_language"`
+	ReviewLanguage         string    `json:"review_language"`
 	DefaultLLMRotation     []LLMPair `json:"default_llm_rotation,omitempty"`
 }
 
@@ -192,10 +192,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		`ALTER TABLE review_runs DROP COLUMN summary_total_count`,
 		`ALTER TABLE pr_snapshots DROP COLUMN last_reviewed_head_sha`,
 		`ALTER TABLE pr_snapshots DROP COLUMN last_run_id`,
-		`CREATE TABLE IF NOT EXISTS llm_rotation_cursors (
-			set_key TEXT PRIMARY KEY,
-			cursor_index INTEGER NOT NULL DEFAULT 0
-		)`,
+		`DROP TABLE IF EXISTS llm_rotation_cursors`,
 	} {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
 			msg := strings.ToLower(err.Error())
@@ -223,11 +220,6 @@ func (s *Store) GetGlobalSettings(ctx context.Context) (GlobalSettings, error) {
 }
 
 func (s *Store) SaveGlobalSettings(ctx context.Context, gs GlobalSettings) error {
-	prev, err := s.GetGlobalSettings(ctx)
-	if err != nil {
-		return err
-	}
-	prevRot := prev.EffectiveLLMRotation()
 	nextRot := gs.EffectiveLLMRotation()
 	if len(nextRot) == 0 {
 		return fmt.Errorf("global llm rotation set cannot be empty")
@@ -243,20 +235,8 @@ func (s *Store) SaveGlobalSettings(ctx context.Context, gs GlobalSettings) error
 	if err != nil {
 		return err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `UPDATE global_settings SET value = ? WHERE key = 'settings'`, string(b)); err != nil {
-		return err
-	}
-	if !LLMPairsEqual(prevRot, nextRot) {
-		if err := resetLLMRotationCursorTx(ctx, tx, LLMRotationKeyGlobal); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
+	_, err = s.db.ExecContext(ctx, `UPDATE global_settings SET value = ? WHERE key = 'settings'`, string(b))
+	return err
 }
 
 func (s *Store) encryptPAT(pat string) (string, error) {
@@ -412,11 +392,6 @@ func (s *Store) CreateRepo(ctx context.Context, r Repo, pat string) (int64, erro
 	if err != nil {
 		return 0, err
 	}
-	if len(r.LLMRotation) > 0 {
-		if err := resetLLMRotationCursorTx(ctx, tx, LLMRotationKeyRepo(id)); err != nil {
-			return 0, err
-		}
-	}
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
@@ -449,10 +424,6 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	prevRot, err := loadRepoLLMRotationTx(ctx, tx, r.ID)
-	if err != nil {
-		return err
-	}
 	_, err = tx.ExecContext(ctx, `
 		UPDATE repos SET git_host_id=?, owner=?, name=?, default_branch=?, trigger_label=?,
 			poll_interval_seconds=?,
@@ -468,17 +439,6 @@ func (s *Store) UpdateRepo(ctx context.Context, r Repo, pat string, clearPAT boo
 		rot, enabled, now, r.ID)
 	if err != nil {
 		return err
-	}
-	nextRot := r.EffectiveLLMRotation()
-	key := LLMRotationKeyRepo(r.ID)
-	if len(nextRot) == 0 {
-		if err := deleteLLMRotationCursorTx(ctx, tx, key); err != nil {
-			return err
-		}
-	} else if !LLMPairsEqual(prevRot, nextRot) {
-		if err := resetLLMRotationCursorTx(ctx, tx, key); err != nil {
-			return err
-		}
 	}
 	return tx.Commit()
 }

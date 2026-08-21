@@ -109,23 +109,19 @@ Registered LLM Provider に属する利用可能モデル 1 件。OCR に渡す�
 _Avoid_: モデル（単独・曖昧）, Provider Model, モデルプール（LLM Rotation Set を指す用法）
 
 **LLM Rotation Set**:
-Review Run に割り当てる候補となる、Registered LLM Provider と Registered LLM Model の組の順序付き集合。要素は組単位であり、同一 Provider 内の Model だけに限定しない（Provider 跨ぎを許す）。実行時には集合からちょうど 1 組を選ぶ。要素数 1 はローテーション無し（従来の単一組指定）と同一。同一集合内で同じ組の重複は許さない。モデル名文字列のリストではない。Global OCR Settings と Repo OCR Overrides の LLM 指定の正本はこの集合であり、単一組専用の別概念は置かない。
-_Avoid_: モデルプール, モデルリスト, プロバイダプール（組を無視して Provider だけを回す用法）, デフォルト組（集合と別物として扱う用法）
+Review Run に割り当てる候補となる、Registered LLM Provider と Registered LLM Model の組の集合。要素は組単位であり、同一 Provider 内の Model だけに限定しない（Provider 跨ぎを許す）。実行時には集合からちょうど 1 組を選ぶ。要素数 1 は従来の単一組指定と同一。同一集合内で同じ組の重複は許さない。モデル名文字列のリストではない。Global OCR Settings と Repo OCR Overrides の LLM 指定の正本はこの集合であり、単一組専用の別概念は置かない。Administrator が並べた順は編集都合であり、LLM Rotation の選択には使わない。
+_Avoid_: モデルプール, モデルリスト, プロバイダプール（組を無視して Provider だけを回す用法）, デフォルト組（集合と別物として扱う用法）, 順序付き集合（並びが選択順であるかのように読む用法）
 
 **LLM Rotation**:
-LLM Rotation Set から Review Run 用の組ちょうど 1 つを選ぶこと。MVP の戦略は集合の順序に沿った round-robin。選択は Review Run の実行開始時（`pending` → `running`）に 1 回だけ。使えない組は順序どおりスキップして一周し、使える組が無ければ Review Run は `failed`。同一 Review Run 内のフェイルオーバー再実行はしない。random や primary+fallback は MVP の対象外。
-_Avoid_: モデルローテーション（組ではなく Model 名だけを回す用法）, フェイルオーバー（同一 Review Run 内の再実行）
-
-**LLM Rotation Cursor**:
-ある LLM Rotation Set について、次に試す要素位置を指す round-robin の状態。カーソルは有効な LLM Rotation Set ごと（Global 集合用が 1 本。Repo 上書き集合はその Repo ごと。Global に従う Repo は Global カーソルを共有）。組を選んだらその次へ進む。集合の内容または順序が実際に変わったときだけ先頭（インデックス 0）にリセットする。Administrator 向け WebUI には表示・編集しない（追跡は Review Run の Provider / Model スナップショットによる）。
-_Avoid_: ローテーションカウンタ（曖昧）, グローバルカウンタ（集合を無視する用法）
+LLM Rotation Set から Review Run 用の組ちょうど 1 つを選ぶこと。戦略は random 一本（round-robin は置かない。戦略切替も置かない）。選択は Review Run の実行開始時（`pending` → `running`）に 1 回だけ。使える組の中から一様ランダムに 1 つ選ぶ。重み付けはしない。各 Review Run は独立であり、連続して同じ組が当たることがある。使える組が無ければ Review Run は `failed`。同一 Review Run 内のフェイルオーバー再実行はしない。次に試す位置などの選択状態は持たない。
+_Avoid_: モデルローテーション（組ではなく Model 名だけを回す用法）, フェイルオーバー（同一 Review Run 内の再実行）, round-robin（廃止した戦略）, LLM Rotation Cursor（廃止した round-robin 用の状態）
 
 **Global OCR Settings**:
-Review Manager が保持する Open Code Review CLI 向けのグローバル LLM 設定。正はデフォルトの LLM Rotation Set（1 組以上）であり、レビュー実行時に OCR の config へ反映される。Administrator は WebUI で順序付きの複数組を編集できる。台帳モードでは集合が空であってはならない。集合のクリア（空への戻し）は不可（別の集合への入替のみ）。
+Review Manager が保持する Open Code Review CLI 向けのグローバル LLM 設定。正はデフォルトの LLM Rotation Set（1 組以上）であり、レビュー実行時に OCR の config へ反映される。Administrator は WebUI で複数組を編集できる。台帳モードでは集合が空であってはならない。集合のクリア（空への戻し）は不可（別の集合への入替のみ）。
 _Avoid_: グローバル設定（曖昧）, Global OCR Config JSON
 
 **Repo OCR Overrides**:
-Registered Repo ごとに Global OCR Settings を上書きするレビュー実行パラメータ。LLM Rotation Set、カスタムルール、OCR Requirement、Review Background File、Review Language を含む。LLM の上書きは集合単位（空＝Global の LLM Rotation Set に従う、1 組以上＝Repo の集合で Global を完全置換。Global との結合や差分上書きはしない。要素の片方だけ欠けた組は不可）。Administrator は WebUI で順序付きの複数組を編集でき、空に戻すと Global に従う。
+Registered Repo ごとに Global OCR Settings を上書きするレビュー実行パラメータ。LLM Rotation Set、カスタムルール、OCR Requirement、Review Background File、Review Language を含む。LLM の上書きは集合単位（空＝Global の LLM Rotation Set に従う、1 組以上＝Repo の集合で Global を完全置換。Global との結合や差分上書きはしない。要素の片方だけ欠けた組は不可）。Administrator は WebUI で複数組を編集でき、空に戻すと Global に従う。
 _Avoid_: Repo 設定（曖昧）
 
 **Review Background**:
