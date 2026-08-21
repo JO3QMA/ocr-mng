@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/jo3qma/ocr-mng/internal/config"
-	"github.com/jo3qma/ocr-mng/internal/gitwork"
 	"github.com/jo3qma/ocr-mng/internal/githost"
+	"github.com/jo3qma/ocr-mng/internal/gitwork"
 	"github.com/jo3qma/ocr-mng/internal/ocr"
 	"github.com/jo3qma/ocr-mng/internal/store"
 )
@@ -425,11 +425,13 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 	_ = os.WriteFile(ocrPath, raw, 0o644)
 	run.OCROutputPath = ocrPath
 
-	commentURL, postErr := e.postResult(ctx, client, pat, repo, pr, result, reviewLang)
-	if postErr != nil {
-		return postErr
+	if shouldPostOCRResult(result, ocrErr) {
+		commentURL, postErr := e.postResult(ctx, client, pat, repo, pr, result, reviewLang)
+		if postErr != nil {
+			return postErr
+		}
+		run.CommentURL = commentURL
 	}
-	run.CommentURL = commentURL
 
 	if result.HasReviewWarnings() {
 		if n := len(result.Warnings); n > 0 {
@@ -441,6 +443,9 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 	if ocrErr != nil {
 		return fmt.Errorf("ocr review: %w", ocrErr)
 	}
+	if result.Failed() {
+		return fmt.Errorf("ocr review completed with status %q", result.Status)
+	}
 
 	if repo.RemoveLabelAfterReview && (len(result.Comments) > 0 || IsCleanZeroFinding(result)) {
 		if err := client.RemoveLabel(ctx, pat, repo.Owner, repo.Name, pr.Number, repo.TriggerLabel); err != nil {
@@ -448,6 +453,21 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 		}
 	}
 	return nil
+}
+
+// shouldPostOCRResult reports whether OCR output should be posted to the Pull Request.
+// Total failures (status failed, or CLI error with no findings/warnings) stay off the PR.
+func shouldPostOCRResult(result ocr.Result, ocrErr error) bool {
+	if len(result.Comments) > 0 {
+		return true
+	}
+	if result.Failed() {
+		return false
+	}
+	if ocrErr != nil && !result.HasReviewWarnings() {
+		return false
+	}
+	return true
 }
 
 func (e *Engine) postResult(ctx context.Context, client *githost.Client, pat string, repo store.RepoView, pr githost.PullRequest, result ocr.Result, lang string) (string, error) {

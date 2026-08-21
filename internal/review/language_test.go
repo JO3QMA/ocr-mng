@@ -21,7 +21,7 @@ func TestForInlineJapanese(t *testing.T) {
 
 func TestZeroFindingApprovalEnabled(t *testing.T) {
 	repo := store.RepoView{
-		Repo: store.Repo{ApproveOnZeroFindings: true},
+		Repo:     store.Repo{ApproveOnZeroFindings: true},
 		HostKind: "github",
 	}
 	if !review.ZeroFindingApprovalEnabled(repo, ocr.Result{}) {
@@ -35,6 +35,9 @@ func TestZeroFindingApprovalEnabled(t *testing.T) {
 	}
 	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Status: "completed_with_errors"}) {
 		t.Fatal("expected disabled for completed_with_errors status")
+	}
+	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Status: "failed", Message: "Review failed: 0 finding(s); 6 of 6 selected item(s) failed."}) {
+		t.Fatal("expected disabled for failed status")
 	}
 	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Comments: []ocr.Comment{{Content: "x"}}}) {
 		t.Fatal("expected disabled when comments exist")

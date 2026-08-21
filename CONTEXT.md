@@ -201,7 +201,7 @@ OCR 実行、レビュー結果の投稿、Zero-Finding Approval（有効時）�
 _Avoid_: 完了, 成功（曖昧）
 
 **Zero-Finding Review**:
-OCR Review Output の `comments` 配列が空の Review Run。`warnings` や `message` の有無は指摘件数の判定に含めない。
+OCR Review Output の `comments` 配列が空の Review Run。`warnings` や `message` の有無は指摘件数の判定に含めない。`status` が `failed` の総失敗は Zero-Finding Review ではない（PR に投稿せず Review Run は `failed`）。
 _Avoid_: 指摘なしレビュー, クリーンレビュー（曖昧）
 
 **Zero-Finding Summary Indicator**:

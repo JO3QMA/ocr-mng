@@ -8,7 +8,7 @@ Open Code Review CLI が `--format json` で返すレビュー結果の形式。
 
 | フィールド | 型 | 説明 |
 |-----------|-----|------|
-| `status` | string | 実行結果（例: `"success"`） |
+| `status` | string | 実行結果。`"success"` は完了、`"completed_with_errors"` は一部失敗（PR に ⚠ を投稿して Review Run は `failed`）、`"failed"` は全ファイル失敗などの総失敗（PR には投稿せず Review Run は `failed`）。空は旧 OCR 出力 |
 | `summary` | object | レビュー統計（下記）。Review Run 詳細の **OCR Review Summary** として表示 |
 | `tool_calls` | object | OCR が使用したツール呼び出し数 |
 | `comments` | array | 指摘コメントの配列（下記） |

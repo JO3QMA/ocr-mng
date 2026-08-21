@@ -186,6 +186,23 @@ func TestSummaryPresentEmpty(t *testing.T) {
 	}
 }
 
+func TestResultFailedStatus(t *testing.T) {
+	var result ocr.Result
+	raw := `{"status":"failed","comments":null,"warnings":null,"message":"Review failed: 0 finding(s); 6 of 6 selected item(s) failed."}`
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.Failed() {
+		t.Fatal("status failed should be Failed")
+	}
+	if result.HasReviewWarnings() {
+		t.Fatal("failed is a total failure, not a partial warning run")
+	}
+	if (ocr.Result{Status: "success"}).Failed() || (ocr.Result{}).Failed() {
+		t.Fatal("success and empty status are not Failed")
+	}
+}
+
 func TestWarningsJSONStringAndObject(t *testing.T) {
 	var result ocr.Result
 	raw := `{
