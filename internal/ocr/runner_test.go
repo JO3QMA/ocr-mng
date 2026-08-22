@@ -273,3 +273,47 @@ func TestWarningsJSONSkipsEmptyElements(t *testing.T) {
 		t.Fatal("type-only warning should fail the run")
 	}
 }
+
+func TestHasReviewWarningsIgnoresCommentRefiled(t *testing.T) {
+	var result ocr.Result
+	raw := `{
+		"status":"complete",
+		"comments":[{"path":"src/agent/review.ts","content":"fix","start_line":1}],
+		"warnings":[
+			{"file":"src/agent/review.ts","type":"comment_refiled","message":"comment filed against src/discord/bot.ts describes code in src/agent/review.ts; re-filed"},
+			{"file":"src/agent/review.ts","type":"comment_refiled","message":"comment filed against src/discord/bot.ts describes code in src/agent/review.ts; re-filed"}
+		]
+	}`
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Warnings) != 2 {
+		t.Fatalf("warnings preserved: %+v", result.Warnings)
+	}
+	if result.HasReviewWarnings() {
+		t.Fatal("comment_refiled alone should not fail the run")
+	}
+	if len(result.Warnings.Actionable()) != 0 {
+		t.Fatalf("actionable: %+v", result.Warnings.Actionable())
+	}
+}
+
+func TestHasReviewWarningsMixedCommentRefiledAndActionable(t *testing.T) {
+	var result ocr.Result
+	raw := `{
+		"comments":[],
+		"warnings":[
+			{"type":"comment_refiled","message":"re-filed"},
+			{"type":"subtask_error","message":"boom"}
+		]
+	}`
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		t.Fatal(err)
+	}
+	if !result.HasReviewWarnings() {
+		t.Fatal("actionable warning should fail the run")
+	}
+	if len(result.Warnings.Actionable()) != 1 {
+		t.Fatalf("actionable: %+v", result.Warnings.Actionable())
+	}
+}

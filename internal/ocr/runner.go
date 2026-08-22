@@ -34,11 +34,32 @@ func (s Summary) Present() bool {
 		(s.BudgetExceeded != nil && *s.BudgetExceeded)
 }
 
+// WarningTypeCommentRefiled is OCR's informational warning when a comment path
+// was auto-corrected to the file that actually contains the cited code.
+const WarningTypeCommentRefiled = "comment_refiled"
+
 // Warning is one OCR review warning (string legacy or object with file/message/type).
 type Warning struct {
 	File    string `json:"file"`
 	Message string `json:"message"`
 	Type    string `json:"type"`
+}
+
+// IsActionable reports whether this warning should fail the Review Run.
+// comment_refiled is informational: OCR already moved the comment to the right file.
+func (w Warning) IsActionable() bool {
+	return strings.TrimSpace(w.Type) != WarningTypeCommentRefiled
+}
+
+// Actionable returns warnings that should fail the Review Run.
+func (w Warnings) Actionable() Warnings {
+	out := make(Warnings, 0, len(w))
+	for _, warn := range w {
+		if warn.IsActionable() {
+			out = append(out, warn)
+		}
+	}
+	return out
 }
 
 // Display formats a warning for PR comment bullet lines.
@@ -101,7 +122,7 @@ type Result struct {
 
 // HasReviewWarnings reports incomplete OCR runs that should fail and keep the trigger label.
 func (r Result) HasReviewWarnings() bool {
-	if len(r.Warnings) > 0 {
+	if len(r.Warnings.Actionable()) > 0 {
 		return true
 	}
 	return r.Status == "completed_with_errors"
