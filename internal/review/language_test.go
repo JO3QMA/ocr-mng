@@ -33,6 +33,14 @@ func TestZeroFindingApprovalEnabled(t *testing.T) {
 	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Warnings: ocr.Warnings{{Message: "parse failed"}}}) {
 		t.Fatal("expected disabled when review warnings exist")
 	}
+	if !review.ZeroFindingApprovalEnabled(repo, ocr.Result{
+		Warnings: ocr.Warnings{{
+			Type:    ocr.WarningTypeCommentRefiled,
+			Message: "comment filed against a.ts describes code in b.ts; re-filed",
+		}},
+	}) {
+		t.Fatal("expected enabled when only comment_refiled warnings exist")
+	}
 	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Status: "completed_with_errors"}) {
 		t.Fatal("expected disabled for completed_with_errors status")
 	}

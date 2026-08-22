@@ -434,7 +434,7 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 	}
 
 	if result.HasReviewWarnings() {
-		if n := len(result.Warnings); n > 0 {
+		if n := len(result.Warnings.Actionable()); n > 0 {
 			return fmt.Errorf("ocr review completed with %d warning(s)", n)
 		}
 		return fmt.Errorf("ocr review completed with status %q", result.Status)
