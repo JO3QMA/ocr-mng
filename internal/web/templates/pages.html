@@ -52,6 +52,14 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 .badge.success { background: #dcfce7; }
 .badge.failed { background: #fee2e2; }
 .badge.running { background: #dbeafe; }
+.hidden { display: none !important; }
+.llm-rotation-rows select { margin-top: .25rem; }
+.llm-rotation-add { margin-top: .25rem; }
+.llm-rotation-dialog { border: 0; border-radius: 8px; padding: 1rem 1.25rem; max-width: 32rem; box-shadow: 0 4px 24px rgba(0,0,0,.2); }
+.llm-rotation-dialog::backdrop { background: rgba(0,0,0,.4); }
+.llm-rotation-dialog-title { margin: 0 0 .75rem; font-size: 1.1rem; }
+.llm-rotation-modal-list { margin-top: .75rem; max-height: 16rem; overflow-y: auto; }
+button:disabled { opacity: .55; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -74,6 +82,38 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 </main>
 </body>
 </html>
+{{end}}
+
+{{define "llm_rotation_widget"}}
+<div class="llm-rotation">
+<script type="application/json" class="llm-rotation-config">{{toJSON .Config}}</script>
+<div class="llm-rotation-rows">
+{{range .Values}}
+<select class="llm-rotation-row" name="{{$.FieldName}}" data-initial="{{.}}"></select>
+{{end}}
+</div>
+<div class="llm-rotation-add">
+<button type="button" class="btn secondary llm-rotation-add-btn">{{.Config.Labels.Add}}</button>
+<p class="hint llm-rotation-no-add hidden">{{.Config.Labels.NoAdd}}</p>
+</div>
+{{if .RequireMin}}<p class="hint llm-rotation-min hidden">{{.Config.Labels.RequireMin}}</p>{{end}}
+<dialog class="llm-rotation-dialog">
+<h2 class="llm-rotation-dialog-title">{{.Config.Labels.ModalTitle}}</h2>
+<div class="btn-row">
+<button type="button" class="btn secondary llm-rotation-select-all">{{.Config.Labels.SelectAll}}</button>
+<button type="button" class="btn secondary llm-rotation-clear-sel">{{.Config.Labels.ClearSelection}}</button>
+</div>
+<div class="llm-rotation-modal-list"></div>
+<div class="btn-row">
+<button type="button" class="btn secondary llm-rotation-cancel">{{.Config.Labels.Cancel}}</button>
+<button type="button" class="btn llm-rotation-confirm">{{.Config.Labels.Confirm}}</button>
+</div>
+</dialog>
+</div>
+{{end}}
+
+{{define "llm_rotation_script"}}
+<script>{{llmRotationJS}}</script>
 {{end}}
 
 {{define "flash"}}
@@ -293,16 +333,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <option value="Chinese" {{selected .Repo.ReviewLanguage "Chinese"}}>{{.L.T "settings.review_chinese"}}</option>
 </select>
 <label>{{.L.T "form.llm_rotation"}}</label>
-{{range $val := .LLMRotationValues}}
-<select name="llm_pairs">
-<option value="0:0">{{$.L.T "form.llm_pair_clear_row"}}</option>
-{{range $.LLMOptions}}<option value="{{.Value}}" {{selected $val .Value}}>{{.Label}}</option>{{end}}
-</select>
-{{end}}
-<select name="llm_pairs">
-<option value="0:0" selected>{{.L.T "form.llm_pair_add"}}</option>
-{{range .LLMOptions}}<option value="{{.Value}}">{{.Label}}</option>{{end}}
-</select>
+{{template "llm_rotation_widget" .LLMRotation}}
 <p class="hint">{{.L.T "form.llm_rotation_hint"}}</p>
 <label>{{.L.T "form.ocr_rule"}}</label><textarea name="ocr_rule" rows="4">{{.Repo.OCRRule}}</textarea>
 <label>{{.L.T "form.ocr_requirement"}}</label><textarea name="ocr_requirement" rows="3" placeholder="{{.L.T "form.ocr_requirement_placeholder"}}">{{.Repo.OCRRequirement}}</textarea>
@@ -313,6 +344,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button> <a class="btn secondary" href="/repos">{{.L.T "btn.cancel"}}</a></p>
 </form>
 </div>
+{{template "llm_rotation_script" .}}
 {{template "foot" .}}
 {{end}}
 
@@ -404,21 +436,13 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <label>{{.L.T "settings.retention"}}</label><input name="review_run_retention_days" type="number" value="{{.Settings.ReviewRunRetentionDays}}" min="1" required>
 <h2>{{.L.T "settings.llm_section"}}</h2>
 <label>{{.L.T "settings.default_llm_rotation"}}</label>
-{{range $val := .LLMRotationValues}}
-<select name="default_llm_pairs">
-<option value="0:0">{{$.L.T "form.llm_pair_clear_row"}}</option>
-{{range $.LLMOptions}}<option value="{{.Value}}" {{selected $val .Value}}>{{.Label}}</option>{{end}}
-</select>
-{{end}}
-<select name="default_llm_pairs">
-<option value="0:0" selected>{{.L.T "form.llm_pair_add"}}</option>
-{{range .LLMOptions}}<option value="{{.Value}}">{{.Label}}</option>{{end}}
-</select>
+{{template "llm_rotation_widget" .LLMRotation}}
 <p class="hint">{{.L.T "settings.llm_rotation_hint"}}</p>
 <p><a href="/llm-providers">{{.L.T "settings.manage_llm_providers"}}</a></p>
-<p class="btn-row"><button type="submit" class="btn">{{.L.T "btn.save"}}</button></p>
+<p class="btn-row"><button type="submit" class="btn" data-llm-gated-save>{{.L.T "btn.save"}}</button></p>
 </form>
 </div>
+{{template "llm_rotation_script" .}}
 {{template "foot" .}}
 {{end}}
 
