@@ -2,6 +2,7 @@ package web
 
 import (
 	_ "embed"
+	"encoding/json"
 
 	"github.com/jo3qma/ocr-mng/internal/store"
 	"github.com/jo3qma/ocr-mng/internal/web/i18n"
@@ -15,6 +16,7 @@ type llmRotationWidget struct {
 	RequireMin bool
 	Values     []string
 	Config     llmRotationWidgetConfig
+	ConfigJSON string
 }
 
 type llmRotationWidgetConfig struct {
@@ -46,25 +48,31 @@ func buildLLMRotationWidget(l i18n.Localizer, fieldName string, requireMin bool,
 	for i, o := range opts {
 		jsonOpts[i] = llmPairOptionJSON{Value: o.Value, Label: o.Label}
 	}
+	cfg := llmRotationWidgetConfig{
+		FieldName:  fieldName,
+		RequireMin: requireMin,
+		Options:    jsonOpts,
+		Labels: llmRotationUILabels{
+			ClearRow:       l.T("form.llm_pair_clear_row"),
+			Add:            l.T("form.llm_pair_add"),
+			ModalTitle:     l.T("form.llm_pair_modal_title"),
+			SelectAll:      l.T("form.llm_pair_select_all"),
+			ClearSelection: l.T("form.llm_pair_clear_selection"),
+			Confirm:        l.T("form.llm_pair_modal_confirm"),
+			Cancel:         l.T("btn.cancel"),
+			NoAdd:          l.T("form.llm_pair_no_add"),
+			RequireMin:     l.T("form.llm_rotation_require_min"),
+		},
+	}
+	configJSON, err := json.Marshal(cfg)
+	if err != nil {
+		configJSON = []byte("null")
+	}
 	return llmRotationWidget{
 		FieldName:  fieldName,
 		RequireMin: requireMin,
 		Values:     llmRotationValues(pairs),
-		Config: llmRotationWidgetConfig{
-			FieldName:  fieldName,
-			RequireMin: requireMin,
-			Options:    jsonOpts,
-			Labels: llmRotationUILabels{
-				ClearRow:       l.T("form.llm_pair_clear_row"),
-				Add:            l.T("form.llm_pair_add"),
-				ModalTitle:     l.T("form.llm_pair_modal_title"),
-				SelectAll:      l.T("form.llm_pair_select_all"),
-				ClearSelection: l.T("form.llm_pair_clear_selection"),
-				Confirm:        l.T("form.llm_pair_modal_confirm"),
-				Cancel:         l.T("btn.cancel"),
-				NoAdd:          l.T("form.llm_pair_no_add"),
-				RequireMin:     l.T("form.llm_rotation_require_min"),
-			},
-		},
+		Config:     cfg,
+		ConfigJSON: string(configJSON),
 	}
 }

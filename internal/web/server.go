@@ -545,6 +545,9 @@ func parseSettingsForm(r *http.Request) (store.GlobalSettings, error) {
 	if err != nil {
 		return store.GlobalSettings{}, err
 	}
+	if len(pairs) == 0 {
+		return store.GlobalSettings{}, fmt.Errorf("global llm rotation set cannot be empty")
+	}
 	gs := store.GlobalSettings{
 		PollIntervalSeconds:    poll,
 		MinPollIntervalSeconds: minPoll,

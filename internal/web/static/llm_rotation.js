@@ -39,7 +39,7 @@
 			const selectedElse = getSelectedValues().filter(function (v) {
 				return v !== currentValue;
 			});
-			select.innerHTML = "";
+			select.replaceChildren();
 			const clearOpt = document.createElement("option");
 			clearOpt.value = "0:0";
 			clearOpt.textContent = labels.clearRow;
@@ -118,7 +118,7 @@
 		}
 
 		function renderModalCheckboxes(available) {
-			modalList.innerHTML = "";
+			modalList.replaceChildren();
 			available.forEach(function (o) {
 				const label = document.createElement("label");
 				label.className = "confirm-checkbox";

@@ -2,7 +2,6 @@ package web
 
 import (
 	"embed"
-	"encoding/json"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -88,13 +87,6 @@ var pageTemplates = template.Must(
 				return s[:8]
 			}
 			return s
-		},
-		"toJSON": func(v any) (template.JS, error) {
-			b, err := json.Marshal(v)
-			if err != nil {
-				return template.JS("null"), err
-			}
-			return template.JS(b), nil
 		},
 		"llmRotationJS": func() template.JS {
 			return template.JS(llmRotationJS)
