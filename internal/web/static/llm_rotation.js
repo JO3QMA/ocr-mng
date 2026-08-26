@@ -1,47 +1,52 @@
 (function () {
 	function init(root) {
-		var configEl = root.querySelector(".llm-rotation-config");
+		const configEl = root.querySelector(".llm-rotation-config");
 		if (!configEl) return;
-		var config = JSON.parse(configEl.textContent);
-		var fieldName = config.fieldName;
-		var requireMin = config.requireMin;
-		var options = config.options;
-		var labels = config.labels;
-		var rowsContainer = root.querySelector(".llm-rotation-rows");
-		var addBtn = root.querySelector(".llm-rotation-add-btn");
-		var noAddHint = root.querySelector(".llm-rotation-no-add");
-		var minHint = root.querySelector(".llm-rotation-min");
-		var dialog = root.querySelector(".llm-rotation-dialog");
-		var modalList = root.querySelector(".llm-rotation-modal-list");
-		var form = root.closest("form");
-		var saveBtn = form ? form.querySelector("[data-llm-gated-save]") : null;
+		let config;
+		try {
+			config = JSON.parse(configEl.textContent);
+		} catch {
+			return;
+		}
+		const fieldName = config.fieldName;
+		const requireMin = config.requireMin;
+		const options = config.options;
+		const labels = config.labels;
+		const rowsContainer = root.querySelector(".llm-rotation-rows");
+		const addBtn = root.querySelector(".llm-rotation-add-btn");
+		const noAddHint = root.querySelector(".llm-rotation-no-add");
+		const minHint = root.querySelector(".llm-rotation-min");
+		const dialog = root.querySelector(".llm-rotation-dialog");
+		const modalList = root.querySelector(".llm-rotation-modal-list");
+		const form = root.closest("form");
+		const saveBtn = form ? form.querySelector("[data-llm-gated-save]") : null;
 
-		var optMap = new Map();
+		const optMap = new Map();
 		options.forEach(function (o) {
 			optMap.set(o.value, o.label);
 		});
 
 		function getSelectedValues() {
-			var vals = [];
+			const vals = [];
 			rowsContainer.querySelectorAll("select.llm-rotation-row").forEach(function (sel) {
-				var v = sel.value;
+				const v = sel.value;
 				if (v && v !== "0:0") vals.push(v);
 			});
 			return vals;
 		}
 
 		function rebuildSelect(select, currentValue) {
-			var selectedElse = getSelectedValues().filter(function (v) {
+			const selectedElse = getSelectedValues().filter(function (v) {
 				return v !== currentValue;
 			});
 			select.innerHTML = "";
-			var clearOpt = document.createElement("option");
+			const clearOpt = document.createElement("option");
 			clearOpt.value = "0:0";
 			clearOpt.textContent = labels.clearRow;
 			select.appendChild(clearOpt);
 			options.forEach(function (o) {
 				if (selectedElse.indexOf(o.value) !== -1) return;
-				var opt = document.createElement("option");
+				const opt = document.createElement("option");
 				opt.value = o.value;
 				opt.textContent = o.label;
 				select.appendChild(opt);
@@ -49,7 +54,7 @@
 			if (currentValue && currentValue !== "0:0") {
 				select.value = currentValue;
 				if (select.value !== currentValue) {
-					var fallback = document.createElement("option");
+					const fallback = document.createElement("option");
 					fallback.value = currentValue;
 					fallback.textContent = optMap.get(currentValue) || currentValue;
 					select.appendChild(fallback);
@@ -59,7 +64,7 @@
 		}
 
 		function onRowChange(e) {
-			var select = e.target;
+			const select = e.target;
 			if (select.value === "0:0") {
 				select.remove();
 			}
@@ -67,7 +72,7 @@
 		}
 
 		function addRow(value) {
-			var select = document.createElement("select");
+			const select = document.createElement("select");
 			select.name = fieldName;
 			select.className = "llm-rotation-row";
 			rebuildSelect(select, value);
@@ -77,14 +82,14 @@
 		}
 
 		function getAvailable() {
-			var selected = getSelectedValues();
+			const selected = getSelectedValues();
 			return options.filter(function (o) {
 				return selected.indexOf(o.value) === -1;
 			});
 		}
 
 		function updateAddUI() {
-			var available = getAvailable();
+			const available = getAvailable();
 			if (available.length === 0) {
 				addBtn.classList.add("hidden");
 				noAddHint.classList.remove("hidden");
@@ -96,7 +101,7 @@
 
 		function updateSaveButton() {
 			if (!requireMin || !saveBtn) return;
-			var count = getSelectedValues().length;
+			const count = getSelectedValues().length;
 			saveBtn.disabled = count === 0;
 			if (minHint) {
 				if (count === 0) minHint.classList.remove("hidden");
@@ -115,12 +120,12 @@
 		function renderModalCheckboxes(available) {
 			modalList.innerHTML = "";
 			available.forEach(function (o) {
-				var label = document.createElement("label");
+				const label = document.createElement("label");
 				label.className = "confirm-checkbox";
-				var cb = document.createElement("input");
+				const cb = document.createElement("input");
 				cb.type = "checkbox";
 				cb.value = o.value;
-				var span = document.createElement("span");
+				const span = document.createElement("span");
 				span.textContent = o.label;
 				label.appendChild(cb);
 				label.appendChild(span);
@@ -129,7 +134,7 @@
 		}
 
 		addBtn.addEventListener("click", function () {
-			var available = getAvailable();
+			const available = getAvailable();
 			if (available.length === 0) return;
 			renderModalCheckboxes(available);
 			dialog.showModal();
@@ -152,7 +157,7 @@
 		});
 
 		root.querySelector(".llm-rotation-confirm").addEventListener("click", function () {
-			var checked = [];
+			const checked = [];
 			modalList.querySelectorAll("input[type=checkbox]:checked").forEach(function (cb) {
 				checked.push(cb.value);
 			});
@@ -164,7 +169,7 @@
 		});
 
 		rowsContainer.querySelectorAll("select.llm-rotation-row").forEach(function (sel) {
-			var initial = sel.dataset.initial || sel.value;
+			const initial = sel.dataset.initial || sel.value;
 			rebuildSelect(sel, initial);
 			if (initial && initial !== "0:0") sel.value = initial;
 			sel.addEventListener("change", onRowChange);
