@@ -1,4 +1,6 @@
 (function () {
+	const EMPTY_PAIR_VALUE = "0:0";
+
 	function init(root) {
 		const configRaw = root.dataset.config;
 		if (!configRaw) return;
@@ -8,9 +10,12 @@
 		} catch {
 			return;
 		}
-		if (!config || typeof config !== "object" || !Array.isArray(config.options) || !config.labels) {
+		if (!config || typeof config !== "object" || !Array.isArray(config.options) ||
+			!config.labels || typeof config.fieldName !== "string" || !config.fieldName ||
+			typeof config.labels.clearRow !== "string") {
 			return;
 		}
+
 		const fieldName = config.fieldName;
 		const requireMin = config.requireMin;
 		const options = config.options;
@@ -21,6 +26,15 @@
 		const minHint = root.querySelector(".llm-rotation-min");
 		const dialog = root.querySelector(".llm-rotation-dialog");
 		const modalList = root.querySelector(".llm-rotation-modal-list");
+		const selectAllBtn = root.querySelector(".llm-rotation-select-all");
+		const clearSelBtn = root.querySelector(".llm-rotation-clear-sel");
+		const cancelBtn = root.querySelector(".llm-rotation-cancel");
+		const confirmBtn = root.querySelector(".llm-rotation-confirm");
+		if (!rowsContainer || !addBtn || !noAddHint || !dialog || !modalList ||
+			!selectAllBtn || !clearSelBtn || !cancelBtn || !confirmBtn) {
+			return;
+		}
+
 		const form = root.closest("form");
 		const saveBtn = form ? form.querySelector("[data-llm-gated-save]") : null;
 
@@ -33,7 +47,7 @@
 			const vals = [];
 			rowsContainer.querySelectorAll("select.llm-rotation-row").forEach(function (sel) {
 				const v = sel.value;
-				if (v && v !== "0:0") vals.push(v);
+				if (v && v !== EMPTY_PAIR_VALUE) vals.push(v);
 			});
 			return vals;
 		}
@@ -44,7 +58,7 @@
 			});
 			select.replaceChildren();
 			const clearOpt = document.createElement("option");
-			clearOpt.value = "0:0";
+			clearOpt.value = EMPTY_PAIR_VALUE;
 			clearOpt.textContent = labels.clearRow;
 			select.appendChild(clearOpt);
 			options.forEach(function (o) {
@@ -54,7 +68,7 @@
 				opt.textContent = o.label;
 				select.appendChild(opt);
 			});
-			if (currentValue && currentValue !== "0:0") {
+			if (currentValue && currentValue !== EMPTY_PAIR_VALUE) {
 				select.value = currentValue;
 				if (select.value !== currentValue) {
 					const fallback = document.createElement("option");
@@ -68,20 +82,28 @@
 
 		function onRowChange(e) {
 			const select = e.target;
-			if (select.value === "0:0") {
+			if (select.value === EMPTY_PAIR_VALUE) {
 				select.remove();
 			}
 			updateAll();
 		}
 
-		function addRow(value) {
+		function wireRow(select, initialValue) {
+			rebuildSelect(select, initialValue);
+			if (initialValue && initialValue !== EMPTY_PAIR_VALUE) select.value = initialValue;
+			select.addEventListener("change", onRowChange);
+		}
+
+		function createRow(initialValue) {
 			const select = document.createElement("select");
 			select.name = fieldName;
 			select.className = "llm-rotation-row";
-			rebuildSelect(select, value);
-			select.value = value;
-			select.addEventListener("change", onRowChange);
+			wireRow(select, initialValue);
 			rowsContainer.appendChild(select);
+		}
+
+		function addRow(value) {
+			createRow(value);
 		}
 
 		function getAvailable() {
@@ -138,9 +160,13 @@
 
 		let lastDialogFocus = null;
 
+		dialog.addEventListener("close", function () {
+			if (lastDialogFocus) lastDialogFocus.focus();
+			lastDialogFocus = null;
+		});
+
 		function closeDialog() {
 			dialog.close();
-			if (lastDialogFocus) lastDialogFocus.focus();
 		}
 
 		addBtn.addEventListener("click", function () {
@@ -151,23 +177,23 @@
 			dialog.showModal();
 		});
 
-		root.querySelector(".llm-rotation-select-all").addEventListener("click", function () {
+		selectAllBtn.addEventListener("click", function () {
 			modalList.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
 				cb.checked = true;
 			});
 		});
 
-		root.querySelector(".llm-rotation-clear-sel").addEventListener("click", function () {
+		clearSelBtn.addEventListener("click", function () {
 			modalList.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
 				cb.checked = false;
 			});
 		});
 
-		root.querySelector(".llm-rotation-cancel").addEventListener("click", function () {
+		cancelBtn.addEventListener("click", function () {
 			closeDialog();
 		});
 
-		root.querySelector(".llm-rotation-confirm").addEventListener("click", function () {
+		confirmBtn.addEventListener("click", function () {
 			const checked = [];
 			modalList.querySelectorAll("input[type=checkbox]:checked").forEach(function (cb) {
 				checked.push(cb.value);
@@ -180,10 +206,7 @@
 		});
 
 		rowsContainer.querySelectorAll("select.llm-rotation-row").forEach(function (sel) {
-			const initial = sel.dataset.initial || sel.value;
-			rebuildSelect(sel, initial);
-			if (initial && initial !== "0:0") sel.value = initial;
-			sel.addEventListener("change", onRowChange);
+			wireRow(sel, sel.dataset.initial || sel.value);
 		});
 
 		updateAll();
