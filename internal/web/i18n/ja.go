@@ -151,7 +151,7 @@ var ja = map[string]string{
 	"form.llm_pair_modal_title":            "組を追加",
 	"form.llm_pair_select_all":             "すべて選択",
 	"form.llm_pair_clear_selection":        "選択解除",
-	"form.llm_pair_modal_confirm":          "確定",
+	"form.llm_pair_modal_confirm":          "追加",
 	"form.llm_pair_no_add":                 "追加できる組はありません",
 	"form.llm_rotation_require_min":        "LLM Rotation Set は 1 組以上必要です。保存するには組を追加してください。",
 	"form.llm_pair_hint":                   "組で上書きします。片方だけの指定はできません。",
