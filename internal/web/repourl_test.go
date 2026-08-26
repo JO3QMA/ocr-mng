@@ -5,12 +5,12 @@ import "testing"
 func TestParseRepoURL(t *testing.T) {
 	const gh = "https://github.com"
 	tests := []struct {
-		name    string
-		raw     string
-		base    string
-		owner   string
-		repo    string
-		errKey  string
+		name   string
+		raw    string
+		base   string
+		owner  string
+		repo   string
+		errKey string
 	}{
 		{
 			name:  "web url",

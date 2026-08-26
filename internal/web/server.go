@@ -292,20 +292,19 @@ func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo sto
 	p := s.page(r, titleKey)
 	render(w, "repo_form", struct {
 		page
-		Repo              store.RepoView
-		Hosts             []store.GitHost
-		LLMOptions        []llmPairOption
-		LLMRotationValues []string
-		FormTitle         string
-		Action            string
-		ErrMsg            string
-		RepoURL           string
-		PollInterval      string
-		ShowClearPAT      bool
+		Repo         store.RepoView
+		Hosts        []store.GitHost
+		LLMRotation  llmRotationWidget
+		FormTitle    string
+		Action       string
+		ErrMsg       string
+		RepoURL      string
+		PollInterval string
+		ShowClearPAT bool
 	}{
-		page: p, Repo: repo, Hosts: hosts, LLMOptions: llmOpts,
-		LLMRotationValues: llmRotationValues(repo.EffectiveLLMRotation()),
-		FormTitle: p.Title, Action: action, ErrMsg: errMsg, RepoURL: repoURL, PollInterval: poll, ShowClearPAT: showClear,
+		page: p, Repo: repo, Hosts: hosts,
+		LLMRotation: buildLLMRotationWidget(p.L, "llm_pairs", false, llmOpts, repo.EffectiveLLMRotation()),
+		FormTitle:   p.Title, Action: action, ErrMsg: errMsg, RepoURL: repoURL, PollInterval: poll, ShowClearPAT: showClear,
 	})
 }
 
@@ -404,14 +403,14 @@ func (s *Server) settingsForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	opts, _ := s.llmPairOptionsWithCurrents(r.Context(), gs.EffectiveLLMRotation())
+	p := s.page(r, "page.settings")
 	render(w, "settings", struct {
 		page
-		Settings          store.GlobalSettings
-		LLMOptions        []llmPairOption
-		LLMRotationValues []string
+		Settings    store.GlobalSettings
+		LLMRotation llmRotationWidget
 	}{
-		page: s.page(r, "page.settings"), Settings: gs, LLMOptions: opts,
-		LLMRotationValues: llmRotationValues(gs.EffectiveLLMRotation()),
+		page: p, Settings: gs,
+		LLMRotation: buildLLMRotationWidget(p.L, "default_llm_pairs", true, opts, gs.EffectiveLLMRotation()),
 	})
 }
 
@@ -545,6 +544,9 @@ func parseSettingsForm(r *http.Request) (store.GlobalSettings, error) {
 	pairs, err := parseLLMPairsFields(r.Form["default_llm_pairs"])
 	if err != nil {
 		return store.GlobalSettings{}, err
+	}
+	if len(pairs) == 0 {
+		return store.GlobalSettings{}, fmt.Errorf("global llm rotation set cannot be empty")
 	}
 	gs := store.GlobalSettings{
 		PollIntervalSeconds:    poll,
