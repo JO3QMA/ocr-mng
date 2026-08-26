@@ -1,11 +1,14 @@
 (function () {
 	function init(root) {
-		const configEl = root.querySelector(".llm-rotation-config");
-		if (!configEl) return;
+		const configRaw = root.dataset.config;
+		if (!configRaw) return;
 		let config;
 		try {
-			config = JSON.parse(configEl.textContent);
+			config = JSON.parse(configRaw);
 		} catch {
+			return;
+		}
+		if (!config || typeof config !== "object" || !Array.isArray(config.options) || !config.labels) {
 			return;
 		}
 		const fieldName = config.fieldName;

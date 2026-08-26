@@ -85,8 +85,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 {{end}}
 
 {{define "llm_rotation_widget"}}
-<div class="llm-rotation">
-<script type="application/json" class="llm-rotation-config">{{.ConfigJSON}}</script>
+<div class="llm-rotation" data-config="{{.ConfigJSON}}">
 <div class="llm-rotation-rows">
 {{range .Values}}
 <select class="llm-rotation-row" name="{{$.FieldName}}" data-initial="{{.}}"></select>
