@@ -96,8 +96,8 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <p class="hint llm-rotation-no-add hidden">{{.Config.Labels.NoAdd}}</p>
 </div>
 {{if .RequireMin}}<p class="hint llm-rotation-min hidden">{{.Config.Labels.RequireMin}}</p>{{end}}
-<dialog class="llm-rotation-dialog">
-<h2 class="llm-rotation-dialog-title">{{.Config.Labels.ModalTitle}}</h2>
+<dialog class="llm-rotation-dialog" aria-labelledby="llm-rotation-dialog-title-{{.FieldName}}">
+<h2 id="llm-rotation-dialog-title-{{.FieldName}}" class="llm-rotation-dialog-title">{{.Config.Labels.ModalTitle}}</h2>
 <div class="btn-row">
 <button type="button" class="btn secondary llm-rotation-select-all">{{.Config.Labels.SelectAll}}</button>
 <button type="button" class="btn secondary llm-rotation-clear-sel">{{.Config.Labels.ClearSelection}}</button>

@@ -136,9 +136,17 @@
 			});
 		}
 
+		let lastDialogFocus = null;
+
+		function closeDialog() {
+			dialog.close();
+			if (lastDialogFocus) lastDialogFocus.focus();
+		}
+
 		addBtn.addEventListener("click", function () {
 			const available = getAvailable();
 			if (available.length === 0) return;
+			lastDialogFocus = addBtn;
 			renderModalCheckboxes(available);
 			dialog.showModal();
 		});
@@ -156,7 +164,7 @@
 		});
 
 		root.querySelector(".llm-rotation-cancel").addEventListener("click", function () {
-			dialog.close();
+			closeDialog();
 		});
 
 		root.querySelector(".llm-rotation-confirm").addEventListener("click", function () {
@@ -167,7 +175,7 @@
 			checked.forEach(function (v) {
 				addRow(v);
 			});
-			dialog.close();
+			closeDialog();
 			updateAll();
 		});
 
