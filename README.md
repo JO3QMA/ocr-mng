@@ -1,5 +1,7 @@
 # Review Manager (`ocr-mng`)
 
+**日本語** | [English](README.en.md)
+
 GitHub / Gitea 上の Pull Request を [Open Code Review](https://github.com/alibaba/open-code-review) (OCR) CLI で自動レビューし、結果を PR コメントとして投稿する管理 WebUI です。
 
 単一の Go プロセス（`rm`）が WebUI・PR ポーリング・Review Run スケジューリングを担い、OCR だけを subprocess として起動します。
