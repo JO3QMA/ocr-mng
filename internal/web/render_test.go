@@ -59,6 +59,39 @@ func TestFormatCommaInt64(t *testing.T) {
 	}
 }
 
+func TestRenderSettingsLLMRotationWidget(t *testing.T) {
+	l := i18n.New("ja")
+	widget := buildLLMRotationWidget(l, "default_llm_pairs", true, []llmPairOption{
+		{Value: "1:2", Label: "A / m1"},
+	}, []store.LLMPair{{ProviderID: 1, ModelID: 2}})
+	rec := httptest.NewRecorder()
+	render(rec, "settings", struct {
+		page
+		Settings    store.GlobalSettings
+		LLMRotation llmRotationWidget
+	}{
+		page:        testPage(),
+		Settings:    store.GlobalSettings{PollIntervalSeconds: 60},
+		LLMRotation: widget,
+	})
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("status %d", rec.Code)
+	}
+	for _, want := range []string{
+		`class="llm-rotation"`,
+		`name="default_llm_pairs"`,
+		`data-llm-gated-save`,
+		`llm-rotation-add-btn`,
+		`<dialog class="llm-rotation-dialog"`,
+		`llm-rotation-select-all`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q in body", want)
+		}
+	}
+}
+
 func TestRenderRunDetailRetryButton(t *testing.T) {
 	run := store.ReviewRun{
 		ID: 7, RepoID: 2, PRNumber: 11, Status: "failed",
@@ -132,9 +165,9 @@ func TestRenderRunDetailSummary(t *testing.T) {
 	budget := true
 	run := store.ReviewRun{ID: 1, PRNumber: 2, Status: "success", RepoOwner: "acme", RepoName: "app"}
 	summary := ocr.Summary{
-		FilesReviewed: &files,
-		TotalTokens:   &tokens,
-		Elapsed:       "3m55s",
+		FilesReviewed:  &files,
+		TotalTokens:    &tokens,
+		Elapsed:        "3m55s",
 		BudgetExceeded: &budget,
 	}
 	rec := httptest.NewRecorder()
