@@ -292,19 +292,19 @@ func (s *Server) renderRepoForm(w http.ResponseWriter, r *http.Request, repo sto
 	p := s.page(r, titleKey)
 	render(w, "repo_form", struct {
 		page
-		Repo        store.RepoView
-		Hosts       []store.GitHost
-		LLMRotation llmRotationWidget
-		FormTitle   string
-		Action      string
-		ErrMsg      string
-		RepoURL     string
+		Repo         store.RepoView
+		Hosts        []store.GitHost
+		LLMRotation  llmRotationWidget
+		FormTitle    string
+		Action       string
+		ErrMsg       string
+		RepoURL      string
 		PollInterval string
 		ShowClearPAT bool
 	}{
 		page: p, Repo: repo, Hosts: hosts,
 		LLMRotation: buildLLMRotationWidget(p.L, "llm_pairs", false, llmOpts, repo.EffectiveLLMRotation()),
-		FormTitle: p.Title, Action: action, ErrMsg: errMsg, RepoURL: repoURL, PollInterval: poll, ShowClearPAT: showClear,
+		FormTitle:   p.Title, Action: action, ErrMsg: errMsg, RepoURL: repoURL, PollInterval: poll, ShowClearPAT: showClear,
 	})
 }
 

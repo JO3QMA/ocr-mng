@@ -50,12 +50,12 @@ func TestBuildLLMRotationWidget_requireMin(t *testing.T) {
 
 func TestParseSettingsForm_emptyLLMRotation(t *testing.T) {
 	form := url.Values{
-		"poll_interval_seconds":      {"60"},
-		"min_poll_interval_seconds":  {"30"},
-		"max_concurrent_reviews":   {"2"},
-		"review_run_retention_days":  {"30"},
-		"ui_language":                {"ja"},
-		"review_language":            {"Japanese"},
+		"poll_interval_seconds":     {"60"},
+		"min_poll_interval_seconds": {"30"},
+		"max_concurrent_reviews":    {"2"},
+		"review_run_retention_days": {"30"},
+		"ui_language":               {"ja"},
+		"review_language":           {"Japanese"},
 	}
 	req := httptest.NewRequest(http.MethodPost, "/settings", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

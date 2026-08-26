@@ -165,9 +165,9 @@ func TestRenderRunDetailSummary(t *testing.T) {
 	budget := true
 	run := store.ReviewRun{ID: 1, PRNumber: 2, Status: "success", RepoOwner: "acme", RepoName: "app"}
 	summary := ocr.Summary{
-		FilesReviewed: &files,
-		TotalTokens:   &tokens,
-		Elapsed:       "3m55s",
+		FilesReviewed:  &files,
+		TotalTokens:    &tokens,
+		Elapsed:        "3m55s",
 		BudgetExceeded: &budget,
 	}
 	rec := httptest.NewRecorder()

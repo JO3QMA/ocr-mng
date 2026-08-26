@@ -20,10 +20,10 @@ type llmRotationWidget struct {
 }
 
 type llmRotationWidgetConfig struct {
-	FieldName  string                 `json:"fieldName"`
-	RequireMin bool                   `json:"requireMin"`
-	Options    []llmPairOptionJSON    `json:"options"`
-	Labels     llmRotationUILabels    `json:"labels"`
+	FieldName  string              `json:"fieldName"`
+	RequireMin bool                `json:"requireMin"`
+	Options    []llmPairOptionJSON `json:"options"`
+	Labels     llmRotationUILabels `json:"labels"`
 }
 
 type llmPairOptionJSON struct {
