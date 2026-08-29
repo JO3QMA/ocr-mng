@@ -55,8 +55,11 @@ func ListModels(ctx context.Context, apiBaseURL, protocol, apiKey string) ([]str
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		msg := strings.TrimSpace(string(body))
-		if len(msg) > 200 {
-			msg = msg[:200] + "…"
+		runes := []rune(msg)
+		if len(runes) > 200 {
+			msg = string(runes[:200]) + "…"
+		} else {
+			msg = string(runes)
 		}
 		if msg == "" {
 			msg = resp.Status
@@ -97,7 +100,7 @@ func modelsEndpoint(apiBaseURL string) (string, error) {
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return "", fmt.Errorf("invalid api base url")
 	}
-	path := strings.TrimSuffix(u.EscapedPath(), "/")
+	path := strings.TrimSuffix(u.Path, "/")
 	switch {
 	case strings.HasSuffix(path, "/models"):
 		// already a models URL

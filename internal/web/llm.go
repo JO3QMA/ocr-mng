@@ -272,35 +272,27 @@ func (s *Server) llmProviderUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, apiKey, err := parseLLMProviderForm(r)
+	p.ID = id
+	stored, getErr := s.store.GetLLMProvider(r.Context(), id)
+	if getErr != nil {
+		http.NotFound(w, r)
+		return
+	}
+	p.HasAPIKey = stored.HasAPIKey
 	models, listErr := s.store.ListLLMProviderModels(r.Context(), id)
 	if listErr != nil {
-		s.renderLLMProviderForm(w, r, llmProviderFormView{
-			Provider: p, Action: fmt.Sprintf("/llm-providers/%d", id),
-			TestAction:   fmt.Sprintf("/llm-providers/%d/test", id),
-			FormTitleKey: "page.edit_llm_provider", UseTempModel: true,
-			TempModelName:   strings.TrimSpace(r.FormValue("temp_model_name")),
-			SelectedModelID: formModelID(r),
-			ErrMsg:          listErr.Error(),
-		})
+		view := s.llmProviderEditFormView(r, id, stored.HasAPIKey, p, nil, nil)
+		view.ErrMsg = listErr.Error()
+		s.renderLLMProviderForm(w, r, view)
 		return
 	}
 	enabled := enabledLLMModels(models)
-	failView := llmProviderFormView{
-		Provider: p, Models: models, EnabledModels: enabled,
-		Action: fmt.Sprintf("/llm-providers/%d", id), TestAction: fmt.Sprintf("/llm-providers/%d/test", id),
-		FormTitleKey: "page.edit_llm_provider", UseTempModel: len(enabled) == 0,
-		TempModelName:   strings.TrimSpace(r.FormValue("temp_model_name")),
-		SelectedModelID: formModelID(r),
-	}
-	if len(enabled) == 1 && failView.SelectedModelID == 0 {
-		failView.SelectedModelID = enabled[0].ID
-	}
+	failView := s.llmProviderEditFormView(r, id, stored.HasAPIKey, p, models, enabled)
 	if err != nil {
 		failView.ErrMsg = s.llmFormErrMsg(r, err)
 		s.renderLLMProviderForm(w, r, failView)
 		return
 	}
-	p.ID = id
 	if err := s.store.UpdateLLMProvider(r.Context(), p, apiKey, r.FormValue("clear_api_key") == "on"); err != nil {
 		failView.ErrMsg = err.Error()
 		s.renderLLMProviderForm(w, r, failView)
@@ -450,18 +442,20 @@ func (s *Server) llmProviderModelsDiscover(w http.ResponseWriter, r *http.Reques
 	p, formKey, err := parseLLMProviderForm(r)
 	p.ID = providerID
 	p.HasAPIKey = stored.HasAPIKey
-	models, listErr := s.store.ListLLMProviderModels(r.Context(), providerID)
-	if listErr != nil {
-		http.Error(w, listErr.Error(), http.StatusInternalServerError)
-		return
-	}
-	enabled := enabledLLMModels(models)
 	if err != nil {
-		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
+		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, nil, nil)
 		view.ErrMsg = s.llmFormErrMsg(r, err)
 		s.renderLLMProviderForm(w, r, view)
 		return
 	}
+	models, listErr := s.store.ListLLMProviderModels(r.Context(), providerID)
+	if listErr != nil {
+		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, nil, nil)
+		view.ErrMsg = listErr.Error()
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+	enabled := enabledLLMModels(models)
 	view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
 	loc := s.page(r, view.FormTitleKey).L
 	if strings.TrimSpace(p.APIBaseURL) == "" {
@@ -693,6 +687,9 @@ func (s *Server) renderLLMProviderForm(w http.ResponseWriter, r *http.Request, v
 	}
 	if v.BuiltinPreset == "" {
 		v.BuiltinPreset = formBuiltinPreset(r, v.Provider.ProviderKey)
+	}
+	if v.Provider.ID != 0 && v.DiscoverAction == "" {
+		v.DiscoverAction = fmt.Sprintf("/llm-providers/%d/models/discover", v.Provider.ID)
 	}
 	v.BuiltinPresets = ocr.BuiltinPresets()
 	v.BuiltinProviderDocsURL = ocr.BuiltinProviderDocsURL(pge.Lang)
