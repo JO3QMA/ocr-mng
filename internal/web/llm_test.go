@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -287,5 +288,112 @@ func TestResolveConnectionTestModelInvalid(t *testing.T) {
 	})
 	if err == nil || err.Error() != "llm.test_model_invalid" {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestUndiscoveredModelNames(t *testing.T) {
+	ledger := []store.LLMProviderModel{
+		{ModelName: "gpt-4"},
+		{ModelName: "old", Enabled: false},
+	}
+	got := undiscoveredModelNames(ledger, []string{"gpt-4", "gpt-3.5-turbo", "old"})
+	if len(got) != 1 || got[0] != "gpt-3.5-turbo" {
+		t.Fatalf("got %#v", got)
+	}
+}
+
+func TestLLMProviderModelsDiscover(t *testing.T) {
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Fatalf("path %q", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]string{
+				{"id": "gpt-4"},
+				{"id": "gpt-3.5-turbo"},
+			},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	pid, err := st.CreateLLMProvider(ctx, store.LLMProvider{
+		Name: "P", ProviderKey: "openai", Kind: "custom",
+		APIBaseURL: srv.URL + "/v1", Protocol: "openai", Enabled: true,
+	}, "sk-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.CreateLLMProviderModel(ctx, store.LLMProviderModel{
+		ProviderID: pid, ModelName: "gpt-4", Enabled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	s := &Server{store: st}
+	form := url.Values{
+		"name":          {"P"},
+		"provider_key":  {"openai"},
+		"kind":          {"custom"},
+		"api_base_url":  {srv.URL + "/v1"},
+		"protocol":      {"openai"},
+		"api_key":       {"sk-test"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/llm-providers/"+strconv.FormatInt(pid, 10)+"/models/discover", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", strconv.FormatInt(pid, 10))
+	rec := httptest.NewRecorder()
+	s.llmProviderModelsDiscover(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `<option value="gpt-3.5-turbo">`) {
+		t.Fatalf("expected remote model option: %s", body)
+	}
+	if strings.Contains(body, `<option value="gpt-4">`) {
+		t.Fatalf("registered model should be excluded from pick list: %s", body)
+	}
+	if strings.Contains(body, "sk-test") {
+		t.Fatal("api key leaked")
+	}
+}
+
+func TestLLMProviderModelsDiscoverNoURL(t *testing.T) {
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+
+	pid, err := st.CreateLLMProvider(ctx, store.LLMProvider{
+		Name: "P", ProviderKey: "anthropic", Kind: "builtin", Enabled: true,
+	}, "sk")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := &Server{store: st}
+	form := url.Values{
+		"name":         {"P"},
+		"provider_key": {"anthropic"},
+		"kind":         {"builtin"},
+		"api_key":      {"sk"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/llm-providers/"+strconv.FormatInt(pid, 10)+"/models/discover", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", strconv.FormatInt(pid, 10))
+	rec := httptest.NewRecorder()
+	s.llmProviderModelsDiscover(rec, req)
+	body := rec.Body.String()
+	if !strings.Contains(body, "API Base URL") && !strings.Contains(body, "enter a model name manually") {
+		t.Fatalf("expected no-url message: %s", body)
 	}
 }

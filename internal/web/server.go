@@ -67,6 +67,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /llm-providers/{id}/test", s.auth(s.llmProviderTest))
 	mux.HandleFunc("POST /llm-providers/{id}/delete", s.auth(s.llmProviderDelete))
 	mux.HandleFunc("POST /llm-providers/{id}/models", s.auth(s.llmModelCreate))
+	mux.HandleFunc("POST /llm-providers/{id}/models/discover", s.auth(s.llmProviderModelsDiscover))
 	mux.HandleFunc("POST /llm-providers/{id}/models/bulk-update", s.auth(s.llmModelsBulkUpdate))
 	mux.HandleFunc("POST /llm-providers/{id}/models/bulk-delete", s.auth(s.llmModelsBulkDelete))
 	mux.HandleFunc("GET /repos", s.auth(s.reposList))
