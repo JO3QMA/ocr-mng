@@ -56,16 +56,16 @@ func TestListModelsAnthropic(t *testing.T) {
 	}
 }
 
-func TestModelsEndpoint(t *testing.T) {
+func TestModelsURL(t *testing.T) {
 	cases := []struct {
-		in, want string
+		in, protocol, want string
 	}{
-		{"https://api.openai.com/v1", "https://api.openai.com/v1/models"},
-		{"https://api.anthropic.com", "https://api.anthropic.com/v1/models"},
-		{"https://proxy.example/custom/v1/", "https://proxy.example/custom/v1/models"},
+		{"https://api.openai.com/v1", ocr.ProtocolOpenAI, "https://api.openai.com/v1/models"},
+		{"https://api.anthropic.com", ocr.ProtocolAnthropic, "https://api.anthropic.com/v1/models?limit=1000"},
+		{"https://proxy.example/custom/v1/", ocr.ProtocolOpenAI, "https://proxy.example/custom/v1/models"},
 	}
 	for _, tc := range cases {
-		got, err := modelsEndpoint(tc.in)
+		got, err := modelsURL(tc.in, tc.protocol)
 		if err != nil {
 			t.Fatalf("%q: %v", tc.in, err)
 		}
@@ -73,7 +73,7 @@ func TestModelsEndpoint(t *testing.T) {
 			t.Fatalf("%q: got %q want %q", tc.in, got, tc.want)
 		}
 	}
-	if _, err := modelsEndpoint(""); err == nil {
+	if _, err := modelsURL("", ocr.ProtocolOpenAI); err == nil {
 		t.Fatal("expected error for empty url")
 	}
 }

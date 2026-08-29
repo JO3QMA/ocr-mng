@@ -29,7 +29,7 @@ func ListModels(ctx context.Context, apiBaseURL, protocol, apiKey string) ([]str
 	if !ocr.ValidProtocol(protocol) {
 		return nil, fmt.Errorf("invalid protocol %q", protocol)
 	}
-	endpoint, err := modelsEndpoint(apiBaseURL)
+	endpoint, err := modelsURL(apiBaseURL, protocol)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func ListModels(ctx context.Context, apiBaseURL, protocol, apiKey string) ([]str
 	return out, nil
 }
 
-func modelsEndpoint(apiBaseURL string) (string, error) {
+func modelsURL(apiBaseURL, protocol string) (string, error) {
 	raw := ocr.AbsoluteAPIBaseURL(strings.TrimSpace(apiBaseURL))
 	if raw == "" {
 		return "", fmt.Errorf("api base url is required")
@@ -112,7 +112,11 @@ func modelsEndpoint(apiBaseURL string) (string, error) {
 		path += "/models"
 	}
 	u.Path = path
-	u.RawQuery = ""
 	u.Fragment = ""
+	if protocol == ocr.ProtocolAnthropic {
+		u.RawQuery = "limit=1000"
+	} else {
+		u.RawQuery = ""
+	}
 	return u.String(), nil
 }

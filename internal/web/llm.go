@@ -247,21 +247,8 @@ func (s *Server) llmProviderEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	keyHint := "form.pat_required"
-	if p.HasAPIKey {
-		keyHint = "form.pat_keep"
-	}
 	enabled := enabledLLMModels(models)
-	view := llmProviderFormView{
-		Provider: p, Models: models, EnabledModels: enabled,
-		Action: fmt.Sprintf("/llm-providers/%d", id), TestAction: fmt.Sprintf("/llm-providers/%d/test", id),
-		DiscoverAction: fmt.Sprintf("/llm-providers/%d/models/discover", id),
-		FormTitleKey:   "page.edit_llm_provider", KeyHintKey: keyHint, ShowClearKey: p.HasAPIKey,
-		UseTempModel: len(enabled) == 0,
-	}
-	if len(enabled) == 1 {
-		view.SelectedModelID = enabled[0].ID
-	}
+	view := s.llmProviderEditFormView(r, id, p.HasAPIKey, p, models, enabled)
 	s.renderLLMProviderForm(w, r, view)
 }
 
@@ -441,7 +428,7 @@ func (s *Server) llmProviderModelsDiscover(w http.ResponseWriter, r *http.Reques
 	}
 	p, formKey, err := parseLLMProviderConnectionForm(r)
 	if err != nil {
-		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, mergeDiscoverProvider(stored, store.LLMProvider{}), nil, nil)
+		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, stored, nil, nil)
 		view.ErrMsg = s.llmFormErrMsg(r, err)
 		s.renderLLMProviderForm(w, r, view)
 		return
