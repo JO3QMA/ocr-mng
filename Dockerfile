@@ -1,5 +1,5 @@
 ARG RM_BASE_IMAGE=debian:trixie-slim
-FROM golang:1.26-bookworm AS build
+FROM golang:1.27-bookworm AS build
 WORKDIR /src
 ARG RM_VERSION=dev
 ARG RM_COMMIT=unknown
