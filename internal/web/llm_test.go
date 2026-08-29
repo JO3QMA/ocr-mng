@@ -296,7 +296,7 @@ func TestUndiscoveredModelNames(t *testing.T) {
 		{ModelName: "gpt-4"},
 		{ModelName: "old", Enabled: false},
 	}
-	got := undiscoveredModelNames(ledger, []string{"gpt-4", "gpt-3.5-turbo", "old"})
+	got := undiscoveredModelNames(ledger, []string{"gpt-4", "gpt-3.5-turbo", "old", "GPT-4"})
 	if len(got) != 1 || got[0] != "gpt-3.5-turbo" {
 		t.Fatalf("got %#v", got)
 	}

@@ -427,15 +427,15 @@ func (s *Server) llmProviderModelsDiscover(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	p, formKey, err := parseLLMProviderConnectionForm(r)
+	p = mergeDiscoverProvider(stored, p)
+	p.ID = providerID
+	p.HasAPIKey = stored.HasAPIKey
 	if err != nil {
-		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, stored, nil, nil)
+		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, nil, nil)
 		view.ErrMsg = s.llmFormErrMsg(r, err)
 		s.renderLLMProviderForm(w, r, view)
 		return
 	}
-	p = mergeDiscoverProvider(stored, p)
-	p.ID = providerID
-	p.HasAPIKey = stored.HasAPIKey
 	models, listErr := s.store.ListLLMProviderModels(r.Context(), providerID)
 	if listErr != nil {
 		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, nil, nil)
@@ -509,13 +509,13 @@ func (s *Server) llmProviderEditFormView(r *http.Request, providerID int64, hasS
 }
 
 func undiscoveredModelNames(ledger []store.LLMProviderModel, remote []string) []string {
-	registered := map[string]struct{}{}
+	normalized := map[string]struct{}{}
 	for _, m := range ledger {
-		registered[m.ModelName] = struct{}{}
+		normalized[strings.ToLower(strings.TrimSpace(m.ModelName))] = struct{}{}
 	}
 	var out []string
 	for _, name := range remote {
-		if _, ok := registered[name]; ok {
+		if _, ok := normalized[strings.ToLower(strings.TrimSpace(name))]; ok {
 			continue
 		}
 		out = append(out, name)
@@ -730,11 +730,20 @@ func parseLLMProviderConnectionForm(r *http.Request) (store.LLMProvider, string,
 }
 
 func mergeDiscoverProvider(stored, form store.LLMProvider) store.LLMProvider {
-	if form.Name == "" {
+	if strings.TrimSpace(form.Name) == "" {
 		form.Name = stored.Name
 	}
-	if form.ProviderKey == "" {
+	if strings.TrimSpace(form.ProviderKey) == "" {
 		form.ProviderKey = stored.ProviderKey
+	}
+	if strings.TrimSpace(form.Kind) == "" {
+		form.Kind = stored.Kind
+	}
+	if strings.TrimSpace(form.APIBaseURL) == "" {
+		form.APIBaseURL = stored.APIBaseURL
+	}
+	if strings.TrimSpace(form.Protocol) == "" {
+		form.Protocol = stored.Protocol
 	}
 	return form
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/jo3qma/ocr-mng/internal/ocr"
@@ -67,7 +68,7 @@ func TestModelsURL(t *testing.T) {
 		{"https://proxy.example/custom/v1/?tenant=abc", ocr.ProtocolOpenAI, "https://proxy.example/custom/v1/models?tenant=abc"},
 	}
 	for _, tc := range cases {
-		got, err := modelsURL(tc.in, tc.protocol)
+		got, err := modelsURL(tc.in, tc.protocol, "")
 		if err != nil {
 			t.Fatalf("%q: %v", tc.in, err)
 		}
@@ -75,7 +76,53 @@ func TestModelsURL(t *testing.T) {
 			t.Fatalf("%q: got %q want %q", tc.in, got, tc.want)
 		}
 	}
-	if _, err := modelsURL("", ocr.ProtocolOpenAI); err == nil {
+	if _, err := modelsURL("", ocr.ProtocolOpenAI, ""); err == nil {
 		t.Fatal("expected error for empty url")
+	}
+}
+
+func TestListModelsAnthropicPagination(t *testing.T) {
+	page := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page++
+		if page == 1 {
+			if r.URL.Query().Get("after_id") != "" {
+				t.Fatalf("unexpected after_id on first page")
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data":     []map[string]string{{"id": "m1"}},
+				"has_more": true,
+				"last_id":  "m1",
+			})
+			return
+		}
+		if r.URL.Query().Get("after_id") != "m1" {
+			t.Fatalf("after_id %q", r.URL.Query().Get("after_id"))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data":     []map[string]string{{"id": "m2"}},
+			"has_more": false,
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	ids, err := ListModels(context.Background(), srv.URL, ocr.ProtocolAnthropic, "sk-ant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 2 || ids[0] != "m1" || ids[1] != "m2" {
+		t.Fatalf("got %#v", ids)
+	}
+}
+
+func TestListModelsMissingDataField(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"models":[]}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	_, err := ListModels(context.Background(), srv.URL+"/v1", ocr.ProtocolOpenAI, "sk")
+	if err == nil || !strings.Contains(err.Error(), "missing data field") {
+		t.Fatalf("got %v", err)
 	}
 }
