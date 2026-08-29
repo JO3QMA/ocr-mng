@@ -456,12 +456,13 @@ func (s *Server) llmProviderModelsDiscover(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	enabled := enabledLLMModels(models)
-	view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
 	if err != nil {
-		view.DiscoverMsg = s.llmFormErrMsg(r, err)
+		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
+		view.ErrMsg = s.llmFormErrMsg(r, err)
 		s.renderLLMProviderForm(w, r, view)
 		return
 	}
+	view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
 	loc := s.page(r, view.FormTitleKey).L
 	if strings.TrimSpace(p.APIBaseURL) == "" {
 		view.DiscoverMsg = loc.T("llm.discover_no_url")
