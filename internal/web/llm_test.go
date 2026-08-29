@@ -397,3 +397,69 @@ func TestLLMProviderModelsDiscoverNoURL(t *testing.T) {
 		t.Fatalf("expected no-url message: %s", body)
 	}
 }
+
+func TestParseLLMProviderConnectionFormSkipsNameValidation(t *testing.T) {
+	form := url.Values{
+		"kind":         {"custom"},
+		"api_base_url": {"https://example/v1"},
+		"protocol":     {"openai"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/llm-providers/1/models/discover", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	p, _, err := parseLLMProviderConnectionForm(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.APIBaseURL != "https://example/v1" || p.Name != "" || p.ProviderKey != "" {
+		t.Fatalf("got %#v", p)
+	}
+}
+
+func TestLLMProviderModelsDiscoverAllowsEmptyName(t *testing.T) {
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]string{{"id": "gpt-3.5-turbo"}},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	pid, err := st.CreateLLMProvider(ctx, store.LLMProvider{
+		Name: "Stored", ProviderKey: "openai", Kind: "custom",
+		APIBaseURL: srv.URL + "/v1", Protocol: "openai", Enabled: true,
+	}, "sk-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := &Server{store: st}
+	form := url.Values{
+		"name":         {""},
+		"provider_key": {""},
+		"kind":         {"custom"},
+		"api_base_url": {srv.URL + "/v1"},
+		"protocol":     {"openai"},
+		"api_key":      {"sk-test"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/llm-providers/"+strconv.FormatInt(pid, 10)+"/models/discover", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", strconv.FormatInt(pid, 10))
+	rec := httptest.NewRecorder()
+	s.llmProviderModelsDiscover(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "名前") && strings.Contains(body, "flash error") {
+		t.Fatalf("name validation should not block discover: %s", body)
+	}
+	if !strings.Contains(body, `<option value="gpt-3.5-turbo">`) {
+		t.Fatalf("expected discover success: %s", body)
+	}
+}

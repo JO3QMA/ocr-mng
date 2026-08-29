@@ -439,15 +439,16 @@ func (s *Server) llmProviderModelsDiscover(w http.ResponseWriter, r *http.Reques
 		http.NotFound(w, r)
 		return
 	}
-	p, formKey, err := parseLLMProviderForm(r)
-	p.ID = providerID
-	p.HasAPIKey = stored.HasAPIKey
+	p, formKey, err := parseLLMProviderConnectionForm(r)
 	if err != nil {
-		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, nil, nil)
+		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, mergeDiscoverProvider(stored, store.LLMProvider{}), nil, nil)
 		view.ErrMsg = s.llmFormErrMsg(r, err)
 		s.renderLLMProviderForm(w, r, view)
 		return
 	}
+	p = mergeDiscoverProvider(stored, p)
+	p.ID = providerID
+	p.HasAPIKey = stored.HasAPIKey
 	models, listErr := s.store.ListLLMProviderModels(r.Context(), providerID)
 	if listErr != nil {
 		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, nil, nil)
@@ -730,7 +731,51 @@ func (s *Server) llmFormErrMsg(r *http.Request, err error) string {
 	return s.page(r, "page.llm_providers").L.T(err.Error())
 }
 
+func parseLLMProviderConnectionForm(r *http.Request) (store.LLMProvider, string, error) {
+	p, apiKey, err := parseLLMProviderFields(r)
+	if err != nil {
+		return p, apiKey, err
+	}
+	if p.Kind != "builtin" && p.Kind != "custom" {
+		return p, "", fmt.Errorf("llm.form_kind_invalid")
+	}
+	return p, apiKey, nil
+}
+
+func mergeDiscoverProvider(stored, form store.LLMProvider) store.LLMProvider {
+	if form.Name == "" {
+		form.Name = stored.Name
+	}
+	if form.ProviderKey == "" {
+		form.ProviderKey = stored.ProviderKey
+	}
+	return form
+}
+
 func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
+	p, apiKey, err := parseLLMProviderFields(r)
+	if err != nil {
+		return p, apiKey, err
+	}
+	var missingKey string
+	switch {
+	case p.Name == "" && p.ProviderKey == "":
+		missingKey = "llm.form_name_and_provider_key_required"
+	case p.Name == "":
+		missingKey = "llm.form_name_required"
+	case p.ProviderKey == "":
+		missingKey = "llm.form_provider_key_required"
+	}
+	if missingKey != "" {
+		return p, "", fmt.Errorf("%s", missingKey)
+	}
+	if p.Kind != "builtin" && p.Kind != "custom" {
+		return p, "", fmt.Errorf("llm.form_kind_invalid")
+	}
+	return p, apiKey, nil
+}
+
+func parseLLMProviderFields(r *http.Request) (store.LLMProvider, string, error) {
 	if err := r.ParseForm(); err != nil {
 		return store.LLMProvider{}, "", err
 	}
@@ -755,21 +800,6 @@ func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
 		if label, ok := ocr.BuiltinPresetLabel(preset); ok {
 			p.Name = label
 		}
-	}
-	var missingKey string
-	switch {
-	case p.Name == "" && p.ProviderKey == "":
-		missingKey = "llm.form_name_and_provider_key_required"
-	case p.Name == "":
-		missingKey = "llm.form_name_required"
-	case p.ProviderKey == "":
-		missingKey = "llm.form_provider_key_required"
-	}
-	if missingKey != "" {
-		return p, "", fmt.Errorf("%s", missingKey)
-	}
-	if p.Kind != "builtin" && p.Kind != "custom" {
-		return p, "", fmt.Errorf("llm.form_kind_invalid")
 	}
 	return p, strings.TrimSpace(r.FormValue("api_key")), nil
 }
