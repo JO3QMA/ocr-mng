@@ -62,7 +62,9 @@ func TestModelsURL(t *testing.T) {
 	}{
 		{"https://api.openai.com/v1", ocr.ProtocolOpenAI, "https://api.openai.com/v1/models"},
 		{"https://api.anthropic.com", ocr.ProtocolAnthropic, "https://api.anthropic.com/v1/models?limit=1000"},
+		{"https://proxy.example/custom/v1/?tenant=abc", ocr.ProtocolAnthropic, "https://proxy.example/custom/v1/models?limit=1000&tenant=abc"},
 		{"https://proxy.example/custom/v1/", ocr.ProtocolOpenAI, "https://proxy.example/custom/v1/models"},
+		{"https://proxy.example/custom/v1/?tenant=abc", ocr.ProtocolOpenAI, "https://proxy.example/custom/v1/models?tenant=abc"},
 	}
 	for _, tc := range cases {
 		got, err := modelsURL(tc.in, tc.protocol)

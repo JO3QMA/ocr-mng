@@ -114,9 +114,9 @@ func modelsURL(apiBaseURL, protocol string) (string, error) {
 	u.Path = path
 	u.Fragment = ""
 	if protocol == ocr.ProtocolAnthropic {
-		u.RawQuery = "limit=1000"
-	} else {
-		u.RawQuery = ""
+		q := u.Query()
+		q.Set("limit", "1000")
+		u.RawQuery = q.Encode()
 	}
 	return u.String(), nil
 }
