@@ -11,6 +11,14 @@ import (
 	"github.com/jo3qma/ocr-mng/internal/ocr"
 )
 
+func TestHTTPClientBlocksHTTPSDowngrade(t *testing.T) {
+	first, _ := http.NewRequest(http.MethodGet, "https://api.example.com/v1/models", nil)
+	redirect, _ := http.NewRequest(http.MethodGet, "http://api.example.com/v1/models", nil)
+	if err := httpClient.CheckRedirect(redirect, []*http.Request{first}); err == nil {
+		t.Fatal("expected https→http downgrade to be blocked")
+	}
+}
+
 func TestListModelsOpenAI(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/models" {

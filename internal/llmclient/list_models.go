@@ -25,7 +25,7 @@ var httpClient = &http.Client{
 		if req.URL.Scheme != "https" && req.URL.Scheme != "http" {
 			return http.ErrUseLastResponse
 		}
-		if req.URL.Host != via[0].URL.Host {
+		if req.URL.Host != via[0].URL.Host || (via[0].URL.Scheme == "https" && req.URL.Scheme != "https") {
 			return http.ErrUseLastResponse
 		}
 		return nil

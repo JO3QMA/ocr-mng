@@ -426,24 +426,24 @@ func (s *Server) llmProviderModelsDiscover(w http.ResponseWriter, r *http.Reques
 		http.NotFound(w, r)
 		return
 	}
+	models, listErr := s.store.ListLLMProviderModels(r.Context(), providerID)
+	enabled := enabledLLMModels(models)
 	p, formKey, err := parseLLMProviderConnectionForm(r)
 	p = mergeDiscoverProvider(stored, p)
 	p.ID = providerID
 	p.HasAPIKey = stored.HasAPIKey
 	if err != nil {
-		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, nil, nil)
+		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
 		view.ErrMsg = s.llmFormErrMsg(r, err)
 		s.renderLLMProviderForm(w, r, view)
 		return
 	}
-	models, listErr := s.store.ListLLMProviderModels(r.Context(), providerID)
 	if listErr != nil {
 		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, nil, nil)
 		view.ErrMsg = listErr.Error()
 		s.renderLLMProviderForm(w, r, view)
 		return
 	}
-	enabled := enabledLLMModels(models)
 	view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
 	loc := s.page(r, view.FormTitleKey).L
 	if strings.TrimSpace(p.APIBaseURL) == "" {
