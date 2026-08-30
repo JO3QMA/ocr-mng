@@ -11,6 +11,7 @@ import (
 
 	"github.com/jo3qma/ocr-mng/internal/ocr"
 	"github.com/jo3qma/ocr-mng/internal/store"
+	"github.com/jo3qma/ocr-mng/internal/web/i18n"
 )
 
 const llmConnectionTestTimeout = 30 * time.Second
@@ -185,6 +186,38 @@ func llmRotationValues(pairs []store.LLMPair) []string {
 		out[i] = formatLLMPair(p.ProviderID, p.ModelID)
 	}
 	return out
+}
+
+type llmRotationWidget struct {
+	FieldName    string
+	RequireMin   bool
+	Values       []string
+	Options      []llmPairOption
+	OptionCount  int
+	Labels       llmRotationUILabels
+}
+
+type llmRotationUILabels struct {
+	ClearRow   string
+	Add        string
+	NoAdd      string
+	RequireMin string
+}
+
+func buildLLMRotationWidget(l i18n.Localizer, fieldName string, requireMin bool, opts []llmPairOption, pairs []store.LLMPair) llmRotationWidget {
+	return llmRotationWidget{
+		FieldName:   fieldName,
+		RequireMin:  requireMin,
+		Values:      llmRotationValues(pairs),
+		Options:     opts,
+		OptionCount: len(opts),
+		Labels: llmRotationUILabels{
+			ClearRow:   l.T("form.llm_pair_clear_row"),
+			Add:        l.T("form.llm_pair_add"),
+			NoAdd:      l.T("form.llm_pair_no_add"),
+			RequireMin: l.T("form.llm_rotation_require_min"),
+		},
+	}
 }
 
 func (s *Server) llmProvidersList(w http.ResponseWriter, r *http.Request) {

@@ -105,9 +105,6 @@ var pageTemplates = template.Must(
 			return v
 		},
 		"shortSHA": version.ShortCommit,
-		"llmRotationJS": func() template.JS {
-			return template.JS(llmRotationJS)
-		},
 	}).ParseFS(pagesFS, "templates/pages.html"),
 )
 

@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -22,28 +21,14 @@ func TestBuildLLMRotationWidget(t *testing.T) {
 	if w.FieldName != "llm_pairs" || w.RequireMin || len(w.Values) != 1 || w.Values[0] != "1:2" {
 		t.Fatalf("widget: %#v", w)
 	}
-	if len(w.Config.Options) != 2 || w.Config.Labels.ModalTitle == "" {
-		t.Fatalf("config: %#v", w.Config)
-	}
-	if w.ConfigJSON == "" || !strings.Contains(w.ConfigJSON, `"fieldName":"llm_pairs"`) {
-		t.Fatalf("config json: %q", w.ConfigJSON)
-	}
-	b, err := json.Marshal(w.Config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var round llmRotationWidgetConfig
-	if err := json.Unmarshal(b, &round); err != nil {
-		t.Fatal(err)
-	}
-	if round.FieldName != "llm_pairs" || len(round.Options) != 2 {
-		t.Fatalf("round: %#v", round)
+	if len(w.Options) != 2 || w.OptionCount != 2 || w.Labels.Add == "" {
+		t.Fatalf("options/labels: %#v", w)
 	}
 }
 
 func TestBuildLLMRotationWidget_requireMin(t *testing.T) {
 	w := buildLLMRotationWidget(i18n.New("en"), "default_llm_pairs", true, nil, nil)
-	if !w.RequireMin || !w.Config.RequireMin {
+	if !w.RequireMin || w.Labels.RequireMin == "" {
 		t.Fatalf("require min: %#v", w)
 	}
 }

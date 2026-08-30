@@ -173,8 +173,8 @@ func TestRenderSettingsLLMRotationWidget(t *testing.T) {
 		`name="default_llm_pairs"`,
 		`data-llm-gated-save`,
 		`llm-rotation-add-btn`,
-		`<dialog class="llm-rotation-dialog"`,
-		`llm-rotation-select-all`,
+		`<option value="1:2" selected`,
+		`llm-rotation-row-tpl`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("missing %q in body", want)
