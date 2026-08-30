@@ -53,12 +53,8 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 .badge.failed { background: #fee2e2; }
 .badge.running { background: #dbeafe; }
 .llm-rotation .hidden { display: none !important; }
-.llm-rotation-rows select { margin-top: .25rem; }
+.llm-rotation-rows select { margin-top: .25rem; display: block; }
 .llm-rotation-add { margin-top: .25rem; }
-.llm-rotation-dialog { border: 0; border-radius: 8px; padding: 1rem 1.25rem; max-width: 32rem; box-shadow: 0 4px 24px rgba(0,0,0,.2); }
-.llm-rotation-dialog::backdrop { background: rgba(0,0,0,.4); }
-.llm-rotation-dialog-title { margin: 0 0 .75rem; font-size: 1.1rem; }
-.llm-rotation-modal-list { margin-top: .75rem; max-height: 16rem; overflow-y: auto; }
 .llm-rotation button:disabled { opacity: .55; cursor: not-allowed; }
 </style>
 </head>
@@ -85,34 +81,50 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 {{end}}
 
 {{define "llm_rotation_widget"}}
-<div class="llm-rotation" data-config="{{.ConfigJSON}}">
+<div class="llm-rotation" data-field="{{.FieldName}}" data-require-min="{{.RequireMin}}" data-option-count="{{.OptionCount}}">
 <div class="llm-rotation-rows">
-{{range .Values}}
-<select class="llm-rotation-row" name="{{$.FieldName}}" data-initial="{{.}}"></select>
+{{range $val := .Values}}
+<select class="llm-rotation-row" name="{{$.FieldName}}">
+<option value="0:0">{{$.Labels.ClearRow}}</option>
+{{range $.Options}}
+<option value="{{.Value}}" {{if eq .Value $val}}selected{{end}}>{{.Label}}</option>
+{{end}}
+</select>
 {{end}}
 </div>
 <div class="llm-rotation-add">
-<button type="button" class="btn secondary llm-rotation-add-btn">{{.Config.Labels.Add}}</button>
-<p class="hint llm-rotation-no-add hidden">{{.Config.Labels.NoAdd}}</p>
+<button type="button" class="btn secondary llm-rotation-add-btn">{{.Labels.Add}}</button>
+<p class="hint llm-rotation-no-add hidden">{{.Labels.NoAdd}}</p>
 </div>
-{{if .RequireMin}}<p class="hint llm-rotation-min hidden">{{.Config.Labels.RequireMin}}</p>{{end}}
-<dialog class="llm-rotation-dialog" aria-labelledby="llm-rotation-dialog-title-{{.FieldName}}">
-<h2 id="llm-rotation-dialog-title-{{.FieldName}}" class="llm-rotation-dialog-title">{{.Config.Labels.ModalTitle}}</h2>
-<div class="btn-row">
-<button type="button" class="btn secondary llm-rotation-select-all">{{.Config.Labels.SelectAll}}</button>
-<button type="button" class="btn secondary llm-rotation-clear-sel">{{.Config.Labels.ClearSelection}}</button>
-</div>
-<div class="llm-rotation-modal-list"></div>
-<div class="btn-row">
-<button type="button" class="btn secondary llm-rotation-cancel">{{.Config.Labels.Cancel}}</button>
-<button type="button" class="btn llm-rotation-confirm">{{.Config.Labels.Confirm}}</button>
-</div>
-</dialog>
+{{if .RequireMin}}<p class="hint llm-rotation-min hidden">{{.Labels.RequireMin}}</p>{{end}}
+<template class="llm-rotation-row-tpl">
+<select class="llm-rotation-row" name="{{.FieldName}}">
+<option value="0:0">{{.Labels.ClearRow}}</option>
+{{range .Options}}
+<option value="{{.Value}}">{{.Label}}</option>
+{{end}}
+</select>
+</template>
 </div>
 {{end}}
 
 {{define "llm_rotation_script"}}
-<script>{{llmRotationJS}}</script>
+<script>
+document.addEventListener("DOMContentLoaded",function(){
+document.querySelectorAll(".llm-rotation").forEach(function(root){
+var rows=root.querySelector(".llm-rotation-rows"),addBtn=root.querySelector(".llm-rotation-add-btn");
+var tpl=root.querySelector(".llm-rotation-row-tpl"),noAdd=root.querySelector(".llm-rotation-no-add");
+var minHint=root.querySelector(".llm-rotation-min");
+var requireMin=root.dataset.requireMin==="true",maxOpts=parseInt(root.dataset.optionCount||"0",10);
+var form=root.closest("form"),saveBtn=form?form.querySelector("[data-llm-gated-save]"):null;
+function selected(){var v=[];rows.querySelectorAll("select").forEach(function(s){if(s.value&&s.value!=="0:0")v.push(s.value)});return v;}
+function updateAdd(){if(!addBtn||!noAdd||!maxOpts)return;var used=selected().length;if(used>=maxOpts){addBtn.classList.add("hidden");noAdd.classList.remove("hidden");}else{addBtn.classList.remove("hidden");noAdd.classList.add("hidden");}}
+function updateSave(){if(!requireMin||!saveBtn)return;var c=selected().length;saveBtn.disabled=c===0;if(minHint)minHint.classList.toggle("hidden",c>0);}
+function wire(sel){sel.addEventListener("change",function(){if(sel.value==="0:0")sel.remove();updateAdd();updateSave();});}
+if(addBtn)addBtn.addEventListener("click",function(){var s=tpl.content.firstElementChild.cloneNode(true);wire(s);rows.appendChild(s);updateAdd();updateSave();});
+rows.querySelectorAll("select").forEach(wire);updateAdd();updateSave();
+});});
+</script>
 {{end}}
 
 {{define "flash"}}
