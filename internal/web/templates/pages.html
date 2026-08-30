@@ -205,7 +205,7 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 <h1>{{.FormTitle}}</h1>
 {{if .ErrMsg}}<div class="flash error">{{.ErrMsg}}</div>{{end}}
 {{if .TestMsg}}{{if .TestOK}}<div class="flash">{{.TestMsg}}</div>{{else}}<div class="flash error">{{.TestMsg}}</div>{{end}}{{end}}
-<form method="post" action="{{.Action}}">
+<form method="post" action="{{.Action}}" id="llm-provider-form">
 {{if .Provider.ID}}
 <label class="settings-toggle"><span>{{.L.T "form.enabled"}}</span><input class="settings-toggle-input" type="checkbox" name="enabled" {{checked .Provider.Enabled}}></label>
 {{end}}
@@ -269,13 +269,25 @@ button, .btn { display: inline-block; background: #2563eb; color: #fff; border: 
 </p>
 </form>
 {{else}}<p>{{.L.T "llm.models_none"}}</p>{{end}}
+{{if .DiscoverMsg}}{{if .DiscoverOK}}<div class="flash">{{.DiscoverMsg}}</div>{{else}}<div class="flash error">{{.DiscoverMsg}}</div>{{end}}{{end}}
 <form method="post" action="/llm-providers/{{.Provider.ID}}/models" style="margin-top:1rem">
 <label>{{.L.T "llm.add_model"}}</label>
 <div class="inline-action">
-<input name="model_name" required placeholder="claude-sonnet-4-6">
+<button type="submit" class="btn" form="llm-provider-form" formaction="{{.DiscoverAction}}">{{.L.T "btn.discover_models"}}</button>
+</div>
+{{if .RemoteModels}}
+<label>{{.L.T "form.discover_model_pick"}}</label>
+<select id="remote-model-pick">
+<option value="">{{.L.T "form.discover_model_pick_unset"}}</option>
+{{range .RemoteModels}}<option value="{{.}}">{{.}}</option>{{end}}
+</select>
+{{end}}
+<div class="inline-action" style="margin-top:0.5rem">
+<input name="model_name" id="model-name-input" required placeholder="claude-sonnet-4-6">
 <button type="submit" class="btn">{{.L.T "btn.add"}}</button>
 </div>
 </form>
+{{if .RemoteModels}}<script>document.getElementById("remote-model-pick").addEventListener("change",function(){if(this.value)document.getElementById("model-name-input").value=this.value;});</script>{{end}}
 <form method="post" action="/llm-providers/{{.Provider.ID}}/delete" style="margin-top:2rem" onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{.L.T "llm.delete_confirm"}}">
 <button type="submit" class="btn secondary">{{.L.T "btn.delete_provider"}}</button>
 </form>

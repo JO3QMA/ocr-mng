@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jo3qma/ocr-mng/internal/llmclient"
 	"github.com/jo3qma/ocr-mng/internal/ocr"
 	"github.com/jo3qma/ocr-mng/internal/store"
 )
@@ -38,6 +39,10 @@ type llmProviderFormView struct {
 	ErrMsg                 string
 	TestOK                 bool
 	TestMsg                string
+	DiscoverAction         string
+	DiscoverOK             bool
+	DiscoverMsg            string
+	RemoteModels           []string
 	KeyHint                string
 	ShowClearKey           bool
 	BuiltinPreset          string
@@ -242,20 +247,8 @@ func (s *Server) llmProviderEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	keyHint := "form.pat_required"
-	if p.HasAPIKey {
-		keyHint = "form.pat_keep"
-	}
 	enabled := enabledLLMModels(models)
-	view := llmProviderFormView{
-		Provider: p, Models: models, EnabledModels: enabled,
-		Action: fmt.Sprintf("/llm-providers/%d", id), TestAction: fmt.Sprintf("/llm-providers/%d/test", id),
-		FormTitleKey: "page.edit_llm_provider", KeyHintKey: keyHint, ShowClearKey: p.HasAPIKey,
-		UseTempModel: len(enabled) == 0,
-	}
-	if len(enabled) == 1 {
-		view.SelectedModelID = enabled[0].ID
-	}
+	view := s.llmProviderEditFormView(r, id, p.HasAPIKey, p, models, enabled)
 	s.renderLLMProviderForm(w, r, view)
 }
 
@@ -266,35 +259,27 @@ func (s *Server) llmProviderUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, apiKey, err := parseLLMProviderForm(r)
+	p.ID = id
+	stored, getErr := s.store.GetLLMProvider(r.Context(), id)
+	if getErr != nil {
+		http.NotFound(w, r)
+		return
+	}
+	p.HasAPIKey = stored.HasAPIKey
 	models, listErr := s.store.ListLLMProviderModels(r.Context(), id)
 	if listErr != nil {
-		s.renderLLMProviderForm(w, r, llmProviderFormView{
-			Provider: p, Action: fmt.Sprintf("/llm-providers/%d", id),
-			TestAction:   fmt.Sprintf("/llm-providers/%d/test", id),
-			FormTitleKey: "page.edit_llm_provider", UseTempModel: true,
-			TempModelName:   strings.TrimSpace(r.FormValue("temp_model_name")),
-			SelectedModelID: formModelID(r),
-			ErrMsg:          listErr.Error(),
-		})
+		view := s.llmProviderEditFormView(r, id, stored.HasAPIKey, p, nil, nil)
+		view.ErrMsg = listErr.Error()
+		s.renderLLMProviderForm(w, r, view)
 		return
 	}
 	enabled := enabledLLMModels(models)
-	failView := llmProviderFormView{
-		Provider: p, Models: models, EnabledModels: enabled,
-		Action: fmt.Sprintf("/llm-providers/%d", id), TestAction: fmt.Sprintf("/llm-providers/%d/test", id),
-		FormTitleKey: "page.edit_llm_provider", UseTempModel: len(enabled) == 0,
-		TempModelName:   strings.TrimSpace(r.FormValue("temp_model_name")),
-		SelectedModelID: formModelID(r),
-	}
-	if len(enabled) == 1 && failView.SelectedModelID == 0 {
-		failView.SelectedModelID = enabled[0].ID
-	}
+	failView := s.llmProviderEditFormView(r, id, stored.HasAPIKey, p, models, enabled)
 	if err != nil {
 		failView.ErrMsg = s.llmFormErrMsg(r, err)
 		s.renderLLMProviderForm(w, r, failView)
 		return
 	}
-	p.ID = id
 	if err := s.store.UpdateLLMProvider(r.Context(), p, apiKey, r.FormValue("clear_api_key") == "on"); err != nil {
 		failView.ErrMsg = err.Error()
 		s.renderLLMProviderForm(w, r, failView)
@@ -428,6 +413,114 @@ func (s *Server) llmProviderTest(w http.ResponseWriter, r *http.Request) {
 	view.TestOK = true
 	view.TestMsg = fmt.Sprintf(loc.T("llm.test_ok"), modelName)
 	s.renderLLMProviderForm(w, r, view)
+}
+
+func (s *Server) llmProviderModelsDiscover(w http.ResponseWriter, r *http.Request) {
+	providerID, ok := pathID(r, "id")
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	stored, err := s.store.GetLLMProvider(r.Context(), providerID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	models, listErr := s.store.ListLLMProviderModels(r.Context(), providerID)
+	enabled := enabledLLMModels(models)
+	p, formKey, err := parseLLMProviderConnectionForm(r)
+	p = mergeDiscoverProvider(stored, p)
+	p.ID = providerID
+	p.HasAPIKey = stored.HasAPIKey
+	if err != nil {
+		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
+		view.ErrMsg = s.llmFormErrMsg(r, err)
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+	if listErr != nil {
+		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, nil, nil)
+		view.ErrMsg = listErr.Error()
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+	view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
+	loc := s.page(r, view.FormTitleKey).L
+	if strings.TrimSpace(p.APIBaseURL) == "" {
+		view.DiscoverMsg = loc.T("llm.discover_no_url")
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+	apiKey := formKey
+	if apiKey == "" {
+		apiKey, err = s.store.LLMProviderAPIKey(r.Context(), providerID)
+		if err != nil {
+			view.DiscoverMsg = err.Error()
+			s.renderLLMProviderForm(w, r, view)
+			return
+		}
+	}
+	if apiKey == "" {
+		view.DiscoverMsg = loc.T("llm.test_no_key")
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), llmConnectionTestTimeout)
+	defer cancel()
+	remote, err := llmclient.ListModels(ctx, p.APIBaseURL, p.Protocol, apiKey)
+	if err != nil {
+		msg := ocr.MaskSecret(err.Error(), apiKey)
+		if ctx.Err() != nil {
+			msg = loc.T("llm.discover_timeout")
+		}
+		view.DiscoverMsg = msg
+		s.renderLLMProviderForm(w, r, view)
+		return
+	}
+	view.RemoteModels = undiscoveredModelNames(models, remote)
+	if len(view.RemoteModels) == 0 {
+		view.DiscoverMsg = loc.T("llm.discover_none")
+	} else {
+		view.DiscoverOK = true
+		view.DiscoverMsg = fmt.Sprintf(loc.T("llm.discover_ok"), len(view.RemoteModels))
+	}
+	s.renderLLMProviderForm(w, r, view)
+}
+
+func (s *Server) llmProviderEditFormView(r *http.Request, providerID int64, hasStoredKey bool, p store.LLMProvider, models []store.LLMProviderModel, enabled []store.LLMProviderModel) llmProviderFormView {
+	keyHint := "form.pat_required"
+	if hasStoredKey {
+		keyHint = "form.pat_keep"
+	}
+	view := llmProviderFormView{
+		Provider: p, Models: models, EnabledModels: enabled,
+		Action:         fmt.Sprintf("/llm-providers/%d", providerID),
+		TestAction:     fmt.Sprintf("/llm-providers/%d/test", providerID),
+		DiscoverAction: fmt.Sprintf("/llm-providers/%d/models/discover", providerID),
+		FormTitleKey:   "page.edit_llm_provider", KeyHintKey: keyHint, ShowClearKey: hasStoredKey,
+		UseTempModel:    len(enabled) == 0,
+		TempModelName:   strings.TrimSpace(r.FormValue("temp_model_name")),
+		SelectedModelID: formModelID(r),
+	}
+	if len(enabled) == 1 && view.SelectedModelID == 0 {
+		view.SelectedModelID = enabled[0].ID
+	}
+	return view
+}
+
+func undiscoveredModelNames(ledger []store.LLMProviderModel, remote []string) []string {
+	normalized := map[string]struct{}{}
+	for _, m := range ledger {
+		normalized[strings.ToLower(strings.TrimSpace(m.ModelName))] = struct{}{}
+	}
+	var out []string
+	for _, name := range remote {
+		if _, ok := normalized[strings.ToLower(strings.TrimSpace(name))]; ok {
+			continue
+		}
+		out = append(out, name)
+	}
+	return out
 }
 
 func (s *Server) resolveConnectionTestModel(ctx context.Context, providerID int64, hasID, useTemp bool, view llmProviderFormView) (string, error) {
@@ -583,6 +676,9 @@ func (s *Server) renderLLMProviderForm(w http.ResponseWriter, r *http.Request, v
 	if v.BuiltinPreset == "" {
 		v.BuiltinPreset = formBuiltinPreset(r, v.Provider.ProviderKey)
 	}
+	if v.Provider.ID != 0 && v.DiscoverAction == "" {
+		v.DiscoverAction = fmt.Sprintf("/llm-providers/%d/models/discover", v.Provider.ID)
+	}
 	v.BuiltinPresets = ocr.BuiltinPresets()
 	v.BuiltinProviderDocsURL = ocr.BuiltinProviderDocsURL(pge.Lang)
 	render(w, "llm_provider_form", v)
@@ -622,7 +718,60 @@ func (s *Server) llmFormErrMsg(r *http.Request, err error) string {
 	return s.page(r, "page.llm_providers").L.T(err.Error())
 }
 
+func parseLLMProviderConnectionForm(r *http.Request) (store.LLMProvider, string, error) {
+	p, apiKey, err := parseLLMProviderFields(r)
+	if err != nil {
+		return p, apiKey, err
+	}
+	if p.Kind != "builtin" && p.Kind != "custom" {
+		return p, "", fmt.Errorf("llm.form_kind_invalid")
+	}
+	return p, apiKey, nil
+}
+
+func mergeDiscoverProvider(stored, form store.LLMProvider) store.LLMProvider {
+	if strings.TrimSpace(form.Name) == "" {
+		form.Name = stored.Name
+	}
+	if strings.TrimSpace(form.ProviderKey) == "" {
+		form.ProviderKey = stored.ProviderKey
+	}
+	if strings.TrimSpace(form.Kind) == "" {
+		form.Kind = stored.Kind
+	}
+	if strings.TrimSpace(form.APIBaseURL) == "" {
+		form.APIBaseURL = stored.APIBaseURL
+	}
+	if strings.TrimSpace(form.Protocol) == "" {
+		form.Protocol = stored.Protocol
+	}
+	return form
+}
+
 func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
+	p, apiKey, err := parseLLMProviderFields(r)
+	if err != nil {
+		return p, apiKey, err
+	}
+	var missingKey string
+	switch {
+	case p.Name == "" && p.ProviderKey == "":
+		missingKey = "llm.form_name_and_provider_key_required"
+	case p.Name == "":
+		missingKey = "llm.form_name_required"
+	case p.ProviderKey == "":
+		missingKey = "llm.form_provider_key_required"
+	}
+	if missingKey != "" {
+		return p, "", fmt.Errorf("%s", missingKey)
+	}
+	if p.Kind != "builtin" && p.Kind != "custom" {
+		return p, "", fmt.Errorf("llm.form_kind_invalid")
+	}
+	return p, apiKey, nil
+}
+
+func parseLLMProviderFields(r *http.Request) (store.LLMProvider, string, error) {
 	if err := r.ParseForm(); err != nil {
 		return store.LLMProvider{}, "", err
 	}
@@ -647,21 +796,6 @@ func parseLLMProviderForm(r *http.Request) (store.LLMProvider, string, error) {
 		if label, ok := ocr.BuiltinPresetLabel(preset); ok {
 			p.Name = label
 		}
-	}
-	var missingKey string
-	switch {
-	case p.Name == "" && p.ProviderKey == "":
-		missingKey = "llm.form_name_and_provider_key_required"
-	case p.Name == "":
-		missingKey = "llm.form_name_required"
-	case p.ProviderKey == "":
-		missingKey = "llm.form_provider_key_required"
-	}
-	if missingKey != "" {
-		return p, "", fmt.Errorf("%s", missingKey)
-	}
-	if p.Kind != "builtin" && p.Kind != "custom" {
-		return p, "", fmt.Errorf("llm.form_kind_invalid")
 	}
 	return p, strings.TrimSpace(r.FormValue("api_key")), nil
 }
