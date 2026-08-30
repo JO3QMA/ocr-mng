@@ -149,7 +149,7 @@ func modelsURL(apiBaseURL, protocol, afterID string) (string, error) {
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return "", fmt.Errorf("invalid api base url")
 	}
-	path := strings.TrimSuffix(u.Path, "/")
+	path := stripCompletionPath(strings.TrimSuffix(u.Path, "/"))
 	switch {
 	case strings.HasSuffix(path, "/models"):
 		// already a models URL
@@ -171,4 +171,19 @@ func modelsURL(apiBaseURL, protocol, afterID string) (string, error) {
 		u.RawQuery = q.Encode()
 	}
 	return u.String(), nil
+}
+
+// stripCompletionPath removes a trailing inference endpoint suffix so modelsURL can append /models.
+func stripCompletionPath(path string) string {
+	for _, suffix := range []string{
+		"/chat/completions",
+		"/messages",
+		"/responses",
+		"/completions",
+	} {
+		if strings.HasSuffix(path, suffix) {
+			return strings.TrimSuffix(path, suffix)
+		}
+	}
+	return path
 }

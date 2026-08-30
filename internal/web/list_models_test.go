@@ -74,6 +74,9 @@ func TestModelsURL(t *testing.T) {
 		{"https://proxy.example/custom/v1/?tenant=abc", ocr.ProtocolAnthropic, "https://proxy.example/custom/v1/models?limit=1000&tenant=abc"},
 		{"https://proxy.example/custom/v1/", ocr.ProtocolOpenAI, "https://proxy.example/custom/v1/models"},
 		{"https://proxy.example/custom/v1/?tenant=abc", ocr.ProtocolOpenAI, "https://proxy.example/custom/v1/models?tenant=abc"},
+		{"https://opencode.ai/zen/go/v1/chat/completions", ocr.ProtocolOpenAI, "https://opencode.ai/zen/go/v1/models"},
+		{"https://opencode.ai/zen/go/v1/responses", ocr.ProtocolOpenAIResponses, "https://opencode.ai/zen/go/v1/models"},
+		{"https://api.openai.com/v1/chat/completions", ocr.ProtocolOpenAI, "https://api.openai.com/v1/models"},
 	}
 	for _, tc := range cases {
 		got, err := modelsURL(tc.in, tc.protocol, "")
@@ -120,6 +123,35 @@ func TestListModelsAnthropicPagination(t *testing.T) {
 	}
 	if len(ids) != 2 || ids[0] != "m1" || ids[1] != "m2" {
 		t.Fatalf("got %#v", ids)
+	}
+}
+
+func TestListModelsStripsInferencePath(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]string{{"id": "gpt-5.6-luna"}},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	base := strings.TrimPrefix(srv.URL, "http://")
+	for _, apiBase := range []string{
+		"http://" + base + "/zen/go/v1/chat/completions",
+		"http://" + base + "/zen/go/v1/responses",
+	} {
+		gotPath = ""
+		ids, err := ListModels(context.Background(), apiBase, ocr.ProtocolOpenAI, "sk-test")
+		if err != nil {
+			t.Fatalf("%s: %v", apiBase, err)
+		}
+		if gotPath != "/zen/go/v1/models" {
+			t.Fatalf("%s: path %q want /zen/go/v1/models", apiBase, gotPath)
+		}
+		if len(ids) != 1 || ids[0] != "gpt-5.6-luna" {
+			t.Fatalf("%s: got %#v", apiBase, ids)
+		}
 	}
 }
 
