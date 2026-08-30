@@ -4,9 +4,13 @@ import (
 	"embed"
 	"html/template"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dustin/go-humanize"
+	"github.com/jo3qma/ocr-mng/internal/ocr"
+	"github.com/jo3qma/ocr-mng/internal/version"
+	"github.com/jo3qma/ocr-mng/internal/web/i18n"
 )
 
 //go:embed templates/pages.html
@@ -30,29 +34,47 @@ func formatTime(v any) string {
 	}
 }
 
-func formatCommaInt64(n int64) string {
-	s := strconv.FormatInt(n, 10)
-	sign := ""
-	if n < 0 {
-		sign = "-"
-		s = s[1:]
+type summaryRow struct {
+	Label string
+	Value string
+}
+
+type summaryView struct {
+	Visible       bool
+	BudgetWarning bool
+	Rows          []summaryRow
+}
+
+func buildSummaryView(loc i18n.Localizer, s ocr.Summary) summaryView {
+	if !s.Present() {
+		return summaryView{}
 	}
-	if len(s) <= 3 {
-		return sign + s
+	v := summaryView{Visible: true}
+	if s.BudgetExceeded != nil && *s.BudgetExceeded {
+		v.BudgetWarning = true
 	}
-	var b strings.Builder
-	b.Grow(len(s) + (len(s)-1)/3 + len(sign))
-	b.WriteString(sign)
-	first := len(s) % 3
-	if first == 0 {
-		first = 3
+	addInt := func(key string, n *int) {
+		if n == nil {
+			return
+		}
+		v.Rows = append(v.Rows, summaryRow{Label: loc.T(key), Value: humanize.Comma(int64(*n))})
 	}
-	b.WriteString(s[:first])
-	for i := first; i < len(s); i += 3 {
-		b.WriteByte(',')
-		b.WriteString(s[i : i+3])
+	addInt64 := func(key string, n *int64) {
+		if n == nil {
+			return
+		}
+		v.Rows = append(v.Rows, summaryRow{Label: loc.T(key), Value: humanize.Comma(*n)})
 	}
-	return b.String()
+	addInt("run_detail.summary.files_reviewed", s.FilesReviewed)
+	addInt("run_detail.summary.comments", s.Comments)
+	addInt64("run_detail.summary.total_tokens", s.TotalTokens)
+	addInt64("run_detail.summary.input_tokens", s.InputTokens)
+	addInt64("run_detail.summary.output_tokens", s.OutputTokens)
+	addInt64("run_detail.summary.cache_read_tokens", s.CacheReadTokens)
+	if elapsed := strings.TrimSpace(s.Elapsed); elapsed != "" {
+		v.Rows = append(v.Rows, summaryRow{Label: loc.T("run_detail.summary.elapsed"), Value: elapsed})
+	}
+	return v
 }
 
 var pageTemplates = template.Must(
@@ -82,12 +104,7 @@ var pageTemplates = template.Must(
 			}
 			return v
 		},
-		"shortSHA": func(s string) string {
-			if len(s) > 8 {
-				return s[:8]
-			}
-			return s
-		},
+		"shortSHA": version.ShortCommit,
 		"llmRotationJS": func() template.JS {
 			return template.JS(llmRotationJS)
 		},

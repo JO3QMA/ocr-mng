@@ -16,14 +16,15 @@ func ReviewManager() string {
 	if ver == "" {
 		ver = "dev"
 	}
-	c := shortCommit(Commit)
+	c := ShortCommit(Commit)
 	if c == "" {
 		return ver
 	}
 	return ver + " (" + c + ")"
 }
 
-func shortCommit(s string) string {
+// ShortCommit returns a trimmed commit hash for display (max 7 chars).
+func ShortCommit(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return ""

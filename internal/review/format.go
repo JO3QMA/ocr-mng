@@ -2,7 +2,6 @@ package review
 
 import (
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -14,38 +13,6 @@ import (
 type CommentFormat struct {
 	Lang     string
 	HostKind string // "github" or "gitea"
-}
-
-var fenceLangByExt = map[string]string{
-	".go":    "go",
-	".ts":    "typescript",
-	".tsx":   "tsx",
-	".js":    "javascript",
-	".jsx":   "jsx",
-	".py":    "python",
-	".rb":    "ruby",
-	".java":  "java",
-	".kt":    "kotlin",
-	".swift": "swift",
-	".cs":    "csharp",
-	".php":   "php",
-	".rs":    "rust",
-	".vue":   "vue",
-	".html":  "html",
-	".css":   "css",
-	".scss":  "scss",
-	".sql":   "sql",
-	".sh":    "bash",
-	".yaml":  "yaml",
-	".yml":   "yaml",
-	".json":  "json",
-	".md":    "markdown",
-	".c":     "c",
-	".cpp":   "cpp",
-	".h":     "c",
-	".hpp":   "cpp",
-	".xml":   "xml",
-	".toml":  "toml",
 }
 
 func commentLine(c ocr.Comment) int {
@@ -65,10 +32,6 @@ func commentTitle(c ocr.Comment, w wrapperMsgs) string {
 	return w.general
 }
 
-func fenceLang(path string) string {
-	return fenceLangByExt[strings.ToLower(filepath.Ext(path))]
-}
-
 // trimSuggestion strips only leading/trailing newlines so Markdown fences
 // stay valid. Indentation (spaces, tabs) is preserved verbatim.
 func trimSuggestion(code string) string {
@@ -86,10 +49,6 @@ func formatSuggestion(c ocr.Comment, cf CommentFormat, w wrapperMsgs, asInlineCo
 	}
 	if asInlineComment && cf.HostKind == "github" {
 		return "\n\n```suggestion\n" + code + "\n```"
-	}
-	lang := fenceLang(c.FilePath)
-	if lang != "" {
-		return "\n\n" + w.suggestion + "\n```" + lang + "\n" + code + "\n```"
 	}
 	return "\n\n" + w.suggestion + "\n```\n" + code + "\n```"
 }

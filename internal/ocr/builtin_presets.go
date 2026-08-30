@@ -32,15 +32,7 @@ var builtinPresets = []BuiltinPreset{
 
 // BuiltinPresets returns the curated built-in provider templates.
 func BuiltinPresets() []BuiltinPreset {
-	out := make([]BuiltinPreset, len(builtinPresets))
-	copy(out, builtinPresets)
-	return out
-}
-
-// IsBuiltinPresetKey reports whether key is in the curated built-in list.
-func IsBuiltinPresetKey(key string) bool {
-	_, ok := BuiltinPresetLabel(key)
-	return ok
+	return builtinPresets
 }
 
 // BuiltinPresetLabel returns the display label for a curated built-in key.
@@ -56,7 +48,7 @@ func BuiltinPresetLabel(key string) (string, bool) {
 
 // SelectedBuiltinPreset maps a stored provider_key to a form preset value.
 func SelectedBuiltinPreset(providerKey string) string {
-	if IsBuiltinPresetKey(providerKey) {
+	if _, ok := BuiltinPresetLabel(providerKey); ok {
 		return strings.TrimSpace(providerKey)
 	}
 	return BuiltinPresetOther

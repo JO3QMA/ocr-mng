@@ -157,11 +157,7 @@ func (r *Runner) writeConfig() error {
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		return err
 	}
-	var pretty bytes.Buffer
-	if err := json.Indent(&pretty, []byte(r.ConfigJSON), "", "  "); err != nil {
-		return err
-	}
-	return os.WriteFile(cfgPath, pretty.Bytes(), 0o600)
+	return os.WriteFile(cfgPath, []byte(r.ConfigJSON), 0o600)
 }
 
 // Review runs OCR and parses JSON stdout. When err != nil, Result is zero; use raw only if needed.
