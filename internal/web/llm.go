@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jo3qma/ocr-mng/internal/llmclient"
 	"github.com/jo3qma/ocr-mng/internal/ocr"
 	"github.com/jo3qma/ocr-mng/internal/store"
 )
@@ -467,7 +466,7 @@ func (s *Server) llmProviderModelsDiscover(w http.ResponseWriter, r *http.Reques
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), llmConnectionTestTimeout)
 	defer cancel()
-	remote, err := llmclient.ListModels(ctx, p.APIBaseURL, p.Protocol, apiKey)
+	remote, err := ListModels(ctx, p.APIBaseURL, p.Protocol, apiKey)
 	if err != nil {
 		msg := ocr.MaskSecret(err.Error(), apiKey)
 		if ctx.Err() != nil {

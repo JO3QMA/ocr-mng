@@ -1,4 +1,4 @@
-package llmclient
+package web
 
 import (
 	"context"
