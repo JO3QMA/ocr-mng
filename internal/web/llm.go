@@ -785,7 +785,8 @@ func parseLLMProviderFields(r *http.Request) (store.LLMProvider, string, error) 
 	if p.Kind == "" {
 		p.Kind = "builtin"
 	}
-	usePreset := p.Kind == "builtin" && preset != "" && preset != ocr.BuiltinPresetOther && ocr.IsBuiltinPresetKey(preset)
+	_, presetKnown := ocr.BuiltinPresetLabel(preset)
+	usePreset := p.Kind == "builtin" && preset != "" && preset != ocr.BuiltinPresetOther && presetKnown
 	if usePreset {
 		p.ProviderKey = preset
 	} else {

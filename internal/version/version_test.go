@@ -1,26 +1,10 @@
 package version
 
 import (
-	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 )
-
-type fakeRunner map[string]string
-
-func (f fakeRunner) run(ctx context.Context, name string, args ...string) (string, error) {
-	key := name
-	if len(args) > 0 {
-		key += " " + args[0]
-	}
-	out, ok := f[key]
-	if !ok {
-		return "", errors.New("not found")
-	}
-	return out, nil
-}
 
 func TestReviewManager(t *testing.T) {
 	oldV, oldC := Version, Commit
@@ -65,6 +49,16 @@ VERSION_ID="12"
 	}
 }
 
+func writeFakeCLI(t *testing.T, name, script string) string {
+	t.Helper()
+	dir := t.TempDir()
+	binary := filepath.Join(dir, name)
+	if err := os.WriteFile(binary, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return binary
+}
+
 func TestCollect(t *testing.T) {
 	oldTag, oldBase := ImageTag, BaseImage
 	t.Cleanup(func() { ImageTag, BaseImage = oldTag, oldBase })
@@ -78,15 +72,14 @@ func TestCollect(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	gitBin := writeFakeCLI(t, "git", "#!/bin/sh\necho 'git version 2.43.0'\n")
+	ocrBin := writeFakeCLI(t, "ocr", "#!/bin/sh\necho 'version: 1.0.9'\necho 'commit: feedface'\n")
+
 	info := Collect(CollectOpts{
 		Unavailable: "N/A",
-		GitBinary:   "git",
-		OCRBinary:   "ocr",
+		GitBinary:   gitBin,
+		OCRBinary:   ocrBin,
 		OSRelease:   osRelease,
-		Runner: fakeRunner{
-			"git --version": "git version 2.43.0\n",
-			"ocr version":   "version: 1.0.9\ncommit: feedface\n",
-		},
 	})
 	if info.DockerImageTag != "sha-abc1234" {
 		t.Fatalf("docker tag: %q", info.DockerImageTag)
@@ -113,7 +106,8 @@ func TestCollectUnavailable(t *testing.T) {
 	info := Collect(CollectOpts{
 		Unavailable: "N/A",
 		OSRelease:   filepath.Join(t.TempDir(), "missing"),
-		Runner:      fakeRunner{},
+		GitBinary:   filepath.Join(t.TempDir(), "missing-git"),
+		OCRBinary:   filepath.Join(t.TempDir(), "missing-ocr"),
 	})
 	if info.DockerImageTag != "N/A" || info.BaseImageFrom != "N/A" {
 		t.Fatalf("embedded: docker=%q base=%q", info.DockerImageTag, info.BaseImageFrom)

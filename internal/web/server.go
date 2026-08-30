@@ -14,6 +14,7 @@ import (
 	"github.com/jo3qma/ocr-mng/internal/ocr"
 	"github.com/jo3qma/ocr-mng/internal/review"
 	"github.com/jo3qma/ocr-mng/internal/store"
+	"github.com/jo3qma/ocr-mng/internal/version"
 	"github.com/jo3qma/ocr-mng/internal/web/i18n"
 )
 
@@ -426,6 +427,20 @@ func (s *Server) settingsSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/settings?flash=saved", http.StatusSeeOther)
+}
+
+func (s *Server) about(w http.ResponseWriter, r *http.Request) {
+	p := s.page(r, "page.about")
+	unavailable := p.L.T("about.unavailable")
+	info := version.Collect(version.CollectOpts{
+		Context:     r.Context(),
+		Unavailable: unavailable,
+		OCRBinary:   s.ocrBinary,
+	})
+	render(w, "about", struct {
+		page
+		Info version.AboutInfo
+	}{page: p, Info: info})
 }
 
 func parseHostForm(r *http.Request) (store.GitHost, string, error) {

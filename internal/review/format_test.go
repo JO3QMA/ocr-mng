@@ -165,7 +165,7 @@ func TestCommentBodyFallbackFence(t *testing.T) {
 	if !strings.Contains(body, "**Suggestion:**") {
 		t.Fatalf("fallback should keep label: %q", body)
 	}
-	if !strings.Contains(body, "```go\nfmt.Println(\"hi\")\n```") {
+	if !strings.Contains(body, "```\nfmt.Println(\"hi\")\n```") {
 		t.Fatalf("body: %q", body)
 	}
 }
