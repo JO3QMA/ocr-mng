@@ -100,16 +100,16 @@ _Avoid_: プロバイダーテンプレート（custom と混同）, builtin 一
 Open Code Review が LLM エンドポイントと話す API 方言。取りうる値は OCR が認めるものに限る（`anthropic` / `openai` / `openai-responses`）。Registered LLM Provider の属性であり、未設定なら API Base URL から決めて台帳に残す。一度入った明示値は、API Base URL だけ変えても自動では付け替えない。
 _Avoid_: Protocol（単独・曖昧）, API 種別, wire format
 
-**Provider Model Discovery**:
-Administrator が Registered LLM Provider 編集画面の「モデルを追加」から任意で行う、接続先 HTTP API へのモデル識別子一覧の問い合わせ。Review Manager が LLM Protocol に応じてプロバイダー API を直接 GET する（OCR CLI は使わない）。接続情報の解決は LLM Connection Test と同じ（フォーム上の未保存値を優先し、API キーは欄に値があればそれ、空なら保存済みキー）。API Base URL が空のときは取得しない（builtin の OCR 既定 URL は使わない）。結果はその POST の再描画にだけ載せ、セッション等には保持しない。台帳は変更しない。API が返した識別子のうち、当該 Provider 台帳に未登録のものだけを候補として示す（フィルタはしない）。取得成功後もモデル名の手入力欄は残し、候補 `<select>` で選んだ値は入力欄に反映する。
-_Avoid_: モデル一覧 API, autocomplete, models endpoint（実装名）
+**Provider Model Sync**:
+Registered LLM Provider 編集画面を開くたび（および「再同期」POST）、接続先 HTTP API からモデル識別子一覧を取得して台帳を即時同期する。Review Manager が LLM Protocol に応じてプロバイダー API を直接 GET する（OCR CLI は使わない）。接続情報の解決は LLM Connection Test と同じ（フォーム上の未保存値を優先し、API キーは欄に値があればそれ、空なら保存済みキー）。API Base URL または API キーが無いときは同期をスキップし、手動登録セクションのみ表示する（builtin の OCR 既定 URL は使わない）。取得成功時は API 一覧に対して次を行う: 台帳に無い名前を `source=api`・`enabled=false`・`is_new=true` で INSERT（UI に **New!!** 付与）。既存 `source=manual` 行が API に同名（大文字小文字無視）であれば `source=api` に昇格（`enabled` は保持、New!! は付けない）。`source=api` 行が API 一覧から消えたら DELETE し、参照している LLM Rotation Set からも当該組を除去する（Global が空になることは許容）。同期失敗時は台帳を変更せずエラーを表示する。変更があったときだけ「N 件追加・M 件削除（New!! K 件）」を表示する。0 件追加・0 件削除のときはメッセージを出さない。
+_Avoid_: モデル一覧 API, Provider Model Discovery（旧称）, models endpoint（実装名）
 
 **LLM Connection Test**:
 Administrator が Registered LLM Provider の登録／編集フォーム（接続フィールドと同じフォーム）から任意で行う疎通確認。保存の成否とは独立（失敗しても台帳更新は止めない）。Provider の有効／無効も見ない（無効のままでもテスト可）。Review Concurrency の枠は消費しない（Review Run ではない）。同フォーム上の未保存の接続値を使い、API キーは欄に値があればそれ、空なら保存済みキー、新規で空ならエラーとする（Confirmation Checkbox のキー削除は保存専用であり、テストでは無視する）。モデルは次のいずれかで決める: 編集かつ有効な Registered LLM Model が 1 件以上あるときはその中から選ぶ（1 件なら自動選択。一時モデル名欄は出さない）。新規、または有効モデルが 0 件の編集では一時モデル名（台帳に書かない）を入力する。候補は描画時点の有効な台帳行とし、モデル台帳の未保存編集は使わない。実行時にも選んだモデルが当該 Provider 配下かつ有効であることを再確認し、欠落・別 Provider・無効なら OCR を呼ばず短い失敗メッセージにする。結果は同フォーム上の単一の成否表示のみとし、履歴や台帳には残さない（入力不足・OCR 起動不可・タイムアウト・接続失敗も同じ表示枠で、文言だけ変える）。成功時は短い固定文言と使ったモデル名程度に留め、モデルの生返答は出さない。失敗時は理由が分かる短いメッセージを出し、API キーそのものは結果に含めない（混入し得る出力はマスクする）。本番の Review Run とは別経路だが、同じ LLM Protocol／接続属性の解決を共有する。
 _Avoid_: ヘルスチェック, ping, 疎通テスト（UI 文言以外の正式名にしない）
 
 **Registered LLM Model**:
-Registered LLM Provider に属する利用可能モデル 1 件。OCR に渡すモデル識別子と、選択肢としての有効/無効を持つ。LLM Rotation Set の要素にするには、有効かつその Provider 配下であることが必要。いずれかの LLM Rotation Set（Global または Repo）から参照されているあいだは削除できない（無効化は可）。実行開始時に無効なら LLM Rotation のスキップ対象。
+Registered LLM Provider に属する利用可能モデル 1 件。OCR に渡すモデル識別子と、選択肢としての有効/無効を持つ。`source` は `api`（Provider Model Sync で台帳に載る）または `manual`（Administrator の手動追加）のいずれか。`api` 行は名前の手編集・削除不可（有効/無効のみ）。`manual` 行は名前編集・削除可。同期で新規 INSERT された `api` 行は `is_new` により **New!!** を付け、Administrator が有効化して保存したら外れる。LLM Rotation Set の要素にするには、有効かつその Provider 配下であることが必要。`manual` 行はいずれかの LLM Rotation Set から参照されているあいだは削除できない（無効化は可）。`api` 行は API 一覧から消えたとき同期で DELETE され、Rotation からも除去される。実行開始時に無効なら LLM Rotation のスキップ対象。
 _Avoid_: モデル（単独・曖昧）, Provider Model, モデルプール（LLM Rotation Set を指す用法）
 
 **LLM Rotation Set**:

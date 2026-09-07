@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS llm_provider_models (
     model_name TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     sort_order INTEGER NOT NULL DEFAULT 0,
+    source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('api', 'manual')),
+    is_new INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     UNIQUE (provider_id, model_name)

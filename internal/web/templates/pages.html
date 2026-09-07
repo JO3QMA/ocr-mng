@@ -267,39 +267,57 @@ rows.querySelectorAll("select").forEach(wire);updateAdd();updateSave();
 {{if .Provider.ID}}
 <hr style="margin:1.5rem 0;border:none;border-top:1px solid #e5e7eb">
 <h2>{{.L.T "llm.models"}}</h2>
-{{if .Models}}
+<div class="inline-action" style="margin-bottom:0.75rem">
+<button type="submit" class="btn" form="llm-provider-form" formaction="{{.ResyncAction}}">{{.L.T "btn.resync_models"}}</button>
+</div>
+{{if .SyncMsg}}{{if .SyncOK}}<div class="flash">{{.SyncMsg}}</div>{{else}}<div class="flash error">{{.SyncMsg}}</div>{{end}}{{end}}
 <form method="post" action="/llm-providers/{{.Provider.ID}}/models/bulk-update">
+<h3>{{.L.T "llm.api_models"}}</h3>
+{{if .SyncSkipped}}<p class="hint">{{.L.T "llm.sync_unavailable_hint"}}</p>
+{{else if .APIModels}}
+<p class="hint"><a href="#" id="api-models-select-all">{{.L.T "btn.select_all"}}</a> · <a href="#" id="api-models-select-none">{{.L.T "btn.select_none"}}</a></p>
+<div style="max-height:24rem;overflow:auto;border:1px solid #e5e7eb;border-radius:0.375rem;padding:0.5rem">
+<table style="width:100%"><thead><tr><th>{{.L.T "table.enabled"}}</th><th>{{.L.T "form.model_name"}}</th></tr></thead>
+<tbody id="api-models-tbody">{{range .APIModels}}<tr>
+<td><input type="checkbox" class="api-model-enabled" name="enabled_{{.ID}}" {{checked .Enabled}}></td>
+<td><code>{{.ModelName}}</code>{{if .IsNew}} <span class="badge">New!!</span>{{end}}<input type="hidden" name="model_id" value="{{.ID}}"></td>
+</tr>{{end}}</tbody></table>
+</div>
+{{else}}<p class="hint">{{.L.T "llm.api_models_none"}}</p>{{end}}
+<h3 style="margin-top:1.5rem">{{.L.T "llm.manual_models"}}</h3>
+{{if .ManualModels}}
 <table><thead><tr><th>{{.L.T "table.enabled"}}</th><th>{{.L.T "form.model_name"}}</th><th>{{.L.T "btn.delete"}}</th></tr></thead>
-<tbody>{{range .Models}}<tr>
+<tbody>{{range .ManualModels}}<tr>
 <td><label class="settings-toggle settings-toggle-inline"><input class="settings-toggle-input" type="checkbox" name="enabled_{{.ID}}" {{checked .Enabled}}></label></td>
 <td><input name="model_name_{{.ID}}" value="{{.ModelName}}" required><input type="hidden" name="model_id" value="{{.ID}}"></td>
 <td><input type="checkbox" name="delete_model_id" value="{{.ID}}"></td>
 </tr>{{end}}</tbody></table>
+{{else}}<p class="hint">{{.L.T "llm.manual_models_none"}}</p>{{end}}
+{{if or .APIModels .ManualModels}}
 <p class="btn-row">
 <button type="submit" class="btn">{{.L.T "btn.save_models"}}</button>
 <button type="submit" class="btn danger" formaction="/llm-providers/{{.Provider.ID}}/models/bulk-delete" formnovalidate>{{.L.T "btn.delete_selected_models"}}</button>
 </p>
-</form>
-{{else}}<p>{{.L.T "llm.models_none"}}</p>{{end}}
-{{if .DiscoverMsg}}{{if .DiscoverOK}}<div class="flash">{{.DiscoverMsg}}</div>{{else}}<div class="flash error">{{.DiscoverMsg}}</div>{{end}}{{end}}
-<form method="post" action="/llm-providers/{{.Provider.ID}}/models" style="margin-top:1rem">
-<label>{{.L.T "llm.add_model"}}</label>
-<div class="inline-action">
-<button type="submit" class="btn" form="llm-provider-form" formaction="{{.DiscoverAction}}">{{.L.T "btn.discover_models"}}</button>
-</div>
-{{if .RemoteModels}}
-<label>{{.L.T "form.discover_model_pick"}}</label>
-<select id="remote-model-pick">
-<option value="">{{.L.T "form.discover_model_pick_unset"}}</option>
-{{range .RemoteModels}}<option value="{{.}}">{{.}}</option>{{end}}
-</select>
 {{end}}
-<div class="inline-action" style="margin-top:0.5rem">
-<input name="model_name" id="model-name-input" required placeholder="claude-sonnet-4-6">
+</form>
+<script>
+(function(){
+var all=document.getElementById("api-models-select-all");
+var none=document.getElementById("api-models-select-none");
+if(!all||!none)return;
+function boxes(){return document.querySelectorAll(".api-model-enabled");}
+all.addEventListener("click",function(e){e.preventDefault();boxes().forEach(function(b){b.checked=true;});});
+none.addEventListener("click",function(e){e.preventDefault();boxes().forEach(function(b){b.checked=false;});});
+})();
+</script>
+<form method="post" action="/llm-providers/{{.Provider.ID}}/models" style="margin-top:1rem">
+<label>{{.L.T "llm.manual_add"}}</label>
+<div class="inline-action">
+<input name="model_name" placeholder="claude-sonnet-4-6">
 <button type="submit" class="btn">{{.L.T "btn.add"}}</button>
 </div>
+<p class="hint">{{.L.T "llm.manual_add_hint"}}</p>
 </form>
-{{if .RemoteModels}}<script>document.getElementById("remote-model-pick").addEventListener("change",function(){if(this.value)document.getElementById("model-name-input").value=this.value;});</script>{{end}}
 <form method="post" action="/llm-providers/{{.Provider.ID}}/delete" style="margin-top:2rem" onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{.L.T "llm.delete_confirm"}}">
 <button type="submit" class="btn secondary">{{.L.T "btn.delete_provider"}}</button>
 </form>

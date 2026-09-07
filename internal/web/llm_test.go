@@ -291,18 +291,7 @@ func TestResolveConnectionTestModelInvalid(t *testing.T) {
 	}
 }
 
-func TestUndiscoveredModelNames(t *testing.T) {
-	ledger := []store.LLMProviderModel{
-		{ModelName: "gpt-4"},
-		{ModelName: "old", Enabled: false},
-	}
-	got := undiscoveredModelNames(ledger, []string{"gpt-4", "gpt-3.5-turbo", "old", "GPT-4"})
-	if len(got) != 1 || got[0] != "gpt-3.5-turbo" {
-		t.Fatalf("got %#v", got)
-	}
-}
-
-func TestLLMProviderModelsDiscover(t *testing.T) {
+func TestLLMProviderEditSyncsModels(t *testing.T) {
 	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
 	if err != nil {
 		t.Fatal(err)
@@ -331,91 +320,32 @@ func TestLLMProviderModelsDiscover(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := st.CreateLLMProviderModel(ctx, store.LLMProviderModel{
-		ProviderID: pid, ModelName: "gpt-4", Enabled: true,
+		ProviderID: pid, ModelName: "gpt-4", Enabled: true, Source: store.ModelSourceManual,
 	}); err != nil {
 		t.Fatal(err)
 	}
 
 	s := &Server{store: st}
-	form := url.Values{
-		"name":          {"P"},
-		"provider_key":  {"openai"},
-		"kind":          {"custom"},
-		"api_base_url":  {srv.URL + "/v1"},
-		"protocol":      {"openai"},
-		"api_key":       {"sk-test"},
-	}
-	req := httptest.NewRequest(http.MethodPost, "/llm-providers/"+strconv.FormatInt(pid, 10)+"/models/discover", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req := httptest.NewRequest(http.MethodGet, "/llm-providers/"+strconv.FormatInt(pid, 10)+"/edit", nil)
 	req.SetPathValue("id", strconv.FormatInt(pid, 10))
 	rec := httptest.NewRecorder()
-	s.llmProviderModelsDiscover(rec, req)
+	s.llmProviderEdit(rec, req)
 	if rec.Code != 200 {
 		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, `<option value="gpt-3.5-turbo">`) {
-		t.Fatalf("expected remote model option: %s", body)
+	if !strings.Contains(body, "gpt-3.5-turbo") {
+		t.Fatalf("expected synced model in api section: %s", body)
 	}
-	if strings.Contains(body, `<option value="gpt-4">`) {
-		t.Fatalf("registered model should be excluded from pick list: %s", body)
+	if !strings.Contains(body, "New!!") {
+		t.Fatalf("expected New!! badge: %s", body)
 	}
 	if strings.Contains(body, "sk-test") {
 		t.Fatal("api key leaked")
 	}
 }
 
-func TestLLMProviderModelsDiscoverNoURL(t *testing.T) {
-	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = st.Close() })
-	ctx := context.Background()
-
-	pid, err := st.CreateLLMProvider(ctx, store.LLMProvider{
-		Name: "P", ProviderKey: "anthropic", Kind: "builtin", Enabled: true,
-	}, "sk")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	s := &Server{store: st}
-	form := url.Values{
-		"name":         {"P"},
-		"provider_key": {"anthropic"},
-		"kind":         {"builtin"},
-		"api_key":      {"sk"},
-	}
-	req := httptest.NewRequest(http.MethodPost, "/llm-providers/"+strconv.FormatInt(pid, 10)+"/models/discover", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetPathValue("id", strconv.FormatInt(pid, 10))
-	rec := httptest.NewRecorder()
-	s.llmProviderModelsDiscover(rec, req)
-	body := rec.Body.String()
-	if !strings.Contains(body, "API Base URL") && !strings.Contains(body, "enter a model name manually") {
-		t.Fatalf("expected no-url message: %s", body)
-	}
-}
-
-func TestParseLLMProviderConnectionFormSkipsNameValidation(t *testing.T) {
-	form := url.Values{
-		"kind":         {"custom"},
-		"api_base_url": {"https://example/v1"},
-		"protocol":     {"openai"},
-	}
-	req := httptest.NewRequest(http.MethodPost, "/llm-providers/1/models/discover", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	p, _, err := parseLLMProviderConnectionForm(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.APIBaseURL != "https://example/v1" || p.Name != "" || p.ProviderKey != "" {
-		t.Fatalf("got %#v", p)
-	}
-}
-
-func TestLLMProviderModelsDiscoverAllowsEmptyName(t *testing.T) {
+func TestLLMProviderModelsResync(t *testing.T) {
 	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
 	if err != nil {
 		t.Fatal(err)
@@ -447,19 +377,108 @@ func TestLLMProviderModelsDiscoverAllowsEmptyName(t *testing.T) {
 		"protocol":     {"openai"},
 		"api_key":      {"sk-test"},
 	}
-	req := httptest.NewRequest(http.MethodPost, "/llm-providers/"+strconv.FormatInt(pid, 10)+"/models/discover", strings.NewReader(form.Encode()))
+	req := httptest.NewRequest(http.MethodPost, "/llm-providers/"+strconv.FormatInt(pid, 10)+"/models/resync", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("id", strconv.FormatInt(pid, 10))
 	rec := httptest.NewRecorder()
-	s.llmProviderModelsDiscover(rec, req)
+	s.llmProviderModelsResync(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "gpt-3.5-turbo") {
+		t.Fatalf("expected synced model: %s", body)
+	}
+}
+
+func TestLLMProviderEditSyncSkippedWithoutURL(t *testing.T) {
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+
+	pid, err := st.CreateLLMProvider(ctx, store.LLMProvider{
+		Name: "P", ProviderKey: "anthropic", Kind: "builtin", Enabled: true,
+	}, "sk")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := &Server{store: st}
+	req := httptest.NewRequest(http.MethodGet, "/llm-providers/"+strconv.FormatInt(pid, 10)+"/edit", nil)
+	req.SetPathValue("id", strconv.FormatInt(pid, 10))
+	rec := httptest.NewRecorder()
+	s.llmProviderEdit(rec, req)
+	body := rec.Body.String()
+	if !strings.Contains(body, "API Base URL") && !strings.Contains(body, "API key") {
+		t.Fatalf("expected sync unavailable hint: %s", body)
+	}
+}
+
+func TestParseLLMProviderConnectionFormSkipsNameValidation(t *testing.T) {
+	form := url.Values{
+		"kind":         {"custom"},
+		"api_base_url": {"https://example/v1"},
+		"protocol":     {"openai"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/llm-providers/1/models/resync", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	p, _, err := parseLLMProviderConnectionForm(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.APIBaseURL != "https://example/v1" || p.Name != "" || p.ProviderKey != "" {
+		t.Fatalf("got %#v", p)
+	}
+}
+
+func TestLLMProviderModelsResyncAllowsEmptyName(t *testing.T) {
+	st, err := store.Open(t.TempDir()+"/rm.db", []byte("01234567890123456789012345678901"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	ctx := context.Background()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": []map[string]string{{"id": "gpt-3.5-turbo"}},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	pid, err := st.CreateLLMProvider(ctx, store.LLMProvider{
+		Name: "Stored", ProviderKey: "openai", Kind: "custom",
+		APIBaseURL: srv.URL + "/v1", Protocol: "openai", Enabled: true,
+	}, "sk-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := &Server{store: st}
+	form := url.Values{
+		"name":         {""},
+		"provider_key": {""},
+		"kind":         {"custom"},
+		"api_base_url": {srv.URL + "/v1"},
+		"protocol":     {"openai"},
+		"api_key":      {"sk-test"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/llm-providers/"+strconv.FormatInt(pid, 10)+"/models/resync", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", strconv.FormatInt(pid, 10))
+	rec := httptest.NewRecorder()
+	s.llmProviderModelsResync(rec, req)
 	if rec.Code != 200 {
 		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
 	if strings.Contains(body, "名前") && strings.Contains(body, "flash error") {
-		t.Fatalf("name validation should not block discover: %s", body)
+		t.Fatalf("name validation should not block resync: %s", body)
 	}
-	if !strings.Contains(body, `<option value="gpt-3.5-turbo">`) {
-		t.Fatalf("expected discover success: %s", body)
+	if !strings.Contains(body, "gpt-3.5-turbo") {
+		t.Fatalf("expected resync success: %s", body)
 	}
 }

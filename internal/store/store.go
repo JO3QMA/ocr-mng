@@ -193,6 +193,8 @@ func (s *Store) migrate(ctx context.Context) error {
 		`ALTER TABLE pr_snapshots DROP COLUMN last_reviewed_head_sha`,
 		`ALTER TABLE pr_snapshots DROP COLUMN last_run_id`,
 		`DROP TABLE IF EXISTS llm_rotation_cursors`,
+		`ALTER TABLE llm_provider_models ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'`,
+		`ALTER TABLE llm_provider_models ADD COLUMN is_new INTEGER NOT NULL DEFAULT 0`,
 	} {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
 			msg := strings.ToLower(err.Error())
@@ -230,13 +232,21 @@ func (s *Store) SaveGlobalSettings(ctx context.Context, gs GlobalSettings) error
 	if err := s.assertLLMRotationSelectable(ctx, nextRot); err != nil {
 		return err
 	}
+	return persistGlobalSettingsDB(ctx, s.db, gs)
+}
+
+func persistGlobalSettingsDB(ctx context.Context, exec sqlExecContext, gs GlobalSettings) error {
 	gs = gs.WithDefaults()
 	b, err := json.Marshal(gs)
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `UPDATE global_settings SET value = ? WHERE key = 'settings'`, string(b))
+	_, err = exec.ExecContext(ctx, `UPDATE global_settings SET value = ? WHERE key = 'settings'`, string(b))
 	return err
+}
+
+type sqlExecContext interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
 func (s *Store) encryptPAT(pat string) (string, error) {

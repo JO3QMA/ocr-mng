@@ -39,10 +39,12 @@ type llmProviderFormView struct {
 	ErrMsg                 string
 	TestOK                 bool
 	TestMsg                string
-	DiscoverAction         string
-	DiscoverOK             bool
-	DiscoverMsg            string
-	RemoteModels           []string
+	ResyncAction           string
+	SyncOK                 bool
+	SyncMsg                string
+	SyncSkipped            bool
+	APIModels              []store.LLMProviderModel
+	ManualModels           []store.LLMProviderModel
 	KeyHint                string
 	ShowClearKey           bool
 	BuiltinPreset          string
@@ -274,6 +276,12 @@ func (s *Server) llmProviderEdit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	apiKey, err := s.store.LLMProviderAPIKey(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	outcome := s.runProviderModelSync(r.Context(), p, apiKey, s.page(r, "page.edit_llm_provider").L)
 	models, err := s.store.ListLLMProviderModels(r.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -281,6 +289,8 @@ func (s *Server) llmProviderEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	enabled := enabledLLMModels(models)
 	view := s.llmProviderEditFormView(r, id, p.HasAPIKey, p, models, enabled)
+	loc := s.page(r, view.FormTitleKey).L
+	s.applySyncOutcome(&view, outcome, loc)
 	s.renderLLMProviderForm(w, r, view)
 }
 
@@ -447,7 +457,7 @@ func (s *Server) llmProviderTest(w http.ResponseWriter, r *http.Request) {
 	s.renderLLMProviderForm(w, r, view)
 }
 
-func (s *Server) llmProviderModelsDiscover(w http.ResponseWriter, r *http.Request) {
+func (s *Server) llmProviderModelsResync(w http.ResponseWriter, r *http.Request) {
 	providerID, ok := pathID(r, "id")
 	if !ok {
 		http.NotFound(w, r)
@@ -476,46 +486,28 @@ func (s *Server) llmProviderModelsDiscover(w http.ResponseWriter, r *http.Reques
 		s.renderLLMProviderForm(w, r, view)
 		return
 	}
-	view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
-	loc := s.page(r, view.FormTitleKey).L
-	if strings.TrimSpace(p.APIBaseURL) == "" {
-		view.DiscoverMsg = loc.T("llm.discover_no_url")
-		s.renderLLMProviderForm(w, r, view)
-		return
-	}
 	apiKey := formKey
 	if apiKey == "" {
 		apiKey, err = s.store.LLMProviderAPIKey(r.Context(), providerID)
 		if err != nil {
-			view.DiscoverMsg = err.Error()
+			view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
+			view.SyncMsg = err.Error()
 			s.renderLLMProviderForm(w, r, view)
 			return
 		}
 	}
-	if apiKey == "" {
-		view.DiscoverMsg = loc.T("llm.test_no_key")
+	outcome := s.runProviderModelSync(r.Context(), p, apiKey, s.page(r, "page.edit_llm_provider").L)
+	models, listErr = s.store.ListLLMProviderModels(r.Context(), providerID)
+	if listErr != nil {
+		view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, nil, nil)
+		view.ErrMsg = listErr.Error()
 		s.renderLLMProviderForm(w, r, view)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), llmConnectionTestTimeout)
-	defer cancel()
-	remote, err := ListModels(ctx, p.APIBaseURL, p.Protocol, apiKey)
-	if err != nil {
-		msg := ocr.MaskSecret(err.Error(), apiKey)
-		if ctx.Err() != nil {
-			msg = loc.T("llm.discover_timeout")
-		}
-		view.DiscoverMsg = msg
-		s.renderLLMProviderForm(w, r, view)
-		return
-	}
-	view.RemoteModels = undiscoveredModelNames(models, remote)
-	if len(view.RemoteModels) == 0 {
-		view.DiscoverMsg = loc.T("llm.discover_none")
-	} else {
-		view.DiscoverOK = true
-		view.DiscoverMsg = fmt.Sprintf(loc.T("llm.discover_ok"), len(view.RemoteModels))
-	}
+	enabled = enabledLLMModels(models)
+	view := s.llmProviderEditFormView(r, providerID, stored.HasAPIKey, p, models, enabled)
+	loc := s.page(r, view.FormTitleKey).L
+	s.applySyncOutcome(&view, outcome, loc)
 	s.renderLLMProviderForm(w, r, view)
 }
 
@@ -526,9 +518,9 @@ func (s *Server) llmProviderEditFormView(r *http.Request, providerID int64, hasS
 	}
 	view := llmProviderFormView{
 		Provider: p, Models: models, EnabledModels: enabled,
-		Action:         fmt.Sprintf("/llm-providers/%d", providerID),
-		TestAction:     fmt.Sprintf("/llm-providers/%d/test", providerID),
-		DiscoverAction: fmt.Sprintf("/llm-providers/%d/models/discover", providerID),
+		Action:       fmt.Sprintf("/llm-providers/%d", providerID),
+		TestAction:   fmt.Sprintf("/llm-providers/%d/test", providerID),
+		ResyncAction: fmt.Sprintf("/llm-providers/%d/models/resync", providerID),
 		FormTitleKey:   "page.edit_llm_provider", KeyHintKey: keyHint, ShowClearKey: hasStoredKey,
 		UseTempModel:    len(enabled) == 0,
 		TempModelName:   strings.TrimSpace(r.FormValue("temp_model_name")),
@@ -540,19 +532,68 @@ func (s *Server) llmProviderEditFormView(r *http.Request, providerID int64, hasS
 	return view
 }
 
-func undiscoveredModelNames(ledger []store.LLMProviderModel, remote []string) []string {
-	normalized := map[string]struct{}{}
-	for _, m := range ledger {
-		normalized[strings.ToLower(strings.TrimSpace(m.ModelName))] = struct{}{}
+type providerModelSyncOutcome struct {
+	Skipped bool
+	Result  store.LLMModelSyncResult
+	ErrMsg  string
+}
+
+func (s *Server) runProviderModelSync(ctx context.Context, p store.LLMProvider, apiKey string, loc i18n.Localizer) providerModelSyncOutcome {
+	if strings.TrimSpace(p.APIBaseURL) == "" || strings.TrimSpace(apiKey) == "" {
+		return providerModelSyncOutcome{Skipped: true}
 	}
-	var out []string
-	for _, name := range remote {
-		if _, ok := normalized[strings.ToLower(strings.TrimSpace(name))]; ok {
-			continue
+	ctx, cancel := context.WithTimeout(ctx, llmConnectionTestTimeout)
+	defer cancel()
+	remote, err := ListModels(ctx, p.APIBaseURL, p.Protocol, apiKey)
+	if err != nil {
+		msg := ocr.MaskSecret(err.Error(), apiKey)
+		if ctx.Err() != nil {
+			msg = loc.T("llm.sync_timeout")
 		}
-		out = append(out, name)
+		return providerModelSyncOutcome{ErrMsg: msg}
 	}
-	return out
+	result, err := s.store.SyncLLMProviderModels(ctx, p.ID, remote)
+	if err != nil {
+		return providerModelSyncOutcome{ErrMsg: err.Error()}
+	}
+	return providerModelSyncOutcome{Result: result}
+}
+
+func (s *Server) applySyncOutcome(view *llmProviderFormView, outcome providerModelSyncOutcome, loc i18n.Localizer) {
+	if outcome.Skipped {
+		view.SyncSkipped = true
+		return
+	}
+	if outcome.ErrMsg != "" {
+		view.SyncMsg = outcome.ErrMsg
+		return
+	}
+	if outcome.Result.Added == 0 && outcome.Result.Deleted == 0 {
+		return
+	}
+	view.SyncOK = true
+	view.SyncMsg = fmt.Sprintf(loc.T("llm.sync_ok"), outcome.Result.Added, outcome.Result.Deleted, outcome.Result.New)
+}
+
+func splitModelsBySource(models []store.LLMProviderModel) (api, manual []store.LLMProviderModel) {
+	for _, m := range models {
+		if m.Source == store.ModelSourceAPI {
+			api = append(api, m)
+		} else {
+			manual = append(manual, m)
+		}
+	}
+	return api, manual
+}
+
+func modelNameInRemoteList(name string, remote []string) bool {
+	key := strings.ToLower(strings.TrimSpace(name))
+	for _, item := range remote {
+		if strings.ToLower(strings.TrimSpace(item)) == key {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) resolveConnectionTestModel(ctx context.Context, providerID int64, hasID, useTemp bool, view llmProviderFormView) (string, error) {
@@ -601,8 +642,33 @@ func (s *Server) llmModelCreate(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=invalid_model", id), http.StatusSeeOther)
 		return
 	}
-	_, err := s.store.CreateLLMProviderModel(r.Context(), store.LLMProviderModel{
-		ProviderID: id, ModelName: name, Enabled: true,
+	p, err := s.store.GetLLMProvider(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	apiKey, err := s.store.LLMProviderAPIKey(r.Context(), id)
+	if err != nil {
+		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=invalid_model", id), http.StatusSeeOther)
+		return
+	}
+	if strings.TrimSpace(p.APIBaseURL) == "" || apiKey == "" {
+		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=manual_add_api_failed", id), http.StatusSeeOther)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), llmConnectionTestTimeout)
+	defer cancel()
+	remote, err := ListModels(ctx, p.APIBaseURL, p.Protocol, apiKey)
+	if err != nil {
+		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=manual_add_api_failed", id), http.StatusSeeOther)
+		return
+	}
+	if modelNameInRemoteList(name, remote) {
+		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=manual_add_in_api", id), http.StatusSeeOther)
+		return
+	}
+	_, err = s.store.CreateLLMProviderModel(r.Context(), store.LLMProviderModel{
+		ProviderID: id, ModelName: name, Enabled: true, Source: store.ModelSourceManual,
 	})
 	if err != nil {
 		http.Redirect(w, r, fmt.Sprintf("/llm-providers/%d/edit?flash=invalid_model", id), http.StatusSeeOther)
@@ -636,10 +702,13 @@ func (s *Server) llmModelsBulkUpdate(w http.ResponseWriter, r *http.Request) {
 			redirectInvalid()
 			return
 		}
-		if name := strings.TrimSpace(r.FormValue("model_name_" + idStr)); name != "" {
+		if name := strings.TrimSpace(r.FormValue("model_name_" + idStr)); name != "" && m.Source == store.ModelSourceManual {
 			m.ModelName = name
 		}
 		m.Enabled = r.FormValue("enabled_"+idStr) == "on"
+		if m.Source == store.ModelSourceAPI && m.Enabled {
+			m.IsNew = false
+		}
 		pending = append(pending, m)
 	}
 	if len(pending) == 0 {
@@ -680,6 +749,10 @@ func (s *Server) llmModelsBulkDelete(w http.ResponseWriter, r *http.Request) {
 			redirectFailed()
 			return
 		}
+		if m.Source != store.ModelSourceManual {
+			redirectFailed()
+			return
+		}
 		pending = append(pending, mid)
 	}
 	if len(pending) == 0 {
@@ -708,9 +781,12 @@ func (s *Server) renderLLMProviderForm(w http.ResponseWriter, r *http.Request, v
 	if v.BuiltinPreset == "" {
 		v.BuiltinPreset = formBuiltinPreset(r, v.Provider.ProviderKey)
 	}
-	if v.Provider.ID != 0 && v.DiscoverAction == "" {
-		v.DiscoverAction = fmt.Sprintf("/llm-providers/%d/models/discover", v.Provider.ID)
+	if v.Provider.ID != 0 && v.ResyncAction == "" {
+		v.ResyncAction = fmt.Sprintf("/llm-providers/%d/models/resync", v.Provider.ID)
 	}
+	apiModels, manualModels := splitModelsBySource(v.Models)
+	v.APIModels = apiModels
+	v.ManualModels = manualModels
 	v.BuiltinPresets = ocr.BuiltinPresets()
 	v.BuiltinProviderDocsURL = ocr.BuiltinProviderDocsURL(pge.Lang)
 	render(w, "llm_provider_form", v)
