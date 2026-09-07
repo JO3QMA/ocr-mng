@@ -62,10 +62,11 @@ func (s *Store) SyncLLMProviderModels(ctx context.Context, providerID int64, rem
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	for norm, m := range byNorm {
+	for _, m := range models {
 		if m.Source != ModelSourceManual {
 			continue
 		}
+		norm := normalizeModelName(m.ModelName)
 		canonical, ok := remoteByNorm[norm]
 		if !ok {
 			continue
@@ -90,7 +91,13 @@ func (s *Store) SyncLLMProviderModels(ctx context.Context, providerID int64, rem
 
 	for _, canonical := range remoteByNorm {
 		norm := normalizeModelName(canonical)
-		if _, ok := byNorm[norm]; ok {
+		var exists int
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM llm_provider_models
+			WHERE provider_id=? AND lower(trim(model_name))=?`, providerID, norm).Scan(&exists); err != nil {
+			return LLMModelSyncResult{}, err
+		}
+		if exists > 0 {
 			continue
 		}
 		res, err := tx.ExecContext(ctx, `
@@ -112,17 +119,18 @@ func (s *Store) SyncLLMProviderModels(ctx context.Context, providerID int64, rem
 		result.New++
 	}
 
-	for _, m := range models {
-		if m.Source != ModelSourceAPI {
-			continue
-		}
+	apiModels, err := listLLMProviderModelsTx(ctx, tx, providerID, ModelSourceAPI)
+	if err != nil {
+		return LLMModelSyncResult{}, err
+	}
+	for _, m := range apiModels {
 		if _, ok := remoteByNorm[normalizeModelName(m.ModelName)]; ok {
 			continue
 		}
 		if err := pruneLLMModelFromRotations(ctx, s, tx, m.ID); err != nil {
 			return LLMModelSyncResult{}, err
 		}
-		res, err := tx.ExecContext(ctx, `DELETE FROM llm_provider_models WHERE id=? AND provider_id=?`, m.ID, providerID)
+		res, err := tx.ExecContext(ctx, `DELETE FROM llm_provider_models WHERE id=? AND provider_id=? AND source=?`, m.ID, providerID, ModelSourceAPI)
 		if err != nil {
 			return LLMModelSyncResult{}, err
 		}
@@ -198,4 +206,24 @@ func filterLLMPairsByModel(pairs []LLMPair, modelID int64) []LLMPair {
 		out = append(out, p)
 	}
 	return out
+}
+
+func listLLMProviderModelsTx(ctx context.Context, tx *sql.Tx, providerID int64, source string) ([]LLMProviderModel, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, provider_id, model_name, enabled, sort_order, source, is_new, created_at, updated_at
+		FROM llm_provider_models WHERE provider_id=? AND source=?
+		ORDER BY sort_order, model_name`, providerID, source)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []LLMProviderModel
+	for rows.Next() {
+		m, err := scanLLMProviderModel(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
 }

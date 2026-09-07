@@ -265,7 +265,7 @@ func (s *Store) DeleteLLMProviderModel(ctx context.Context, id int64) error {
 	if err := s.assertLLMModelNotReferenced(ctx, id); err != nil {
 		return err
 	}
-	res, err := s.db.ExecContext(ctx, `DELETE FROM llm_provider_models WHERE id=?`, id)
+	res, err := s.db.ExecContext(ctx, `DELETE FROM llm_provider_models WHERE id=? AND source=?`, id, ModelSourceManual)
 	if err != nil {
 		return err
 	}
