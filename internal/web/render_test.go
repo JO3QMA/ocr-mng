@@ -358,3 +358,49 @@ func TestRenderAbout(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderRunDetailRunningLLM(t *testing.T) {
+	run := store.ReviewRun{
+		ID: 1, PRNumber: 2, Status: "running",
+		LLMProviderName: "Anthropic", LLMModelName: "claude-x",
+		RepoOwner: "acme", RepoName: "app",
+	}
+	rec := httptest.NewRecorder()
+	render(rec, "run_detail", struct {
+		page
+		Run         store.ReviewRun
+		SummaryView summaryView
+		OCRJSON     string
+	}{page: testPage(), Run: run})
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("status %d body %q", rec.Code, body)
+	}
+	for _, want := range []string{"LLM: Anthropic / claude-x", "setTimeout(function(){location.reload()},5000)"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q in %q", want, body)
+		}
+	}
+}
+
+func TestRenderRunsLLMColumn(t *testing.T) {
+	runs := []store.ReviewRun{{
+		ID: 1, PRNumber: 2, Status: "running", TriggerKind: "manual",
+		LLMProviderName: "Anthropic", LLMModelName: "claude-x",
+		RepoOwner: "acme", RepoName: "app",
+	}}
+	rec := httptest.NewRecorder()
+	render(rec, "runs", struct {
+		page
+		Runs []store.ReviewRun
+	}{page: testPage(), Runs: runs})
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("status %d body %q", rec.Code, body)
+	}
+	for _, want := range []string{"<th>LLM</th>", "Anthropic / claude-x"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q in %q", want, body)
+		}
+	}
+}
