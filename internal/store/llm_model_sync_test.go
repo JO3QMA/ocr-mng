@@ -7,6 +7,21 @@ import (
 	"github.com/jo3qma/ocr-mng/internal/store"
 )
 
+func providerModelIDByName(t *testing.T, st *store.Store, ctx context.Context, pid int64, name string) int64 {
+	t.Helper()
+	models, err := st.ListLLMProviderModels(ctx, pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range models {
+		if m.ModelName == name {
+			return m.ID
+		}
+	}
+	t.Fatalf("model %q not found in %#v", name, models)
+	return 0
+}
+
 func TestSyncLLMProviderModels(t *testing.T) {
 	st := openLLMStore(t)
 	ctx := context.Background()
@@ -25,12 +40,10 @@ func TestSyncLLMProviderModels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	apiID, err := st.CreateLLMProviderModel(ctx, store.LLMProviderModel{
-		ProviderID: pid, ModelName: "old-api", Enabled: true, Source: store.ModelSourceAPI,
-	})
-	if err != nil {
+	if _, err := st.SyncLLMProviderModels(ctx, pid, []string{"old-api"}); err != nil {
 		t.Fatal(err)
 	}
+	apiID := providerModelIDByName(t, st, ctx, pid, "old-api")
 
 	result, err := st.SyncLLMProviderModels(ctx, pid, []string{"gpt-4", "gpt-3.5-turbo"})
 	if err != nil {
@@ -84,10 +97,16 @@ func TestSyncLLMProviderModelsPrunesGlobalRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mid, err := st.CreateLLMProviderModel(ctx, store.LLMProviderModel{
-		ProviderID: pid, ModelName: "gone", Enabled: true, Source: store.ModelSourceAPI,
-	})
+	if _, err := st.SyncLLMProviderModels(ctx, pid, []string{"gone"}); err != nil {
+		t.Fatal(err)
+	}
+	mid := providerModelIDByName(t, st, ctx, pid, "gone")
+	gone, err := st.GetLLMProviderModel(ctx, mid)
 	if err != nil {
+		t.Fatal(err)
+	}
+	gone.Enabled = true
+	if err := st.UpdateLLMProviderModel(ctx, gone); err != nil {
 		t.Fatal(err)
 	}
 
@@ -123,12 +142,10 @@ func TestDeleteLLMProviderModelRejectsAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mid, err := st.CreateLLMProviderModel(ctx, store.LLMProviderModel{
-		ProviderID: pid, ModelName: "m1", Enabled: true, Source: store.ModelSourceAPI,
-	})
-	if err != nil {
+	if _, err := st.SyncLLMProviderModels(ctx, pid, []string{"m1"}); err != nil {
 		t.Fatal(err)
 	}
+	mid := providerModelIDByName(t, st, ctx, pid, "m1")
 	if err := st.DeleteLLMProviderModel(ctx, mid); err == nil {
 		t.Fatal("expected reject")
 	}

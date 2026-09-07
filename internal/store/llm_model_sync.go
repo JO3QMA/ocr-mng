@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -71,6 +72,16 @@ func (s *Store) SyncLLMProviderModels(ctx context.Context, providerID int64, rem
 		if !ok {
 			continue
 		}
+		var dupCount int
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM llm_provider_models
+			WHERE provider_id=? AND id!=? AND lower(trim(model_name))=?`,
+			providerID, m.ID, norm).Scan(&dupCount); err != nil {
+			return LLMModelSyncResult{}, err
+		}
+		if dupCount > 0 {
+			return LLMModelSyncResult{}, fmt.Errorf("duplicate manual model name conflicts with remote %q", canonical)
+		}
 		if canonical != m.ModelName {
 			if _, err := tx.ExecContext(ctx, `
 				UPDATE llm_provider_models SET model_name=?, source=?, updated_at=?
@@ -127,7 +138,7 @@ func (s *Store) SyncLLMProviderModels(ctx context.Context, providerID int64, rem
 		if _, ok := remoteByNorm[normalizeModelName(m.ModelName)]; ok {
 			continue
 		}
-		if err := pruneLLMModelFromRotations(ctx, s, tx, m.ID); err != nil {
+		if err := pruneLLMModelFromRotations(ctx, tx, m.ID); err != nil {
 			return LLMModelSyncResult{}, err
 		}
 		res, err := tx.ExecContext(ctx, `DELETE FROM llm_provider_models WHERE id=? AND provider_id=? AND source=?`, m.ID, providerID, ModelSourceAPI)
@@ -150,8 +161,8 @@ func (s *Store) SyncLLMProviderModels(ctx context.Context, providerID int64, rem
 	return result, nil
 }
 
-func pruneLLMModelFromRotations(ctx context.Context, s *Store, tx *sql.Tx, modelID int64) error {
-	gs, err := s.GetGlobalSettings(ctx)
+func pruneLLMModelFromRotations(ctx context.Context, tx *sql.Tx, modelID int64) error {
+	gs, err := getGlobalSettingsTx(ctx, tx)
 	if err != nil {
 		return err
 	}

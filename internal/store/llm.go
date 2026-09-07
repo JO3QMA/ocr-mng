@@ -186,15 +186,15 @@ func (s *Store) CreateLLMProviderModel(ctx context.Context, m LLMProviderModel) 
 	if _, err := s.GetLLMProvider(ctx, m.ProviderID); err != nil {
 		return 0, fmt.Errorf("llm provider: %w", err)
 	}
-	now := time.Now().UTC().Format(time.RFC3339)
-	source := strings.TrimSpace(m.Source)
-	if source == "" {
-		source = ModelSourceManual
+	if strings.TrimSpace(m.Source) != "" && m.Source != ModelSourceManual {
+		return 0, fmt.Errorf("invalid source for manual create")
 	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	source := ModelSourceManual
 	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO llm_provider_models(provider_id, model_name, enabled, sort_order, source, is_new, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		m.ProviderID, m.ModelName, b2i(m.Enabled), m.SortOrder, source, b2i(m.IsNew), now, now)
+		m.ProviderID, m.ModelName, b2i(m.Enabled), m.SortOrder, source, 0, now, now)
 	if err != nil {
 		return 0, err
 	}
@@ -205,11 +205,16 @@ func (s *Store) UpdateLLMProviderModel(ctx context.Context, m LLMProviderModel) 
 	if err := validateLLMProviderModel(m); err != nil {
 		return err
 	}
-	now := time.Now().UTC().Format(time.RFC3339)
-	source := strings.TrimSpace(m.Source)
-	if source == "" {
-		source = ModelSourceManual
+	stored, err := s.GetLLMProviderModel(ctx, m.ID)
+	if err != nil {
+		return err
 	}
+	if stored.ProviderID != m.ProviderID {
+		return sql.ErrNoRows
+	}
+	m.Source = stored.Source
+	now := time.Now().UTC().Format(time.RFC3339)
+	source := m.Source
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE llm_provider_models SET model_name=?, enabled=?, sort_order=?, source=?, is_new=?, updated_at=?
 		WHERE id=? AND provider_id=?`,
@@ -364,6 +369,13 @@ func validateLLMProvider(p LLMProvider) error {
 func validateLLMProviderModel(m LLMProviderModel) error {
 	if m.ProviderID == 0 || strings.TrimSpace(m.ModelName) == "" {
 		return fmt.Errorf("provider_id and model_name are required")
+	}
+	source := strings.TrimSpace(m.Source)
+	if source == "" {
+		return nil
+	}
+	if source != ModelSourceAPI && source != ModelSourceManual {
+		return fmt.Errorf("invalid source %q", source)
 	}
 	return nil
 }
