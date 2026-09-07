@@ -557,7 +557,7 @@ func buildLedgerSelection(ctx context.Context, st *store.Store, providerID, mode
 	if apiKey == "" {
 		return LLMSelection{}, fmt.Errorf("llm provider %q has no api key", p.Name)
 	}
-	configJSON, err := ocr.BuildProviderConfig(p.Kind, p.ProviderKey, apiKey, p.APIBaseURL, p.Protocol, m.ModelName, language)
+	configJSON, err := ocr.BuildProviderConfig(p.Kind, p.ProviderKey, apiKey, p.APIBaseURL, p.Protocol, m.ModelName, language, p.ExtraHeaders)
 	if err != nil {
 		return LLMSelection{}, err
 	}

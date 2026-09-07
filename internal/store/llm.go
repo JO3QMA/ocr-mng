@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -11,16 +12,17 @@ import (
 )
 
 type LLMProvider struct {
-	ID          int64
-	Name        string
-	ProviderKey string
-	Kind        string // builtin | custom
-	APIBaseURL  string
-	Protocol    string
-	HasAPIKey   bool
-	Enabled     bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID           int64
+	Name         string
+	ProviderKey  string
+	Kind         string // builtin | custom
+	APIBaseURL   string
+	Protocol     string
+	ExtraHeaders map[string]string
+	HasAPIKey    bool
+	Enabled      bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type LLMProviderModel struct {
@@ -80,10 +82,14 @@ func (s *Store) CreateLLMProvider(ctx context.Context, p LLMProvider, apiKey str
 		return 0, err
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
+	headersJSON, err := encodeExtraHeaders(p.ExtraHeaders)
+	if err != nil {
+		return 0, err
+	}
 	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO llm_providers(name, provider_key, kind, api_base_url, protocol, api_key_encrypted, enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.Name, p.ProviderKey, p.Kind, nullStr(p.APIBaseURL), nullStr(p.Protocol), nullStr(enc), b2i(p.Enabled), now, now)
+		INSERT INTO llm_providers(name, provider_key, kind, api_base_url, protocol, api_key_encrypted, extra_headers, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.Name, p.ProviderKey, p.Kind, nullStr(p.APIBaseURL), nullStr(p.Protocol), nullStr(enc), nullStr(headersJSON), b2i(p.Enabled), now, now)
 	if err != nil {
 		return 0, err
 	}
@@ -107,19 +113,23 @@ func (s *Store) UpdateLLMProvider(ctx context.Context, p LLMProvider, apiKey str
 	} else if clearAPIKey {
 		clear = 1
 	}
-	_, err := s.db.ExecContext(ctx, `
-		UPDATE llm_providers SET name=?, provider_key=?, kind=?, api_base_url=?, protocol=?,
+	headersJSON, err := encodeExtraHeaders(p.ExtraHeaders)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `
+		UPDATE llm_providers SET name=?, provider_key=?, kind=?, api_base_url=?, protocol=?, extra_headers=?,
 			api_key_encrypted=CASE WHEN ?=1 THEN ? WHEN ?=1 THEN NULL ELSE api_key_encrypted END,
 			enabled=?, updated_at=?
 		WHERE id=?`,
-		p.Name, p.ProviderKey, p.Kind, nullStr(p.APIBaseURL), nullStr(p.Protocol),
+		p.Name, p.ProviderKey, p.Kind, nullStr(p.APIBaseURL), nullStr(p.Protocol), nullStr(headersJSON),
 		setKey, enc, clear, b2i(p.Enabled), now, p.ID)
 	return err
 }
 
 func (s *Store) ListLLMProviders(ctx context.Context) ([]LLMProvider, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, name, provider_key, kind, api_base_url, protocol,
+		SELECT id, name, provider_key, kind, api_base_url, protocol, extra_headers,
 		       CASE WHEN api_key_encrypted IS NOT NULL AND api_key_encrypted != '' THEN 1 ELSE 0 END,
 		       enabled, created_at, updated_at
 		FROM llm_providers ORDER BY name`)
@@ -140,7 +150,7 @@ func (s *Store) ListLLMProviders(ctx context.Context) ([]LLMProvider, error) {
 
 func (s *Store) GetLLMProvider(ctx context.Context, id int64) (LLMProvider, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, name, provider_key, kind, api_base_url, protocol,
+		SELECT id, name, provider_key, kind, api_base_url, protocol, extra_headers,
 		       CASE WHEN api_key_encrypted IS NOT NULL AND api_key_encrypted != '' THEN 1 ELSE 0 END,
 		       enabled, created_at, updated_at
 		FROM llm_providers WHERE id=?`, id)
@@ -310,6 +320,31 @@ func (s *Store) assertLLMModelNotReferenced(ctx context.Context, id int64) error
 	return nil
 }
 
+func encodeExtraHeaders(h map[string]string) (string, error) {
+	if len(h) == 0 {
+		return "", nil
+	}
+	b, err := json.Marshal(h)
+	if err != nil {
+		return "", fmt.Errorf("extra_headers: %w", err)
+	}
+	return string(b), nil
+}
+
+func decodeExtraHeaders(raw sql.NullString) (map[string]string, error) {
+	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
+		return nil, nil
+	}
+	var out map[string]string
+	if err := json.Unmarshal([]byte(raw.String), &out); err != nil {
+		return nil, fmt.Errorf("extra_headers: %w", err)
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
 func normalizeLLMProvider(p *LLMProvider) {
 	p.Name = strings.TrimSpace(p.Name)
 	p.ProviderKey = strings.TrimSpace(p.ProviderKey)
@@ -355,10 +390,10 @@ func scanLLMProvider(scanner interface {
 	Scan(dest ...any) error
 }) (LLMProvider, error) {
 	var p LLMProvider
-	var base, protocol sql.NullString
+	var base, protocol, headers sql.NullString
 	var has, enabled int
 	var created, updated string
-	err := scanner.Scan(&p.ID, &p.Name, &p.ProviderKey, &p.Kind, &base, &protocol, &has, &enabled, &created, &updated)
+	err := scanner.Scan(&p.ID, &p.Name, &p.ProviderKey, &p.Kind, &base, &protocol, &headers, &has, &enabled, &created, &updated)
 	if err != nil {
 		return LLMProvider{}, err
 	}
@@ -368,6 +403,11 @@ func scanLLMProvider(scanner interface {
 	if protocol.Valid {
 		p.Protocol = protocol.String
 	}
+	extraHeaders, err := decodeExtraHeaders(headers)
+	if err != nil {
+		return LLMProvider{}, err
+	}
+	p.ExtraHeaders = extraHeaders
 	p.HasAPIKey = has == 1
 	p.Enabled = enabled == 1
 	p.CreatedAt, _ = time.Parse(time.RFC3339, created)

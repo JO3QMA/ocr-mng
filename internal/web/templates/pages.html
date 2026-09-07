@@ -245,6 +245,9 @@ rows.querySelectorAll("select").forEach(wire);updateAdd();updateSave();
 <option value="openai-responses" {{selected .Provider.Protocol "openai-responses"}}>openai-responses</option>
 </select>
 <p class="hint">{{.L.T "form.protocol_hint"}}</p>
+<label>{{.L.T "form.extra_headers"}}</label>
+<textarea name="extra_headers" rows="4" placeholder="x-opencode-session={ocr_session_key}">{{.ExtraHeadersText}}</textarea>
+<p class="hint">{{.L.T "form.extra_headers_hint"}}</p>
 <label>{{.L.T "form.api_key"}} {{.KeyHint}}</label><input name="api_key" type="password" autocomplete="new-password">
 {{if .ShowClearKey}}<label class="confirm-checkbox"><input type="checkbox" name="clear_api_key"> <span>{{.L.T "form.clear_api_key"}}</span></label>{{end}}
 {{if .UseTempModel}}

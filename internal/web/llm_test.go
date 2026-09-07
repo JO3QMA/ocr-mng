@@ -92,6 +92,34 @@ func TestParseLLMProviderFormBuiltinPreset(t *testing.T) {
 	}
 }
 
+func TestParseLLMProviderFormExtraHeaders(t *testing.T) {
+	form := url.Values{
+		"name":          {"Go"},
+		"provider_key":  {"opencode-go"},
+		"kind":          {"custom"},
+		"api_base_url":  {"https://opencode.ai/zen/go/v1/responses"},
+		"protocol":      {"openai-responses"},
+		"extra_headers": {"x-opencode-session={ocr_session_key}\n"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/llm-providers", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	p, _, err := parseLLMProviderForm(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.ExtraHeaders["x-opencode-session"] != "{ocr_session_key}" {
+		t.Fatalf("headers: %#v", p.ExtraHeaders)
+	}
+
+	form.Set("extra_headers", "bad-header")
+	req = httptest.NewRequest(http.MethodPost, "/llm-providers", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	_, _, err = parseLLMProviderForm(req)
+	if err == nil || err.Error() != "llm.form_extra_headers_invalid" {
+		t.Fatalf("expected invalid headers error, got %v", err)
+	}
+}
+
 func TestParseLLMPairField(t *testing.T) {
 	pid, mid, err := parseLLMPairField("0:0")
 	if err != nil || pid != 0 || mid != 0 {

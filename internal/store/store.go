@@ -193,6 +193,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		`ALTER TABLE pr_snapshots DROP COLUMN last_reviewed_head_sha`,
 		`ALTER TABLE pr_snapshots DROP COLUMN last_run_id`,
 		`DROP TABLE IF EXISTS llm_rotation_cursors`,
+		`ALTER TABLE llm_providers ADD COLUMN extra_headers TEXT`,
 	} {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
 			msg := strings.ToLower(err.Error())

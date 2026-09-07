@@ -18,7 +18,7 @@ func TestTestLLMSuccess(t *testing.T) {
 	if err := os.WriteFile(binary, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := ocr.BuildProviderConfig("builtin", "anthropic", "sk-secret", "", "", "claude-x", "")
+	cfg, err := ocr.BuildProviderConfig("builtin", "anthropic", "sk-secret", "", "", "claude-x", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
