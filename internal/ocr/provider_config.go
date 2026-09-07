@@ -3,33 +3,13 @@ package ocr
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
 )
-
-const ocrSessionKeyTemplate = "{ocr_session_key}"
-
-// NeedsOpenCodeGoSessionHeader reports whether apiBaseURL targets OpenCode Go,
-// which requires x-opencode-session on every LLM request.
-func NeedsOpenCodeGoSessionHeader(apiBaseURL string) bool {
-	raw := AbsoluteAPIBaseURL(apiBaseURL)
-	if raw == "" {
-		return false
-	}
-	u, err := url.Parse(raw)
-	if err != nil || u.Host == "" {
-		return false
-	}
-	if strings.ToLower(u.Hostname()) != "opencode.ai" {
-		return false
-	}
-	return strings.Contains(strings.ToLower(u.EscapedPath()), "/zen/go")
-}
 
 // BuildProviderConfig builds a minimal OCR config.json for one provider + one model.
 // kind is "builtin" (providers.*) or "custom" (custom_providers.*).
 // custom requires apiBaseURL; protocol may be omitted and is then inferred from the URL.
-func BuildProviderConfig(kind, providerKey, apiKey, apiBaseURL, protocol, model, language string) (string, error) {
+func BuildProviderConfig(kind, providerKey, apiKey, apiBaseURL, protocol, model, language string, extraHeaders map[string]string) (string, error) {
 	providerKey = strings.TrimSpace(providerKey)
 	model = strings.TrimSpace(model)
 	apiBaseURL = strings.TrimSpace(apiBaseURL)
@@ -54,10 +34,8 @@ func BuildProviderConfig(kind, providerKey, apiKey, apiBaseURL, protocol, model,
 	if protocol != "" {
 		entry["protocol"] = protocol
 	}
-	if NeedsOpenCodeGoSessionHeader(apiBaseURL) {
-		entry["extra_headers"] = map[string]string{
-			"x-opencode-session": ocrSessionKeyTemplate,
-		}
+	if len(extraHeaders) > 0 {
+		entry["extra_headers"] = extraHeaders
 	}
 	m := map[string]any{
 		"provider": providerKey,

@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS llm_providers (
     api_base_url TEXT,
     protocol TEXT,
     api_key_encrypted TEXT,
+    extra_headers TEXT,
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL

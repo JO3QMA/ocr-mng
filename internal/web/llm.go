@@ -47,6 +47,7 @@ type llmProviderFormView struct {
 	ShowClearKey           bool
 	BuiltinPreset          string
 	BuiltinPresets         []ocr.BuiltinPreset
+	ExtraHeadersText       string
 	BuiltinProviderDocsURL string
 }
 
@@ -415,7 +416,7 @@ func (s *Server) llmProviderTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	configJSON, err := ocr.BuildProviderConfig(p.Kind, p.ProviderKey, apiKey, p.APIBaseURL, p.Protocol, modelName, "")
+	configJSON, err := ocr.BuildProviderConfig(p.Kind, p.ProviderKey, apiKey, p.APIBaseURL, p.Protocol, modelName, "", p.ExtraHeaders)
 	if err != nil {
 		view.TestMsg = err.Error()
 		s.renderLLMProviderForm(w, r, view)
@@ -713,6 +714,16 @@ func (s *Server) renderLLMProviderForm(w http.ResponseWriter, r *http.Request, v
 	}
 	v.BuiltinPresets = ocr.BuiltinPresets()
 	v.BuiltinProviderDocsURL = ocr.BuiltinProviderDocsURL(pge.Lang)
+	if r.Method == http.MethodPost {
+		if err := r.ParseForm(); err == nil {
+			if _, ok := r.Form["extra_headers"]; ok {
+				v.ExtraHeadersText = r.FormValue("extra_headers")
+			}
+		}
+	}
+	if v.ExtraHeadersText == "" {
+		v.ExtraHeadersText = ocr.FormatExtraHeadersLines(v.Provider.ExtraHeaders)
+	}
 	render(w, "llm_provider_form", v)
 }
 
@@ -777,6 +788,9 @@ func mergeDiscoverProvider(stored, form store.LLMProvider) store.LLMProvider {
 	if strings.TrimSpace(form.Protocol) == "" {
 		form.Protocol = stored.Protocol
 	}
+	if len(form.ExtraHeaders) == 0 {
+		form.ExtraHeaders = stored.ExtraHeaders
+	}
 	return form
 }
 
@@ -830,6 +844,11 @@ func parseLLMProviderFields(r *http.Request) (store.LLMProvider, string, error) 
 			p.Name = label
 		}
 	}
+	headers, err := ocr.ParseExtraHeadersLines(r.FormValue("extra_headers"))
+	if err != nil {
+		return p, "", fmt.Errorf("llm.form_extra_headers_invalid")
+	}
+	p.ExtraHeaders = headers
 	return p, strings.TrimSpace(r.FormValue("api_key")), nil
 }
 

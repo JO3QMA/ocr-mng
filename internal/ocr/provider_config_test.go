@@ -8,7 +8,7 @@ import (
 )
 
 func TestBuildProviderConfig_builtin(t *testing.T) {
-	out, err := ocr.BuildProviderConfig("builtin", "anthropic", "sk-secret", "", "", "claude-sonnet-4-6", "Japanese")
+	out, err := ocr.BuildProviderConfig("builtin", "anthropic", "sk-secret", "", "", "claude-sonnet-4-6", "Japanese", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,13 +30,16 @@ func TestBuildProviderConfig_builtin(t *testing.T) {
 	if entry["api_key"] != "sk-secret" || entry["model"] != "claude-sonnet-4-6" {
 		t.Fatalf("entry: %+v", entry)
 	}
+	if _, has := entry["extra_headers"]; has {
+		t.Fatal("unexpected extra_headers")
+	}
 	if _, has := m["custom_providers"]; has {
 		t.Fatal("unexpected custom_providers")
 	}
 }
 
 func TestBuildProviderConfig_custom(t *testing.T) {
-	out, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "https://example/v1", "openai", "gpt-x", "English")
+	out, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "https://example/v1", "openai", "gpt-x", "English", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,29 +57,11 @@ func TestBuildProviderConfig_custom(t *testing.T) {
 	}
 }
 
-func TestNeedsOpenCodeGoSessionHeader(t *testing.T) {
-	cases := []struct {
-		url  string
-		want bool
-	}{
-		{"https://opencode.ai/zen/go/v1/responses", true},
-		{"https://opencode.ai/zen/go/v1/chat/completions", true},
-		{"opencode.ai/zen/go/v1/responses", true},
-		{"https://opencode.ai/zen/v1/chat/completions", false},
-		{"https://api.openai.com/v1", false},
-		{"", false},
-	}
-	for _, tc := range cases {
-		if got := ocr.NeedsOpenCodeGoSessionHeader(tc.url); got != tc.want {
-			t.Fatalf("%q: got %v want %v", tc.url, got, tc.want)
-		}
-	}
-}
-
-func TestBuildProviderConfig_openCodeGoAddsSessionHeader(t *testing.T) {
+func TestBuildProviderConfig_extraHeaders(t *testing.T) {
 	out, err := ocr.BuildProviderConfig(
 		"custom", "opencode-go", "sk-go", "https://opencode.ai/zen/go/v1/responses",
 		"openai-responses", "muse-spark-1.3-contributor", "",
+		map[string]string{"x-opencode-session": "{ocr_session_key}"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -96,10 +81,10 @@ func TestBuildProviderConfig_openCodeGoAddsSessionHeader(t *testing.T) {
 }
 
 func TestBuildProviderConfig_customRequiresURLAndProtocol(t *testing.T) {
-	if _, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "", "openai", "gpt-x", ""); err == nil {
+	if _, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "", "openai", "gpt-x", "", nil); err == nil {
 		t.Fatal("expected url required")
 	}
-	out, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "https://example/v1", "", "gpt-x", "")
+	out, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "https://example/v1", "", "gpt-x", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +96,7 @@ func TestBuildProviderConfig_customRequiresURLAndProtocol(t *testing.T) {
 	if entry["protocol"] != "openai" {
 		t.Fatalf("expected inferred openai: %+v", entry)
 	}
-	if _, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "https://example/v1", "bogus", "gpt-x", ""); err == nil {
+	if _, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "https://example/v1", "bogus", "gpt-x", "", nil); err == nil {
 		t.Fatal("expected invalid protocol")
 	}
 }
