@@ -54,6 +54,47 @@ func TestBuildProviderConfig_custom(t *testing.T) {
 	}
 }
 
+func TestNeedsOpenCodeGoSessionHeader(t *testing.T) {
+	cases := []struct {
+		url  string
+		want bool
+	}{
+		{"https://opencode.ai/zen/go/v1/responses", true},
+		{"https://opencode.ai/zen/go/v1/chat/completions", true},
+		{"opencode.ai/zen/go/v1/responses", true},
+		{"https://opencode.ai/zen/v1/chat/completions", false},
+		{"https://api.openai.com/v1", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := ocr.NeedsOpenCodeGoSessionHeader(tc.url); got != tc.want {
+			t.Fatalf("%q: got %v want %v", tc.url, got, tc.want)
+		}
+	}
+}
+
+func TestBuildProviderConfig_openCodeGoAddsSessionHeader(t *testing.T) {
+	out, err := ocr.BuildProviderConfig(
+		"custom", "opencode-go", "sk-go", "https://opencode.ai/zen/go/v1/responses",
+		"openai-responses", "muse-spark-1.3-contributor", "",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
+		t.Fatal(err)
+	}
+	entry := m["custom_providers"].(map[string]any)["opencode-go"].(map[string]any)
+	headers, ok := entry["extra_headers"].(map[string]any)
+	if !ok {
+		t.Fatalf("extra_headers: %T %+v", entry["extra_headers"], entry)
+	}
+	if headers["x-opencode-session"] != "{ocr_session_key}" {
+		t.Fatalf("headers: %+v", headers)
+	}
+}
+
 func TestBuildProviderConfig_customRequiresURLAndProtocol(t *testing.T) {
 	if _, err := ocr.BuildProviderConfig("custom", "my-gw", "tok", "", "openai", "gpt-x", ""); err == nil {
 		t.Fatal("expected url required")
