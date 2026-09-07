@@ -59,6 +59,7 @@ var en = map[string]string{
 	"table.repo":     "Repo",
 	"table.pr":       "PR",
 	"table.status":   "Status",
+	"table.llm":      "LLM",
 	"table.trigger":  "Trigger",
 	"table.accepted": "Accepted",
 	"table.started":  "Started",
