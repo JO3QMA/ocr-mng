@@ -117,12 +117,30 @@ var tpl=root.querySelector(".llm-rotation-row-tpl"),noAdd=root.querySelector(".l
 var minHint=root.querySelector(".llm-rotation-min");
 var requireMin=root.dataset.requireMin==="true",maxOpts=parseInt(root.dataset.optionCount||"0",10);
 var form=root.closest("form"),saveBtn=form?form.querySelector("[data-llm-gated-save]"):null;
+var masterOpts=[],clearLabel="";
+tpl.content.querySelectorAll("option").forEach(function(o){
+if(o.value==="0:0")clearLabel=o.textContent;else masterOpts.push({v:o.value,t:o.textContent});
+});
 function selected(){var v=[];rows.querySelectorAll("select").forEach(function(s){if(s.value&&s.value!=="0:0")v.push(s.value)});return v;}
+function refreshOptions(){
+var selects=rows.querySelectorAll("select");
+selects.forEach(function(sel){
+var cur=sel.value,usedElse={};
+selects.forEach(function(other){if(other!==sel&&other.value&&other.value!=="0:0")usedElse[other.value]=true;});
+sel.innerHTML="";
+var clear=document.createElement("option");clear.value="0:0";clear.textContent=clearLabel;sel.appendChild(clear);
+masterOpts.forEach(function(opt){
+if(usedElse[opt.v]&&opt.v!==cur)return;
+var o=document.createElement("option");o.value=opt.v;o.textContent=opt.t;if(opt.v===cur)o.selected=true;sel.appendChild(o);
+});
+});
+}
 function updateAdd(){if(!addBtn||!noAdd||!maxOpts)return;var used=selected().length;if(used>=maxOpts){addBtn.classList.add("hidden");noAdd.classList.remove("hidden");}else{addBtn.classList.remove("hidden");noAdd.classList.add("hidden");}}
 function updateSave(){if(!requireMin||!saveBtn)return;var c=selected().length;saveBtn.disabled=c===0;if(minHint)minHint.classList.toggle("hidden",c>0);}
-function wire(sel){sel.addEventListener("change",function(){if(sel.value==="0:0")sel.remove();updateAdd();updateSave();});}
-if(addBtn)addBtn.addEventListener("click",function(){var s=tpl.content.firstElementChild.cloneNode(true);wire(s);rows.appendChild(s);updateAdd();updateSave();});
-rows.querySelectorAll("select").forEach(wire);updateAdd();updateSave();
+function sync(){refreshOptions();updateAdd();updateSave();}
+function wire(sel){sel.addEventListener("change",function(){if(sel.value==="0:0")sel.remove();sync();});}
+if(addBtn)addBtn.addEventListener("click",function(){var s=tpl.content.firstElementChild.cloneNode(true);wire(s);rows.appendChild(s);sync();});
+rows.querySelectorAll("select").forEach(wire);sync();
 });});
 </script>
 {{end}}
