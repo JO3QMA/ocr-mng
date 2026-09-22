@@ -289,6 +289,13 @@ func (s *Store) DeleteLLMProviderModel(ctx context.Context, id int64) error {
 		return err
 	}
 	if n == 0 {
+		stored, err := s.GetLLMProviderModel(ctx, id)
+		if err != nil {
+			return err
+		}
+		if stored.Source != ModelSourceManual {
+			return fmt.Errorf("llm model %d is api-sourced and cannot be deleted manually", id)
+		}
 		return sql.ErrNoRows
 	}
 	return nil

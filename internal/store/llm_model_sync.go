@@ -43,16 +43,7 @@ func remoteNameIndex(remote []string) map[string]string {
 // Manual rows matching a remote name are promoted to api without changing enabled/is_new.
 // Api rows missing from remote are deleted and removed from rotation sets.
 func (s *Store) SyncLLMProviderModels(ctx context.Context, providerID int64, remote []string) (LLMModelSyncResult, error) {
-	models, err := s.ListLLMProviderModels(ctx, providerID)
-	if err != nil {
-		return LLMModelSyncResult{}, err
-	}
 	remoteByNorm := remoteNameIndex(remote)
-
-	byNorm := map[string]LLMProviderModel{}
-	for _, m := range models {
-		byNorm[normalizeModelName(m.ModelName)] = m
-	}
 
 	var result LLMModelSyncResult
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -63,6 +54,16 @@ func (s *Store) SyncLLMProviderModels(ctx context.Context, providerID int64, rem
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	models, err := listAllLLMProviderModelsTx(ctx, tx, providerID)
+	if err != nil {
+		return LLMModelSyncResult{}, err
+	}
+
+	byNorm := map[string]LLMProviderModel{}
+	for _, m := range models {
+		byNorm[normalizeModelName(m.ModelName)] = m
+	}
+
 	for _, m := range models {
 		if m.Source != ModelSourceManual {
 			continue
@@ -72,28 +73,38 @@ func (s *Store) SyncLLMProviderModels(ctx context.Context, providerID int64, rem
 		if !ok {
 			continue
 		}
-		var dupCount int
+		var apiDup int
 		if err := tx.QueryRowContext(ctx, `
 			SELECT COUNT(*) FROM llm_provider_models
-			WHERE provider_id=? AND id!=? AND lower(trim(model_name))=?`,
-			providerID, m.ID, norm).Scan(&dupCount); err != nil {
+			WHERE provider_id=? AND id!=? AND source=? AND lower(trim(model_name))=?`,
+			providerID, m.ID, ModelSourceAPI, norm).Scan(&apiDup); err != nil {
 			return LLMModelSyncResult{}, err
 		}
-		if dupCount > 0 {
+		if apiDup > 0 {
+			continue
+		}
+		var manualDup int
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM llm_provider_models
+			WHERE provider_id=? AND id!=? AND source=? AND lower(trim(model_name))=?`,
+			providerID, m.ID, ModelSourceManual, norm).Scan(&manualDup); err != nil {
+			return LLMModelSyncResult{}, err
+		}
+		if manualDup > 0 {
 			return LLMModelSyncResult{}, fmt.Errorf("duplicate manual model name conflicts with remote %q", canonical)
 		}
 		if canonical != m.ModelName {
-			if _, err := tx.ExecContext(ctx, `
+			if err := execUpdateRows(ctx, tx, `
 				UPDATE llm_provider_models SET model_name=?, source=?, updated_at=?
-				WHERE id=? AND provider_id=?`,
-				canonical, ModelSourceAPI, now, m.ID, providerID); err != nil {
+				WHERE id=? AND provider_id=? AND source=?`,
+				canonical, ModelSourceAPI, now, m.ID, providerID, ModelSourceManual); err != nil {
 				return LLMModelSyncResult{}, err
 			}
 			m.ModelName = canonical
-		} else if _, err := tx.ExecContext(ctx, `
+		} else if err := execUpdateRows(ctx, tx, `
 			UPDATE llm_provider_models SET source=?, updated_at=?
-			WHERE id=? AND provider_id=?`,
-			ModelSourceAPI, now, m.ID, providerID); err != nil {
+			WHERE id=? AND provider_id=? AND source=?`,
+			ModelSourceAPI, now, m.ID, providerID, ModelSourceManual); err != nil {
 			return LLMModelSyncResult{}, err
 		}
 		m.Source = ModelSourceAPI
@@ -217,6 +228,41 @@ func filterLLMPairsByModel(pairs []LLMPair, modelID int64) []LLMPair {
 		out = append(out, p)
 	}
 	return out
+}
+
+func execUpdateRows(ctx context.Context, tx *sql.Tx, query string, args ...any) error {
+	res, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func listAllLLMProviderModelsTx(ctx context.Context, tx *sql.Tx, providerID int64) ([]LLMProviderModel, error) {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, provider_id, model_name, enabled, sort_order, source, is_new, created_at, updated_at
+		FROM llm_provider_models WHERE provider_id=?
+		ORDER BY sort_order, model_name`, providerID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []LLMProviderModel
+	for rows.Next() {
+		m, err := scanLLMProviderModel(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
 }
 
 func listLLMProviderModelsTx(ctx context.Context, tx *sql.Tx, providerID int64, source string) ([]LLMProviderModel, error) {
