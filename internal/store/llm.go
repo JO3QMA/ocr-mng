@@ -29,6 +29,8 @@ type LLMProviderModel struct {
 	ID         int64
 	ProviderID int64
 	ModelName  string
+	Source     string // api | manual
+	IsNew      bool
 	Enabled    bool
 	SortOrder  int
 	CreatedAt  time.Time
@@ -194,11 +196,15 @@ func (s *Store) CreateLLMProviderModel(ctx context.Context, m LLMProviderModel) 
 	if _, err := s.GetLLMProvider(ctx, m.ProviderID); err != nil {
 		return 0, fmt.Errorf("llm provider: %w", err)
 	}
+	if strings.TrimSpace(m.Source) != "" && m.Source != ModelSourceManual {
+		return 0, fmt.Errorf("invalid source for manual create")
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
+	source := ModelSourceManual
 	res, err := s.db.ExecContext(ctx, `
-		INSERT INTO llm_provider_models(provider_id, model_name, enabled, sort_order, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		m.ProviderID, m.ModelName, b2i(m.Enabled), m.SortOrder, now, now)
+		INSERT INTO llm_provider_models(provider_id, model_name, enabled, sort_order, source, is_new, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.ProviderID, m.ModelName, b2i(m.Enabled), m.SortOrder, source, 0, now, now)
 	if err != nil {
 		return 0, err
 	}
@@ -209,11 +215,20 @@ func (s *Store) UpdateLLMProviderModel(ctx context.Context, m LLMProviderModel) 
 	if err := validateLLMProviderModel(m); err != nil {
 		return err
 	}
+	stored, err := s.GetLLMProviderModel(ctx, m.ID)
+	if err != nil {
+		return err
+	}
+	if stored.ProviderID != m.ProviderID {
+		return sql.ErrNoRows
+	}
+	m.Source = stored.Source
 	now := time.Now().UTC().Format(time.RFC3339)
+	source := m.Source
 	res, err := s.db.ExecContext(ctx, `
-		UPDATE llm_provider_models SET model_name=?, enabled=?, sort_order=?, updated_at=?
+		UPDATE llm_provider_models SET model_name=?, enabled=?, sort_order=?, source=?, is_new=?, updated_at=?
 		WHERE id=? AND provider_id=?`,
-		m.ModelName, b2i(m.Enabled), m.SortOrder, now, m.ID, m.ProviderID)
+		m.ModelName, b2i(m.Enabled), m.SortOrder, source, b2i(m.IsNew), now, m.ID, m.ProviderID)
 	if err != nil {
 		return err
 	}
@@ -229,7 +244,7 @@ func (s *Store) UpdateLLMProviderModel(ctx context.Context, m LLMProviderModel) 
 
 func (s *Store) ListLLMProviderModels(ctx context.Context, providerID int64) ([]LLMProviderModel, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, provider_id, model_name, enabled, sort_order, created_at, updated_at
+		SELECT id, provider_id, model_name, enabled, sort_order, source, is_new, created_at, updated_at
 		FROM llm_provider_models WHERE provider_id=?
 		ORDER BY sort_order, model_name`, providerID)
 	if err != nil {
@@ -249,16 +264,23 @@ func (s *Store) ListLLMProviderModels(ctx context.Context, providerID int64) ([]
 
 func (s *Store) GetLLMProviderModel(ctx context.Context, id int64) (LLMProviderModel, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, provider_id, model_name, enabled, sort_order, created_at, updated_at
+		SELECT id, provider_id, model_name, enabled, sort_order, source, is_new, created_at, updated_at
 		FROM llm_provider_models WHERE id=?`, id)
 	return scanLLMProviderModel(row)
 }
 
 func (s *Store) DeleteLLMProviderModel(ctx context.Context, id int64) error {
+	m, err := s.GetLLMProviderModel(ctx, id)
+	if err != nil {
+		return err
+	}
+	if m.Source != ModelSourceManual {
+		return fmt.Errorf("llm model %d is api-sourced and cannot be deleted manually", id)
+	}
 	if err := s.assertLLMModelNotReferenced(ctx, id); err != nil {
 		return err
 	}
-	res, err := s.db.ExecContext(ctx, `DELETE FROM llm_provider_models WHERE id=?`, id)
+	res, err := s.db.ExecContext(ctx, `DELETE FROM llm_provider_models WHERE id=? AND source=?`, id, ModelSourceManual)
 	if err != nil {
 		return err
 	}
@@ -267,6 +289,13 @@ func (s *Store) DeleteLLMProviderModel(ctx context.Context, id int64) error {
 		return err
 	}
 	if n == 0 {
+		stored, err := s.GetLLMProviderModel(ctx, id)
+		if err != nil {
+			return err
+		}
+		if stored.Source != ModelSourceManual {
+			return fmt.Errorf("llm model %d is api-sourced and cannot be deleted manually", id)
+		}
 		return sql.ErrNoRows
 	}
 	return nil
@@ -383,6 +412,13 @@ func validateLLMProviderModel(m LLMProviderModel) error {
 	if m.ProviderID == 0 || strings.TrimSpace(m.ModelName) == "" {
 		return fmt.Errorf("provider_id and model_name are required")
 	}
+	source := strings.TrimSpace(m.Source)
+	if source == "" {
+		return nil
+	}
+	if source != ModelSourceAPI && source != ModelSourceManual {
+		return fmt.Errorf("invalid source %q", source)
+	}
 	return nil
 }
 
@@ -419,13 +455,19 @@ func scanLLMProviderModel(scanner interface {
 	Scan(dest ...any) error
 }) (LLMProviderModel, error) {
 	var m LLMProviderModel
-	var enabled int
+	var enabled, isNew int
+	var source string
 	var created, updated string
-	err := scanner.Scan(&m.ID, &m.ProviderID, &m.ModelName, &enabled, &m.SortOrder, &created, &updated)
+	err := scanner.Scan(&m.ID, &m.ProviderID, &m.ModelName, &enabled, &m.SortOrder, &source, &isNew, &created, &updated)
 	if err != nil {
 		return LLMProviderModel{}, err
 	}
 	m.Enabled = enabled == 1
+	m.IsNew = isNew == 1
+	m.Source = strings.TrimSpace(source)
+	if m.Source == "" {
+		m.Source = ModelSourceManual
+	}
 	m.CreatedAt, _ = time.Parse(time.RFC3339, created)
 	m.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
 	return m, nil
