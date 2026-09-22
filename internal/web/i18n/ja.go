@@ -59,6 +59,7 @@ var ja = map[string]string{
 	"table.repo":     "リポジトリ",
 	"table.pr":       "PR",
 	"table.status":   "状態",
+	"table.llm":      "LLM",
 	"table.trigger":  "トリガー",
 	"table.accepted": "受付日時",
 	"table.started":  "開始日時",

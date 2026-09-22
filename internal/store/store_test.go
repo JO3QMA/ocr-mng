@@ -262,6 +262,23 @@ func TestListReviewRunsIncludesRepoOwnerName(t *testing.T) {
 	}
 }
 
+func TestReviewRun_LLMDisplay(t *testing.T) {
+	tests := []struct {
+		run  store.ReviewRun
+		want string
+	}{
+		{store.ReviewRun{}, ""},
+		{store.ReviewRun{LLMProviderName: "Anthropic"}, "Anthropic"},
+		{store.ReviewRun{LLMModelName: "claude-x"}, "claude-x"},
+		{store.ReviewRun{LLMProviderName: "Anthropic", LLMModelName: "claude-x"}, "Anthropic / claude-x"},
+	}
+	for _, tc := range tests {
+		if got := tc.run.LLMDisplay(); got != tc.want {
+			t.Fatalf("%+v: %q", tc.run, got)
+		}
+	}
+}
+
 func mustTestRepo(t *testing.T, st *store.Store, ctx context.Context) int64 {
 	t.Helper()
 	return mustTestRepoName(t, st, ctx, "app")
