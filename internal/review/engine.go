@@ -304,7 +304,17 @@ func (e *Engine) runReview(run store.ReviewRun) {
 		return
 	}
 
-	err = e.executeReview(ctx, repo, client, pat, gs, pr, baseRef, &run)
+	reviewLang := EffectiveReviewLanguage(gs, repo.ReviewLanguage)
+	sel, err := ResolveLLMSelection(ctx, e.store, gs, repo, reviewLang)
+	if err != nil {
+		e.finishFailed(ctx, run, repo, pr, fmt.Errorf("llm: %w", err))
+		return
+	}
+	run.LLMProviderName = sel.ProviderName
+	run.LLMModelName = sel.ModelName
+	_ = e.store.UpdateReviewRun(ctx, run)
+
+	err = e.executeReview(ctx, repo, client, pat, gs, pr, baseRef, &run, sel)
 	finished := time.Now()
 	run.FinishedAt = &finished
 	if err != nil {
@@ -374,7 +384,7 @@ func (e *Engine) fetchPR(ctx context.Context, repoID int64, prNumber int) (store
 	return repo, client, pat, pr, baseRef, nil
 }
 
-func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client *githost.Client, pat string, gs store.GlobalSettings, pr githost.PullRequest, baseRef string, run *store.ReviewRun) error {
+func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client *githost.Client, pat string, gs store.GlobalSettings, pr githost.PullRequest, baseRef string, run *store.ReviewRun, sel LLMSelection) error {
 	mirrorsRoot := filepath.Join(e.cfg.DataDir, "mirrors")
 	worktreesRoot := filepath.Join(e.cfg.DataDir, "worktrees")
 	cloneURL := client.CloneURL(repo.Owner, repo.Name, pat)
@@ -386,12 +396,6 @@ func (e *Engine) executeReview(ctx context.Context, repo store.RepoView, client 
 
 	fromRef := gitwork.FromRef(baseRef)
 	reviewLang := EffectiveReviewLanguage(gs, repo.ReviewLanguage)
-	sel, err := ResolveLLMSelection(ctx, e.store, gs, repo, reviewLang)
-	if err != nil {
-		return fmt.Errorf("llm: %w", err)
-	}
-	run.LLMProviderName = sel.ProviderName
-	run.LLMModelName = sel.ModelName
 
 	homeDir := OCRHomeDir(e.cfg.DataDir, run.ID)
 	defer func() {
@@ -557,7 +561,7 @@ func buildLedgerSelection(ctx context.Context, st *store.Store, providerID, mode
 	if apiKey == "" {
 		return LLMSelection{}, fmt.Errorf("llm provider %q has no api key", p.Name)
 	}
-	configJSON, err := ocr.BuildProviderConfig(p.Kind, p.ProviderKey, apiKey, p.APIBaseURL, p.Protocol, m.ModelName, language)
+	configJSON, err := ocr.BuildProviderConfig(p.Kind, p.ProviderKey, apiKey, p.APIBaseURL, p.Protocol, m.ModelName, language, p.ExtraHeaders)
 	if err != nil {
 		return LLMSelection{}, err
 	}

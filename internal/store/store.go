@@ -97,6 +97,17 @@ func (r ReviewRun) RepoDisplay() string {
 	return strconv.FormatInt(r.RepoID, 10)
 }
 
+// LLMDisplay is the provider/model snapshot for UI, or empty when unset.
+func (r ReviewRun) LLMDisplay() string {
+	if r.LLMProviderName == "" && r.LLMModelName == "" {
+		return ""
+	}
+	if r.LLMProviderName != "" && r.LLMModelName != "" {
+		return r.LLMProviderName + " / " + r.LLMModelName
+	}
+	return r.LLMProviderName + r.LLMModelName
+}
+
 type GlobalSettings struct {
 	PollIntervalSeconds    int       `json:"poll_interval_seconds"`
 	MinPollIntervalSeconds int       `json:"min_poll_interval_seconds"`
@@ -195,6 +206,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		`DROP TABLE IF EXISTS llm_rotation_cursors`,
 		`ALTER TABLE llm_provider_models ADD COLUMN source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('api', 'manual'))`,
 		`ALTER TABLE llm_provider_models ADD COLUMN is_new INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE llm_providers ADD COLUMN extra_headers TEXT`,
 	} {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
 			msg := strings.ToLower(err.Error())

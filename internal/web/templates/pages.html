@@ -139,11 +139,12 @@ rows.querySelectorAll("select").forEach(wire);updateAdd();updateSave();
 <div class="card">
 <h2>{{.L.T "dashboard.recent_runs"}}</h2>
 {{if not .Runs}}<p>{{.L.T "dashboard.no_runs"}}</p>{{else}}
-<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.started"}}</th></tr></thead>
+<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.llm"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.started"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
 <td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
 <td>{{.RepoDisplay}}</td><td>#{{.PRNumber}}</td>
 <td><span class="badge {{.Status}}">{{.Status}}</span></td>
+<td>{{.LLMDisplay}}</td>
 <td>{{.TriggerKind}}</td><td>{{formatTime .StartedAt}}</td>
 </tr>{{end}}</tbody></table>
 {{end}}
@@ -245,6 +246,9 @@ rows.querySelectorAll("select").forEach(wire);updateAdd();updateSave();
 <option value="openai-responses" {{selected .Provider.Protocol "openai-responses"}}>openai-responses</option>
 </select>
 <p class="hint">{{.L.T "form.protocol_hint"}}</p>
+<label>{{.L.T "form.extra_headers"}}</label>
+<textarea name="extra_headers" rows="4" placeholder="x-opencode-session={ocr_session_key}">{{.ExtraHeadersText}}</textarea>
+<p class="hint">{{.L.T "form.extra_headers_hint"}}</p>
 <label>{{.L.T "form.api_key"}} {{.KeyHint}}</label><input name="api_key" type="password" autocomplete="new-password">
 {{if .ShowClearKey}}<label class="confirm-checkbox"><input type="checkbox" name="clear_api_key"> <span>{{.L.T "form.clear_api_key"}}</span></label>{{end}}
 {{if .UseTempModel}}
@@ -401,10 +405,11 @@ none.addEventListener("click",function(e){e.preventDefault();boxes().forEach(fun
 <button type="submit" class="btn accent">{{.L.T "btn.run"}}</button>
 </div>
 </form>
-<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.head"}}</th><th>{{.L.T "table.started"}}</th></tr></thead>
+<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.llm"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.head"}}</th><th>{{.L.T "table.started"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
 <td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
 <td>#{{.PRNumber}}</td><td><span class="badge {{.Status}}">{{.Status}}</span></td>
+<td>{{.LLMDisplay}}</td>
 <td>{{.TriggerKind}}</td><td><code>{{shortSHA .HeadSHA}}</code></td><td>{{formatTime .StartedAt}}</td>
 </tr>{{end}}</tbody></table>
 </div>
@@ -415,11 +420,12 @@ none.addEventListener("click",function(e){e.preventDefault();boxes().forEach(fun
 {{template "head" .}}
 <div class="card">
 <h1>{{.L.T "page.runs"}}</h1>
-<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.started"}}</th></tr></thead>
+<table><thead><tr><th>{{.L.T "table.id"}}</th><th>{{.L.T "table.repo"}}</th><th>{{.L.T "table.pr"}}</th><th>{{.L.T "table.status"}}</th><th>{{.L.T "table.llm"}}</th><th>{{.L.T "table.trigger"}}</th><th>{{.L.T "table.started"}}</th></tr></thead>
 <tbody>{{range .Runs}}<tr>
 <td><a href="/runs/{{.ID}}">{{.ID}}</a></td>
 <td>{{.RepoDisplay}}</td><td>#{{.PRNumber}}</td>
 <td><span class="badge {{.Status}}">{{.Status}}</span></td>
+<td>{{.LLMDisplay}}</td>
 <td>{{.TriggerKind}}</td><td>{{formatTime .StartedAt}}</td>
 </tr>{{end}}</tbody></table>
 </div>
@@ -428,11 +434,12 @@ none.addEventListener("click",function(e){e.preventDefault();boxes().forEach(fun
 
 {{define "run_detail"}}
 {{template "head" .}}
+{{if eq .Run.Status "running"}}<script>setTimeout(function(){location.reload()},5000)</script>{{end}}
 <div class="card">
 <h1>Review Run #{{.Run.ID}}</h1>
 <p>{{.L.T "run_detail.repo"}}: {{.Run.RepoDisplay}} · PR #{{.Run.PRNumber}} · {{.L.T "table.status"}}: <span class="badge {{.Run.Status}}">{{.Run.Status}}</span></p>
 <p>{{.L.T "table.accepted"}}: {{formatTime .Run.CreatedAt}} · {{.L.T "table.started"}}: {{formatTime .Run.StartedAt}} · {{.L.T "table.finished"}}: {{formatTime .Run.FinishedAt}}</p>
-{{if or .Run.LLMProviderName .Run.LLMModelName}}<p>{{.L.T "run_detail.llm"}}: {{.Run.LLMProviderName}} / {{.Run.LLMModelName}}</p>{{end}}
+{{if .Run.LLMDisplay}}<p>{{.L.T "run_detail.llm"}}: {{.Run.LLMDisplay}}</p>{{end}}
 {{if .Run.ErrorMessage}}<div class="flash error">{{.Run.ErrorMessage}}</div>{{end}}
 {{if eq .Run.Status "failed"}}
 <form method="post" action="/repos/{{.Run.RepoID}}/review">

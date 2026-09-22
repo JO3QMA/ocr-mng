@@ -9,7 +9,7 @@ import (
 // BuildProviderConfig builds a minimal OCR config.json for one provider + one model.
 // kind is "builtin" (providers.*) or "custom" (custom_providers.*).
 // custom requires apiBaseURL; protocol may be omitted and is then inferred from the URL.
-func BuildProviderConfig(kind, providerKey, apiKey, apiBaseURL, protocol, model, language string) (string, error) {
+func BuildProviderConfig(kind, providerKey, apiKey, apiBaseURL, protocol, model, language string, extraHeaders map[string]string) (string, error) {
 	providerKey = strings.TrimSpace(providerKey)
 	model = strings.TrimSpace(model)
 	apiBaseURL = strings.TrimSpace(apiBaseURL)
@@ -33,6 +33,9 @@ func BuildProviderConfig(kind, providerKey, apiKey, apiBaseURL, protocol, model,
 	}
 	if protocol != "" {
 		entry["protocol"] = protocol
+	}
+	if len(extraHeaders) > 0 {
+		entry["extra_headers"] = extraHeaders
 	}
 	m := map[string]any{
 		"provider": providerKey,
