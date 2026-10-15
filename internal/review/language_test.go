@@ -41,6 +41,14 @@ func TestZeroFindingApprovalEnabled(t *testing.T) {
 	}) {
 		t.Fatal("expected enabled when only comment_refiled warnings exist")
 	}
+	if !review.ZeroFindingApprovalEnabled(repo, ocr.Result{
+		Warnings: ocr.Warnings{{
+			Type:    ocr.WarningTypeCommentArgsRepaired,
+			Message: "comments arrived as a serialized string; repaired",
+		}},
+	}) {
+		t.Fatal("expected enabled when only comment_args_repaired warnings exist")
+	}
 	if review.ZeroFindingApprovalEnabled(repo, ocr.Result{Status: "completed_with_errors"}) {
 		t.Fatal("expected disabled for completed_with_errors status")
 	}

@@ -298,6 +298,23 @@ func TestHasReviewWarningsIgnoresCommentRefiled(t *testing.T) {
 	}
 }
 
+func TestHasReviewWarningsIgnoresCommentArgsRepaired(t *testing.T) {
+	var result ocr.Result
+	raw := `{
+		"status":"complete",
+		"comments":[{"path":"a.go","content":"fix","start_line":1}],
+		"warnings":[
+			{"type":"comment_args_repaired","message":"comments arrived as a serialized string instead of an array; repaired 5 unescaped character(s)"}
+		]
+	}`
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.HasReviewWarnings() {
+		t.Fatal("comment_args_repaired alone should not fail the run")
+	}
+}
+
 func TestHasReviewWarningsMixedCommentRefiledAndActionable(t *testing.T) {
 	var result ocr.Result
 	raw := `{

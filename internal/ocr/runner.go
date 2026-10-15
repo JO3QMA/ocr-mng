@@ -38,6 +38,10 @@ func (s Summary) Present() bool {
 // was auto-corrected to the file that actually contains the cited code.
 const WarningTypeCommentRefiled = "comment_refiled"
 
+// WarningTypeCommentArgsRepaired is OCR's informational warning when review
+// comments arrived as a serialized string and were repaired before posting.
+const WarningTypeCommentArgsRepaired = "comment_args_repaired"
+
 // Warning is one OCR review warning (string legacy or object with file/message/type).
 type Warning struct {
 	File    string `json:"file"`
@@ -46,9 +50,14 @@ type Warning struct {
 }
 
 // IsActionable reports whether this warning should fail the Review Run.
-// comment_refiled is informational: OCR already moved the comment to the right file.
+// comment_refiled and comment_args_repaired are informational: OCR already fixed output.
 func (w Warning) IsActionable() bool {
-	return strings.TrimSpace(w.Type) != WarningTypeCommentRefiled
+	switch strings.TrimSpace(w.Type) {
+	case WarningTypeCommentRefiled, WarningTypeCommentArgsRepaired:
+		return false
+	default:
+		return true
+	}
 }
 
 // Actionable returns warnings that should fail the Review Run.
